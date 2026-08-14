@@ -475,7 +475,8 @@ func _on_request_completed(result: int, response_code: int, headers: PackedStrin
 	var content = message.get("content", "")
 	var tool_calls = message.get("tool_calls", [])
 	
-	_conversation_history.append(message)
+	# Only store role+content to avoid DeepSeek V3.2 tool_call format issues
+	_conversation_history.append({"role": "assistant", "content": content})
 	
 	if content != "":
 		_add_log("[color=#88ccff]LLM says:[/color] %s" % content.substr(0, 100))
@@ -529,9 +530,8 @@ func _on_request_completed(result: int, response_code: int, headers: PackedStrin
 			_update_state_from_tool(tool_name, args, result_dict)
 			
 			_conversation_history.append({
-				"role": "tool",
-				"tool_call_id": tc.get("id", ""),
-				"content": JSON.stringify(result_dict)
+				"role": "user",
+				"content": "Tool result for %s: %s" % [tool_name, JSON.stringify(result_dict)]
 			})
 		
 		_trim_conversation()
