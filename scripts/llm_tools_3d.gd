@@ -7,6 +7,7 @@ signal tool_executed(tool_name: String, result: Dictionary)
 var _tools: Dictionary = {}
 var _world_root: Node = null
 var _agent: Node3D = null
+var _tts_voice: String = ""
 
 func _safe_color(color_str: String) -> Color:
 	var c = Color.from_string(color_str, Color.WHITE)
@@ -16,6 +17,7 @@ func setup(world_root: Node, agent: Node3D) -> void:
 	_world_root = world_root
 	_agent = agent
 	_register_default_tools()
+	_pick_female_voice()
 
 func get_tool_definitions() -> Array:
 	var defs: Array = []
@@ -563,7 +565,27 @@ func _tool_say(args: Dictionary) -> Dictionary:
 	if _agent and is_instance_valid(_agent):
 		_show_speech_bubble(_agent, message)
 	
+	# Speak via TTS
+	if message.strip_edges() != "" and _tts_voice != "":
+		DisplayServer.tts_speak(message, _tts_voice, 50, 1.0, 0.0, false)
+	
 	return {"ok": true, "message": message}
+
+func _pick_female_voice() -> void:
+	var voices = DisplayServer.tts_get_voices()
+	if voices.is_empty():
+		print("[LLMTools] No TTS voices available")
+		return
+	# Try to find a female voice by name
+	for v in voices:
+		var lower = v.to_lower()
+		if "female" in lower or "samantha" in lower or "victoria" in lower or "karen" in lower or "fiona" in lower or "tessa" in lower or "moira" in lower or "zira" in lower:
+			_tts_voice = v
+			print("[LLMTools] Selected female voice: %s" % v)
+			return
+	# Fallback: just use the first voice
+	_tts_voice = voices[0]
+	print("[LLMTools] Using fallback voice: %s" % _tts_voice)
 
 func _show_speech_bubble(agent: Node3D, text: String) -> void:
 	# Remove any existing bubble
