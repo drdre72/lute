@@ -499,14 +499,35 @@ func _parse_text_tool_calls(content: String) -> Array:
 	var results: Array = []
 	
 	# Pattern 0: MCP-style {"action": "tool_name", "parameters": {...}}
-	var json_regex = RegEx.new()
-	json_regex.compile("\\{[^{}]*\"action\"[^{}]*\\}")
-	for match in json_regex.search_all(content):
-		var json_str = match.get_string(0)
+	# Use bracket matching to extract full JSON objects containing "action"
+	var search_pos = 0
+	while true:
+		var brace_pos = content.find("{", search_pos)
+		if brace_pos < 0:
+			break
+		# Find matching closing brace
+		var depth = 0
+		var end_pos = -1
+		for i in range(brace_pos, content.length()):
+			var ch = content[i]
+			if ch == "{":
+				depth += 1
+			elif ch == "}":
+				depth -= 1
+				if depth == 0:
+					end_pos = i
+					break
+		if end_pos < 0:
+			break
+		var json_str = content.substr(brace_pos, end_pos - brace_pos + 1)
+		search_pos = end_pos + 1
+		# Try to parse as JSON
 		var parsed = JSON.parse_string(json_str)
-		if parsed and parsed.has("action"):
+		if parsed and parsed is Dictionary and parsed.has("action"):
 			var tool_name = parsed["action"]
 			var args = parsed.get("parameters", {})
+			if args == null:
+				args = {}
 			results.append({
 				"id": "text_call_%d" % results.size(),
 				"function": {"name": tool_name, "arguments": JSON.stringify(args)}
