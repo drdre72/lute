@@ -1,40 +1,40 @@
-Build a dense, high-quality 0.25km world (250m x 250m). Use scatter_models for efficiency. Apply PBR materials after spawning. Build in this order.
+Build a dense, high-quality 0.25km world (250m x 250m) with Terrain3D. Use scatter_on_terrain for efficiency - objects follow terrain height. Apply PBR materials after spawning. Build in this order.
 
-PHASE 1 - TERRAIN:
-- create_terrain x=0 z=0 size=250 resolution=64 height=5 color=darkgreen
-- add_note: "Phase 1 terrain done"
+PHASE 1 - TERRAIN3D:
+- create_terra_terrain size=256 height=15 texture_set=grass noise_scale=0.005
+- add_note: "Phase 1 Terrain3D created with heightmap and PBR textures"
 
 PHASE 2 - WATER:
 - spawn_water x=80 z=60 size=40 color=deepblue
 - spawn_water x=-60 z=-40 size=25 color=deepskyblue
 - add_note: "Phase 2 water done"
 
-PHASE 3 - FORESTS (use scatter_models for density):
-- scatter_models model_path=res://models/nature/FBX/CommonTree_1.fbx center_x=50 center_z=50 radius=80 count=40 min_scale=1.0 max_scale=2.5
-- scatter_models model_path=res://models/nature/FBX/CommonTree_2.fbx center_x=-50 center_z=30 radius=70 count=30 min_scale=0.8 max_scale=2.0
-- scatter_models model_path=res://models/nature/FBX/CommonTree_3.fbx center_x=30 center_z=-60 radius=60 count=25 min_scale=1.0 max_scale=2.2
-- scatter_models model_path=res://models/nature/FBX/Pine_1.fbx center_x=-70 center_z=-50 radius=65 count=30 min_scale=0.8 max_scale=1.8
-- scatter_models model_path=res://models/nature/FBX/Pine_2.fbx center_x=80 center_z=-30 radius=55 count=20 min_scale=0.8 max_scale=1.6
-- scatter_models model_path=res://models/nature/FBX/TwistedTree_1.fbx center_x=-30 center_z=70 radius=50 count=15 min_scale=1.0 max_scale=2.0
-- scatter_models model_path=res://models/nature/FBX/DeadTree_1.fbx center_x=60 center_z=80 radius=40 count=8 min_scale=1.0 max_scale=1.8
-- add_note: "Phase 3 forests done - 168 trees scattered"
+PHASE 3 - FORESTS (use scatter_on_terrain - follows terrain height!):
+- scatter_on_terrain model_path=res://models/nature/FBX/CommonTree_1.fbx center_x=50 center_z=50 radius=80 count=40 min_scale=1.0 max_scale=2.5
+- scatter_on_terrain model_path=res://models/nature/FBX/CommonTree_2.fbx center_x=-50 center_z=30 radius=70 count=30 min_scale=0.8 max_scale=2.0
+- scatter_on_terrain model_path=res://models/nature/FBX/CommonTree_3.fbx center_x=30 center_z=-60 radius=60 count=25 min_scale=1.0 max_scale=2.2
+- scatter_on_terrain model_path=res://models/nature/FBX/Pine_1.fbx center_x=-70 center_z=-50 radius=65 count=30 min_scale=0.8 max_scale=1.8
+- scatter_on_terrain model_path=res://models/nature/FBX/Pine_2.fbx center_x=80 center_z=-30 radius=55 count=20 min_scale=0.8 max_scale=1.6
+- scatter_on_terrain model_path=res://models/nature/FBX/TwistedTree_1.fbx center_x=-30 center_z=70 radius=50 count=15 min_scale=1.0 max_scale=2.0
+- scatter_on_terrain model_path=res://models/nature/FBX/DeadTree_1.fbx center_x=60 center_z=80 radius=40 count=8 min_scale=1.0 max_scale=1.8
+- add_note: "Phase 3 forests done - 168 trees scattered on terrain"
 
 PHASE 4 - ROCKS:
-- scatter_models model_path=res://models/nature/FBX/Rock_Medium_1.fbx center_x=70 center_z=-50 radius=50 count=15 min_scale=0.5 max_scale=2.0
-- scatter_models model_path=res://models/nature/FBX/Rock_Medium_2.fbx center_x=-60 center_z=40 radius=45 count=12 min_scale=0.5 max_scale=1.8
-- scatter_models model_path=res://models/nature/FBX/Rock_Medium_3.fbx center_x=20 center_z=80 radius=40 count=10 min_scale=0.5 max_scale=1.5
-- scatter_models model_path=res://models/nature/FBX/Pebble_Round_1.fbx center_x=0 center_z=0 radius=100 count=25 min_scale=0.2 max_scale=0.6
-- scatter_models model_path=res://models/nature/FBX/Pebble_Round_2.fbx center_x=0 center_z=0 radius=100 count=25 min_scale=0.2 max_scale=0.6
-- add_note: "Phase 4 rocks done - 87 rocks scattered"
+- scatter_on_terrain model_path=res://models/nature/FBX/Rock_Medium_1.fbx center_x=70 center_z=-50 radius=50 count=15 min_scale=0.5 max_scale=2.0
+- scatter_on_terrain model_path=res://models/nature/FBX/Rock_Medium_2.fbx center_x=-60 center_z=40 radius=45 count=12 min_scale=0.5 max_scale=1.8
+- scatter_on_terrain model_path=res://models/nature/FBX/Rock_Medium_3.fbx center_x=20 center_z=80 radius=40 count=10 min_scale=0.5 max_scale=1.5
+- scatter_on_terrain model_path=res://models/nature/FBX/Pebble_Round_1.fbx center_x=0 center_z=0 radius=100 count=25 min_scale=0.2 max_scale=0.6
+- scatter_on_terrain model_path=res://models/nature/FBX/Pebble_Round_2.fbx center_x=0 center_z=0 radius=100 count=25 min_scale=0.2 max_scale=0.6
+- add_note: "Phase 4 rocks done - 87 rocks scattered on terrain"
 
 PHASE 5 - DECORATIONS (ground cover):
-- scatter_models model_path=res://models/nature/FBX/Bush_Common.fbx center_x=0 center_z=0 radius=100 count=30 min_scale=0.5 max_scale=1.2
-- scatter_models model_path=res://models/nature/FBX/Fern_1.fbx center_x=0 center_z=0 radius=100 count=25 min_scale=0.4 max_scale=0.8
-- scatter_models model_path=res://models/nature/FBX/Grass_Common_Tall.fbx center_x=0 center_z=0 radius=110 count=50 min_scale=0.3 max_scale=0.7
-- scatter_models model_path=res://models/nature/FBX/Grass_Common_Short.fbx center_x=0 center_z=0 radius=110 count=40 min_scale=0.3 max_scale=0.6
-- scatter_models model_path=res://models/nature/FBX/Flower_4_Group.fbx center_x=0 center_z=0 radius=90 count=20 min_scale=0.4 max_scale=0.8
-- scatter_models model_path=res://models/nature/FBX/Mushroom_Laetiporus.fbx center_x=-40 center_z=40 radius=50 count=10 min_scale=0.3 max_scale=0.6
-- add_note: "Phase 5 decorations done - 175 ground cover objects"
+- scatter_on_terrain model_path=res://models/nature/FBX/Bush_Common.fbx center_x=0 center_z=0 radius=100 count=30 min_scale=0.5 max_scale=1.2
+- scatter_on_terrain model_path=res://models/nature/FBX/Fern_1.fbx center_x=0 center_z=0 radius=100 count=25 min_scale=0.4 max_scale=0.8
+- scatter_on_terrain model_path=res://models/nature/FBX/Grass_Common_Tall.fbx center_x=0 center_z=0 radius=110 count=50 min_scale=0.3 max_scale=0.7
+- scatter_on_terrain model_path=res://models/nature/FBX/Grass_Common_Short.fbx center_x=0 center_z=0 radius=110 count=40 min_scale=0.3 max_scale=0.6
+- scatter_on_terrain model_path=res://models/nature/FBX/Flower_4_Group.fbx center_x=0 center_z=0 radius=90 count=20 min_scale=0.4 max_scale=0.8
+- scatter_on_terrain model_path=res://models/nature/FBX/Mushroom_Laetiporus.fbx center_x=-40 center_z=40 radius=50 count=10 min_scale=0.3 max_scale=0.6
+- add_note: "Phase 5 decorations done - 175 ground cover objects on terrain"
 
 PHASE 6 - BUILDINGS:
 - spawn_model model_path=res://models/industrial/Models/GLB format/building-a.glb x=90 z=-70 scale=1.5
@@ -68,7 +68,7 @@ PHASE 8 - APPLY PBR MATERIALS (improve visual quality):
 - add_note: "Phase 8 PBR materials applied"
 
 PHASE 9 - FINALIZE:
-- add_note: "Dense 0.25km world COMPLETE. 168 trees, 87 rocks, 175 decorations, 7 buildings, 4 lights. PBR materials applied."
-- say: "Dense high-quality 0.25km world complete with PBR textures!"
+- add_note: "Dense 0.25km Terrain3D world COMPLETE. 168 trees, 87 rocks, 175 decorations, 7 buildings, 4 lights. PBR materials applied. All objects follow terrain height."
+- say: "Dense high-quality 0.25km Terrain3D world complete with PBR textures and heightmap terrain!"
 
-RULES: Use scatter_models for all trees, rocks, and decorations. Use spawn_model only for buildings. Keep all positions between -125 and 125. After spawning everything, call apply_material to improve textures. Do not skip phases. After each phase call add_note.
+RULES: Use create_terra_terrain for terrain (NOT create_terrain). Use scatter_on_terrain for all trees, rocks, and decorations (follows terrain height). Use spawn_model only for buildings. Keep all positions between -125 and 125. After spawning everything, call apply_material to improve textures. Do not skip phases. After each phase call add_note.

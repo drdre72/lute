@@ -558,6 +558,41 @@ func _register_default_tools() -> void:
 	)
 
 	register_tool(
+		"create_terra_terrain",
+		"Create a Terrain3D heightmap terrain with PBR textures. Generates rolling hills with noise. Much better than create_terrain - has proper height variation, texture painting, and LOD. Uses your PBR texture sets for ground textures.",
+		{
+			"type": "object",
+			"properties": {
+				"size": {"type": "number", "description": "Terrain size in meters (default 256)"},
+				"height": {"type": "number", "description": "Max height of terrain hills (default 15)"},
+				"texture_set": {"type": "string", "description": "PBR texture set for ground: 'grass', 'rock', 'ground_dirt', 'ground_gravel' (default 'grass')"},
+				"noise_scale": {"type": "number", "description": "Noise frequency - lower = smoother hills, higher = more jagged (default 0.005)"}
+			},
+			"required": []
+		},
+		Callable(self, "_tool_create_terra_terrain")
+	)
+
+	register_tool(
+		"scatter_on_terrain",
+		"Scatter models on Terrain3D, automatically following terrain height. Objects will be placed at the correct Y position on the terrain surface. Use this instead of scatter_models when a Terrain3D terrain exists.",
+		{
+			"type": "object",
+			"properties": {
+				"model_path": {"type": "string", "description": "Full path to the model file"},
+				"center_x": {"type": "number", "description": "Center X position"},
+				"center_z": {"type": "number", "description": "Center Z position"},
+				"radius": {"type": "number", "description": "Radius of scatter area (1-100)"},
+				"count": {"type": "number", "description": "Number of copies (1-100)"},
+				"min_scale": {"type": "number", "description": "Min scale (default 0.8)"},
+				"max_scale": {"type": "number", "description": "Max scale (default 2.0)"}
+			},
+			"required": ["model_path", "center_x", "center_z", "radius", "count"]
+		},
+		Callable(self, "_tool_scatter_on_terrain")
+	)
+
+	register_tool(
 		"load_build_plan",
 		"Load build instructions from a file. Returns the full text of the build plan for you to follow.",
 		{
@@ -994,6 +1029,144 @@ func _apply_pbr_to_node(node: Node, color_tex, normal_tex, rough_tex, ao_tex) ->
 		node.material_override = mat
 	for child in node.get_children():
 		_apply_pbr_to_node(child, color_tex, normal_tex, rough_tex, ao_tex)
+
+var _terrain3d: Node = null
+
+func _tool_create_terra_terrain(args: Dictionary) -> Dictionary:
+	if _world_root == null:
+		return {"error": "No world root"}
+	var size = float(args.get("size", 256))
+	var height = float(args.get("height", 15))
+	var texture_set: String = args.get("texture_set", "grass")
+	var noise_scale = float(args.get("noise_scale", 0.005))
+
+	if not PBR_PATHS.has(texture_set):
+		return {"error": "Unknown texture set '%s'. Available: %s" % [texture_set, ", ".join(PBR_PATHS.keys())]}
+
+	# Remove existing terrain if any
+	if _terrain3d and is_instance_valid(_terrain3d):
+		_terrain3d.queue_free()
+		_terrain3d = null
+
+	# Create Terrain3D
+	var terrain = Terrain3D.new()
+	terrain.name = "Terrain3D"
+	_world_root.add_child(terrain, true)
+
+	# Configure material
+	terrain.material.world_background = Terrain3DMaterial.NONE
+	terrain.material.auto_shader = true
+	terrain.material.set_shader_param("auto_slope", 10)
+	terrain.material.set_shader_param("blend_sharpness", 0.975)
+
+	# Create assets
+	terrain.assets = Terrain3DAssets.new()
+
+	# Load PBR textures for ground
+	var base_path: String = PBR_PATHS[texture_set]
+	var color_tex = load(base_path + "_Color.jpg")
+	var normal_tex = load(base_path + "_NormalGL.jpg")
+	var rough_tex = load(base_path + "_Roughness.jpg")
+
+	# Create texture asset from PBR textures
+	var ta := Terrain3DTextureAsset.new()
+	ta.name = texture_set.capitalize()
+	if color_tex:
+		ta.albedo_texture = color_tex
+	if normal_tex:
+		ta.normal_texture = normal_tex
+	ta.uv_scale = 0.1
+	ta.detiling_rotation = 0.1
+	terrain.assets.set_texture(0, ta)
+
+	# Add a second texture set for variety (rock on slopes)
+	if texture_set != "rock":
+		var rock_path: String = PBR_PATHS["rock"]
+		var rock_color = load(rock_path + "_Color.jpg")
+		var rock_normal = load(rock_path + "_NormalGL.jpg")
+		var rock_ta := Terrain3DTextureAsset.new()
+		rock_ta.name = "Rock"
+		if rock_color:
+			rock_ta.albedo_texture = rock_color
+		if rock_normal:
+			rock_ta.normal_texture = rock_normal
+		rock_ta.uv_scale = 0.05
+		terrain.assets.set_texture(1, rock_ta)
+
+	# Generate heightmap with noise
+	var noise := FastNoiseLite.new()
+	noise.frequency = noise_scale
+	var img_size = int(min(size * 4, 2048))
+	var img: Image = Image.create_empty(img_size, img_size, false, Image.FORMAT_RF)
+	for x in img_size:
+		for y in img_size:
+			img.set_pixel(x, y, Color(noise.get_noise_2d(x, y), 0., 0., 1.))
+
+	terrain.region_size = int(size)
+	var offset = Vector3(-size / 2.0, 0, -size / 2.0)
+	terrain.data.import_images([img, null, null], offset, 0.0, height)
+
+	_terrain3d = terrain
+	print("[LLMTools] Created Terrain3D: size=%.0f height=%.0f texture=%s" % [size, height, texture_set])
+	return {"ok": true, "size": size, "height": height, "texture_set": texture_set, "type": "Terrain3D"}
+
+func _tool_scatter_on_terrain(args: Dictionary) -> Dictionary:
+	if _world_root == null:
+		return {"error": "No world root"}
+	if _terrain3d == null or not is_instance_valid(_terrain3d):
+		return {"error": "No Terrain3D exists. Call create_terra_terrain first."}
+	var model_path: String = args.get("model_path", "")
+	if model_path == "":
+		return {"error": "No model_path specified"}
+	var cx = float(args.get("center_x", 0))
+	var cz = float(args.get("center_z", 0))
+	var radius = float(args.get("radius", 50))
+	var count = int(args.get("count", 10))
+	var min_s = float(args.get("min_scale", 0.8))
+	var max_s = float(args.get("max_scale", 2.0))
+	count = clamp(count, 1, 100)
+
+	if abs(cx) > 125 or abs(cz) > 125:
+		return {"error": "Center out of bounds. Keep between -125 and 125"}
+	if radius <= 0 or radius > 100:
+		return {"error": "Invalid radius %.1f. Use 1 to 100" % radius}
+	if min_s <= 0 or max_s > 20 or min_s > max_s:
+		return {"error": "Invalid scale range. Use 0.1-10.0, min <= max"}
+
+	if not ResourceLoader.exists(model_path):
+		return {"error": "Model not found: %s" % model_path}
+
+	var res = load(model_path)
+	if res == null or not (res is PackedScene):
+		return {"error": "Failed to load model: %s" % model_path}
+
+	var node_name = model_path.get_file().get_basename()
+	var terrain: Terrain3D = _terrain3d
+	var spawned = 0
+	for i in range(count):
+		var angle = randf() * TAU
+		var dist = randf() * radius
+		var px = cx + cos(angle) * dist
+		var pz = cz + sin(angle) * dist
+		var s = randf_range(min_s, max_s)
+		var rot = randf() * 360.0
+
+		# Get terrain height at this position
+		var py = 0.0
+		if terrain and terrain.data:
+			py = terrain.data.get_height(Vector3(px, 0, pz))
+
+		var instance = res.instantiate()
+		instance.name = "%s_%d_%d" % [node_name, int(px), int(pz)]
+		instance.position = Vector3(px, py, pz)
+		instance.scale = Vector3(s, s, s)
+		instance.rotation_degrees.y = rot
+		_world_root.add_child(instance)
+		instance.owner = _world_root
+		spawned += 1
+
+	print("[LLMTools] Scattered %d x %s on terrain around (%.1f, %.1f) radius=%.1f" % [spawned, node_name, cx, cz, radius])
+	return {"ok": true, "model": node_name, "spawned": spawned, "center": {"x": cx, "z": cz}, "radius": radius, "on_terrain": true}
 
 func _pick_female_voice() -> void:
 	var voices = DisplayServer.tts_get_voices()
