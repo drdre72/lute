@@ -18,7 +18,7 @@ signal tool_call_executed(tool_name: String, result: Dictionary)
 
 @export_category("Agent Behavior")
 @export var auto_act: bool = false
-@export var act_interval: float = 12.0
+@export var act_interval: float = 15.0
 @export var context_radius: float = 300.0
 @export var move_speed: float = 5.0
 
@@ -458,6 +458,17 @@ func _on_request_completed(result: int, response_code: int, headers: PackedStrin
 		var err_text = body.get_string_from_utf8()
 		_add_log("[color=red]HTTP error: %d[/color]" % response_code)
 		print("[LLMAgent3D] HTTP %d response body: %s" % [response_code, err_text.substr(0, 500)])
+		# Retry on 429 rate limit with backoff
+		if response_code == 429 and auto_act:
+			_add_log("[color=#ffaa44]Rate limited. Waiting 10s before retry...[/color]")
+			_is_requesting = true
+			await get_tree().create_timer(10.0).timeout
+			_is_requesting = false
+			# Re-send the last user message
+			if _conversation_history.size() > 0 and _conversation_history[-1]["role"] == "user":
+				var last_prompt = _conversation_history[-1]["content"]
+				_conversation_history.pop_back()
+				think_and_act(last_prompt if not last_prompt.begins_with("ADMIN") else "")
 		return
 	
 	var response_text = body.get_string_from_utf8()
