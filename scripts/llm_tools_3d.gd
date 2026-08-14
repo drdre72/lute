@@ -523,6 +523,28 @@ func _register_default_tools() -> void:
 		Callable(self, "_tool_load_build_plan")
 	)
 
+	register_tool(
+		"load_state",
+		"Load your saved state from disk. Returns current plan, phase, progress, and notes. Call this if you forget what you were doing.",
+		{
+			"type": "object",
+			"properties": {},
+			"required": []
+		},
+		Callable(self, "_tool_load_state")
+	)
+
+	register_tool(
+		"save_state",
+		"Save your current state to disk. State is auto-saved after each action, but you can call this manually too.",
+		{
+			"type": "object",
+			"properties": {},
+			"required": []
+		},
+		Callable(self, "_tool_save_state")
+	)
+
 # --- Tool Handlers ---
 
 func _tool_move_self(args: Dictionary) -> Dictionary:
@@ -723,6 +745,39 @@ func _tool_read_notes(args: Dictionary) -> Dictionary:
 	for i in range(_notes.size()):
 		print("[LLMTools]   Note %d: %s" % [i + 1, _notes[i]])
 	return {"ok": true, "notes": _notes.duplicate()}
+
+func get_notes() -> Array:
+	return _notes.duplicate()
+
+func _tool_load_state(args: Dictionary) -> Dictionary:
+	if _agent == null:
+		return {"error": "No agent"}
+	if not _agent.has_method("_load_state"):
+		return {"error": "Agent does not support state loading"}
+	var loaded = _agent._load_state()
+	if not loaded:
+		return {"ok": true, "message": "No saved state found. Fresh start."}
+	var summary = _agent._get_state_summary()
+	print("[LLMTools] State loaded by agent request")
+	return {
+		"ok": true,
+		"summary": summary,
+		"current_plan": _agent._state_current_plan,
+		"current_phase": _agent._state_current_phase,
+		"phases_completed": _agent._state_phases_done,
+		"phases_remaining": _agent._state_phases_remaining,
+		"total_actions": _agent._state_total_actions,
+		"last_action": _agent._state_last_action,
+		"notes": _agent._state_notes
+	}
+
+func _tool_save_state(args: Dictionary) -> Dictionary:
+	if _agent == null:
+		return {"error": "No agent"}
+	if not _agent.has_method("_save_state"):
+		return {"error": "Agent does not support state saving"}
+	_agent._save_state()
+	return {"ok": true, "message": "State saved to disk"}
 
 func _tool_load_build_plan(args: Dictionary) -> Dictionary:
 	var filename: String = args.get("filename", "")

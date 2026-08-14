@@ -53,6 +53,7 @@ const SCREENSHOT_INTERVAL: float = 30.0
 const AUTOSAVE_INTERVAL: int = 5
 const AUTOSAVE_TIME: float = 420.0
 const WORLD_SAVE_PATH: String = "user://generated_world.tscn"
+const STATE_FILE: String = "user://agent_state.json"
 var _admin_input: LineEdit
 var _admin_message: String = ""
 var _has_admin_message: bool = false
@@ -60,6 +61,16 @@ var _admin_server: TCPServer
 var _camera: Camera3D
 var _cam_offset: Vector3 = Vector3(0, 8, 12)
 var _cam_pos: Vector3 = Vector3.ZERO
+
+# Agent persistent state
+var _state_current_plan: String = ""
+var _state_current_phase: int = 0
+var _state_phases_done: Array = []
+var _state_phases_remaining: Array = []
+var _state_total_actions: int = 0
+var _state_last_action: String = ""
+var _state_notes: Array = []
+var _state_has_saved: bool = false
 
 func _ready() -> void:
 	# Load API key from gitignored file if not set in scene
@@ -72,7 +83,7 @@ func _ready() -> void:
 	
 	# Set default world-builder prompt if not overridden in scene
 	if system_prompt == "":
-		system_prompt = "You are a world-builder agent in a 3D game. You MUST respond with ONE JSON tool call per turn. No text, only JSON.\n\nFORMAT: {\"action\": \"tool_name\", \"parameters\": {\"key\": \"value\"}}\n\nAVAILABLE TOOLS:\n- create_terrain: parameters: x, z, size, resolution, height, color\n- spawn_water: parameters: x, z, size, color\n- spawn_tree: parameters: x, z, scale\n- spawn_portal: parameters: x, z, color\n- spawn_wall: parameters: x1, z1, x2, z2, color, height\n- spawn_light: parameters: x, z, energy, range, color\n- spawn_box: parameters: x, z, w, h, d, color\n- spawn_sphere: parameters: x, z, r, color\n- spawn_cylinder: parameters: x, z, r, h, color\n- spawn_stairs: parameters: x, z, steps, width, height, color\n- spawn_arch: parameters: x, z, width, height, color\n- move_self: parameters: x, z\n- teleport: parameters: x, z\n- say: parameters: message\n- delete_node: parameters: path\n- scale_object: parameters: name, scale\n- rotate_object: parameters: name, rotation\n- recolor_object: parameters: name, color\n- duplicate_object: parameters: name, x, z\n- save_world: parameters: (none)\n- inventory_add: parameters: item, quantity\n- inventory_remove: parameters: item, quantity\n- inventory_list: parameters: (none)\n- add_note: parameters: note\n- read_notes: parameters: (none)\n- load_build_plan: parameters: filename (load build instructions from a file)\n- spawn_model: parameters: model_path, x, z, y, scale, rotation (spawn real 3D asset models. Models at res://models/nature/FBX/ and res://models/industrial/Models/GLB format/)\n\nON STARTUP: Call say with a greeting message introducing yourself. Then wait for admin instructions. Do NOT build anything until the admin tells you to.\n\nWHEN ADMIN SENDS INSTRUCTIONS: Follow them immediately. If asked to load a build plan, call load_build_plan with the filename. If you forget the plan details, call load_build_plan again to reload it. Call read_notes to see your progress. If asked to build something, use the appropriate tools. If asked to use real 3D models, use spawn_model instead of spawn_tree/spawn_box.\n\nAVAILABLE 3D ASSETS (use with spawn_model):\nNature trees: res://models/nature/FBX/CommonTree_1.fbx through CommonTree_5.fbx, TwistedTree_1-5.fbx, Pine_1-5.fbx, DeadTree_1-3.fbx\nNature rocks: res://models/nature/FBX/Rock_Medium_1-3.fbx, Pebble_Round_1-2.fbx\nNature props: res://models/nature/FBX/Bush_Common.fbx, Fern_1.fbx, Grass_Common_Tall.fbx, Grass_Common_Short.fbx, Flower_4_Group.fbx, Mushroom_Laetiporus.fbx\nMedieval: res://models/medieval/FBX/Prop_Crate.fbx, Prop_WoodenFence_Single.fbx, Stairs_Exterior_Sides.fbx\nIndustrial: res://models/industrial/Models/GLB format/building-a.glb through building-e.glb, chimney-small/medium/large.glb, detail-tank.glb\n\nRULES: Output ONLY JSON. One tool per turn. Use add_note to track progress. Use read_notes to recall past work. NEVER repeat the same action more than twice in a row. Do NOT call read_notes or inventory_list more than once per conversation."
+		system_prompt = "You are a world-builder agent in a 3D game. You MUST respond with ONE JSON tool call per turn. No text, only JSON.\n\nFORMAT: {\"action\": \"tool_name\", \"parameters\": {\"key\": \"value\"}}\n\nAVAILABLE TOOLS:\n- create_terrain: parameters: x, z, size, resolution, height, color\n- spawn_water: parameters: x, z, size, color\n- spawn_tree: parameters: x, z, scale\n- spawn_portal: parameters: x, z, color\n- spawn_wall: parameters: x1, z1, x2, z2, color, height\n- spawn_light: parameters: x, z, energy, range, color\n- spawn_box: parameters: x, z, w, h, d, color\n- spawn_sphere: parameters: x, z, r, color\n- spawn_cylinder: parameters: x, z, r, h, color\n- spawn_stairs: parameters: x, z, steps, width, height, color\n- spawn_arch: parameters: x, z, width, height, color\n- move_self: parameters: x, z\n- teleport: parameters: x, z\n- say: parameters: message\n- delete_node: parameters: path\n- scale_object: parameters: name, scale\n- rotate_object: parameters: name, rotation\n- recolor_object: parameters: name, color\n- duplicate_object: parameters: name, x, z\n- save_world: parameters: (none)\n- inventory_add: parameters: item, quantity\n- inventory_remove: parameters: item, quantity\n- inventory_list: parameters: (none)\n- add_note: parameters: note\n- read_notes: parameters: (none)\n- load_build_plan: parameters: filename (load build instructions from a file)\n- load_state: parameters: (none) - load your saved progress from disk. Call this if you forget what phase you're on.\n- save_state: parameters: (none) - manually save your progress to disk\n- spawn_model: parameters: model_path, x, z, y, scale, rotation (spawn real 3D asset models. Models at res://models/nature/FBX/ and res://models/industrial/Models/GLB format/)\n\nON STARTUP: If you have saved state (shown in STATE line), call load_state to see your progress and continue where you left off. If no saved state, call say with a greeting message introducing yourself. Then wait for admin instructions. Do NOT build anything until the admin tells you to.\n\nWHEN ADMIN SENDS INSTRUCTIONS: Follow them immediately. If asked to load a build plan, call load_build_plan with the filename. If you forget the plan details, call load_build_plan again to reload it. Call read_notes to see your progress. If asked to build something, use the appropriate tools. If asked to use real 3D models, use spawn_model instead of spawn_tree/spawn_box.\n\nAVAILABLE 3D ASSETS (use with spawn_model):\nNature trees: res://models/nature/FBX/CommonTree_1.fbx through CommonTree_5.fbx, TwistedTree_1-5.fbx, Pine_1-5.fbx, DeadTree_1-3.fbx\nNature rocks: res://models/nature/FBX/Rock_Medium_1-3.fbx, Pebble_Round_1-2.fbx\nNature props: res://models/nature/FBX/Bush_Common.fbx, Fern_1.fbx, Grass_Common_Tall.fbx, Grass_Common_Short.fbx, Flower_4_Group.fbx, Mushroom_Laetiporus.fbx\nMedieval: res://models/medieval/FBX/Prop_Crate.fbx, Prop_WoodenFence_Single.fbx, Stairs_Exterior_Sides.fbx\nIndustrial: res://models/industrial/Models/GLB format/building-a.glb through building-e.glb, chimney-small/medium/large.glb, detail-tank.glb\n\nRULES: Output ONLY JSON. One tool per turn. Use add_note to track progress. Use read_notes to recall past work. NEVER repeat the same action more than twice in a row. Do NOT call read_notes or inventory_list more than once per conversation."
 	# Load and instantiate the 3D body model
 	_body = null
 	if ResourceLoader.exists(body_model_path):
@@ -196,6 +207,13 @@ func _ready() -> void:
 	get_tree().create_timer(1.0).timeout.connect(_admin_input.grab_focus)
 	
 	_conversation_history = [{"role": "system", "content": system_prompt}]
+	
+	# Load saved state from disk if it exists
+	if _load_state():
+		_add_log("[color=#44ff44]Saved state found. Phase %d, %d actions. Call load_state to resume.[/color]" % [_state_current_phase, _state_total_actions])
+		print("[LLMAgent3D] Resumed from saved state: phase %d, %d actions" % [_state_current_phase, _state_total_actions])
+	else:
+		print("[LLMAgent3D] No saved state found. Fresh start.")
 	
 	print("[LLMAgent3D] Ready. Model: %s" % model_name)
 	_add_log("[b]Agent ready.[/b] Model: %s" % model_name)
@@ -377,11 +395,12 @@ func think_and_act(user_message: String = "") -> void:
 		return
 	
 	var context = _build_context()
+	var state_summary = _get_state_summary()
 	var prompt: String
 	if user_message != "":
-		prompt = "ADMIN INSTRUCTION: " + user_message + "\n\nFollow this instruction immediately. If asked to load a build plan, call load_build_plan. If asked to build something, use the appropriate tools. Current world context:\n" + context
+		prompt = state_summary + "ADMIN INSTRUCTION: " + user_message + "\n\nFollow this instruction immediately. If asked to load a build plan, call load_build_plan. If you forget the plan details, call load_build_plan again to reload it. Call read_notes to see your progress. If asked to build something, use the appropriate tools. If asked to use real 3D models, use spawn_model instead of spawn_tree/spawn_box. Current world context:\n" + context
 	else:
-		prompt = "Observe the world and take an action. World context:\n" + context
+		prompt = state_summary + "Continue working. If you have a build plan loaded, continue with the next phase. If you forget your progress, call load_state. Observe the world and take an action. World context:\n" + context
 	
 	_conversation_history.append({"role": "user", "content": prompt})
 	
@@ -503,6 +522,9 @@ func _on_request_completed(result: int, response_code: int, headers: PackedStrin
 				result_str = result_str.substr(0, 80) + "..."
 			_add_log("  -> %s" % result_str)
 			tool_call_executed.emit(tool_name, result_dict)
+			
+			# Update persistent state after each tool call
+			_update_state_from_tool(tool_name, args, result_dict)
 			
 			_conversation_history.append({
 				"role": "tool",
@@ -672,6 +694,91 @@ func _trim_conversation() -> void:
 		var system = _conversation_history[0]
 		var recent = _conversation_history.slice(-18)
 		_conversation_history = [system] + recent
+
+func _load_state() -> bool:
+	var f = FileAccess.open(STATE_FILE, FileAccess.READ)
+	if f == null:
+		return false
+	var text = f.get_as_text()
+	f.close()
+	var json = JSON.parse_string(text)
+	if json == null:
+		return false
+	_state_current_plan = json.get("current_plan", "")
+	_state_current_phase = int(json.get("current_phase", 0))
+	_state_phases_done = json.get("phases_completed", [])
+	_state_phases_remaining = json.get("phases_remaining", [])
+	_state_total_actions = int(json.get("total_actions", 0))
+	_state_last_action = json.get("last_action", "")
+	_state_notes = json.get("notes", [])
+	_state_has_saved = true
+	print("[LLMAgent3D] State loaded: phase %d, %d actions, %d notes" % [_state_current_phase, _state_total_actions, _state_notes.size()])
+	return true
+
+func _save_state() -> void:
+	var state = {
+		"current_plan": _state_current_plan,
+		"current_phase": _state_current_phase,
+		"phases_completed": _state_phases_done,
+		"phases_remaining": _state_phases_remaining,
+		"total_actions": _state_total_actions,
+		"last_action": _state_last_action,
+		"notes": _state_notes
+	}
+	var f = FileAccess.open(STATE_FILE, FileAccess.WRITE)
+	if f == null:
+		push_warning("Cannot save state to %s" % STATE_FILE)
+		return
+	f.store_string(JSON.stringify(state))
+	f.close()
+	_state_has_saved = true
+
+func _get_state_summary() -> String:
+	if not _state_has_saved:
+		return ""
+	var summary = "STATE: "
+	if _state_current_plan != "":
+		summary += "Plan: %s. " % _state_current_plan.get_file()
+	if _state_current_phase > 0:
+		summary += "Phase %d. " % _state_current_phase
+	if not _state_phases_done.is_empty():
+		summary += "Phases done: %s. " % str(_state_phases_done)
+	if not _state_phases_remaining.is_empty():
+		summary += "Phases remaining: %s. " % str(_state_phases_remaining)
+	summary += "Actions: %d. Last: %s." % [_state_total_actions, _state_last_action]
+	return summary + "\n"
+
+func _update_state_from_tool(tool_name: String, args: Dictionary, result: Dictionary) -> void:
+	_state_total_actions += 1
+	_state_last_action = "%s(%s)" % [tool_name, str(args).substr(0, 60)]
+	# Track notes
+	if tool_name == "add_note":
+		var note_text = args.get("note", "")
+		_state_notes.append(note_text)
+		# Auto-detect phase completion from note text
+		var phase_match = RegEx.create_from_string("Phase (\\d+)").search(note_text)
+		if phase_match:
+			var phase_num = int(phase_match.get_capture(1))
+			if not _state_phases_done.has(phase_num):
+				_state_phases_done.append(phase_num)
+				_state_phases_remaining.erase(phase_num)
+				_state_current_phase = phase_num + 1
+				print("[LLMAgent3D] Auto-tracked phase %d complete" % phase_num)
+	# Track plan loading
+	if tool_name == "load_build_plan":
+		_state_current_plan = args.get("filename", "")
+		if _state_current_plan != "" and not _state_current_plan.begins_with("res://"):
+			_state_current_plan = "res://instruct/" + _state_current_plan
+			if not _state_current_plan.ends_with(".txt"):
+				_state_current_plan += ".txt"
+		_state_current_phase = 1
+		# Initialize phases 1-10 as remaining
+		if _state_phases_remaining.is_empty():
+			_state_phases_remaining = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+	# Sync notes from tools if available
+	if _tools and _tools.has_method("get_notes"):
+		_state_notes = _tools.get_notes()
+	_save_state()
 
 func reset_memory() -> void:
 	_conversation_history = [{"role": "system", "content": system_prompt}]
