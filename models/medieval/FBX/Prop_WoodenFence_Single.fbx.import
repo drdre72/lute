@@ -3,12 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://b0w2vp2cuao5j"
-valid=false
+uid="uid://2skwlktar6qi"
+path="res://.godot/imported/Prop_WoodenFence_Single.fbx-a9b3550353f28c0cf77c4a1f5c709fe1.scn"
 
 [deps]
 
-source_file="res://models/nature/FBX/Mushroom_Common.fbx"
+source_file="res://models/medieval/FBX/Prop_WoodenFence_Single.fbx"
+dest_files=["res://.godot/imported/Prop_WoodenFence_Single.fbx-a9b3550353f28c0cf77c4a1f5c709fe1.scn"]
 
 [params]
 

@@ -3,12 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://cwrxt82bycrax"
-valid=false
+uid="uid://br8i30vtyeqso"
+path="res://.godot/imported/Pine_4.fbx-999ae63a814ea8bb7f66f2b929fe6b0d.scn"
 
 [deps]
 
-source_file="res://models/nature/FBX/Grass_Wispy_Tall.fbx"
+source_file="res://models/nature/FBX/Pine_4.fbx"
+dest_files=["res://.godot/imported/Pine_4.fbx-999ae63a814ea8bb7f66f2b929fe6b0d.scn"]
 
 [params]
 

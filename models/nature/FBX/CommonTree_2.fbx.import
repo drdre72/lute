@@ -3,12 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://cw07vjydv27kc"
-valid=false
+uid="uid://gf73rm0j0h1p"
+path="res://.godot/imported/CommonTree_2.fbx-c42da614cf2c8eb4e142ce74f48a91d7.scn"
 
 [deps]
 
-source_file="res://models/nature/FBX/Flower_3_Group.fbx"
+source_file="res://models/nature/FBX/CommonTree_2.fbx"
+dest_files=["res://.godot/imported/CommonTree_2.fbx-c42da614cf2c8eb4e142ce74f48a91d7.scn"]
 
 [params]
 

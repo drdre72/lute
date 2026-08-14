@@ -3,12 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://cfsnhh1fd64bl"
-valid=false
+uid="uid://c8pu3cbirevi"
+path="res://.godot/imported/Rock_Medium_1.fbx-d810745599faefa9aeb825cfb9fca40b.scn"
 
 [deps]
 
-source_file="res://models/nature/FBX/DeadTree_5.fbx"
+source_file="res://models/nature/FBX/Rock_Medium_1.fbx"
+dest_files=["res://.godot/imported/Rock_Medium_1.fbx-d810745599faefa9aeb825cfb9fca40b.scn"]
 
 [params]
 

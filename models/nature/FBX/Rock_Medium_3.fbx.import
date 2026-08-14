@@ -3,12 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://i4fd32gh0xyf"
-valid=false
+uid="uid://baro4rqk3urmj"
+path="res://.godot/imported/Rock_Medium_3.fbx-412cda3bbb1548440cdef8f61790bb43.scn"
 
 [deps]
 
-source_file="res://models/nature/FBX/Pebble_Round_3.fbx"
+source_file="res://models/nature/FBX/Rock_Medium_3.fbx"
+dest_files=["res://.godot/imported/Rock_Medium_3.fbx-412cda3bbb1548440cdef8f61790bb43.scn"]
 
 [params]
 

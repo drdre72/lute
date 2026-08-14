@@ -3,12 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://s3cjfy57g0hb"
-valid=false
+uid="uid://cipp0pdgs1vpf"
+path="res://.godot/imported/CommonTree_4.fbx-69933e77f58be8036201e64a71c7a3b6.scn"
 
 [deps]
 
-source_file="res://models/nature/FBX/Grass_Wispy_Short.fbx"
+source_file="res://models/nature/FBX/CommonTree_4.fbx"
+dest_files=["res://.godot/imported/CommonTree_4.fbx-69933e77f58be8036201e64a71c7a3b6.scn"]
 
 [params]
 

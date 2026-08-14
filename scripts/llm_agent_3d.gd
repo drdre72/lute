@@ -379,8 +379,7 @@ func think_and_act(user_message: String = "") -> void:
 	var context = _build_context()
 	var prompt: String
 	if user_message != "":
-		# Admin chat — inject as direct conversation, nudge LLM to respond with say()
-		prompt = "The admin (your creator) says to you: \"" + user_message + "\"\n\nRespond using the say() tool to reply conversationally. You can also take actions if the admin asks you to do something. Current world context:\n" + context
+		prompt = "ADMIN INSTRUCTION: " + user_message + "\n\nFollow this instruction immediately. If asked to load a build plan, call load_build_plan. If asked to build something, use the appropriate tools. Current world context:\n" + context
 	else:
 		prompt = "Observe the world and take an action. World context:\n" + context
 	
