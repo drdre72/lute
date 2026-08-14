@@ -1,0 +1,22 @@
+[remap]
+
+importer="wavefront_obj"
+importer_version=1
+type="Mesh"
+uid="uid://cp7t1ysy3fdid"
+path="res://.godot/imported/Honey.obj-fc319de9d09d7fa8211b743c14df649c.mesh"
+
+[deps]
+
+files=["res://.godot/imported/Honey.obj-fc319de9d09d7fa8211b743c14df649c.mesh"]
+
+source_file="res://assets/meshes/Honey.obj"
+dest_files=["res://.godot/imported/Honey.obj-fc319de9d09d7fa8211b743c14df649c.mesh", "res://.godot/imported/Honey.obj-fc319de9d09d7fa8211b743c14df649c.mesh"]
+
+[params]
+
+generate_tangents=true
+scale_mesh=Vector3(1, 1, 1)
+offset_mesh=Vector3(0, 0, 0)
+optimize_mesh=true
+force_disable_mesh_compression=false
