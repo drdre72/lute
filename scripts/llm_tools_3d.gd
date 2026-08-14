@@ -544,6 +544,20 @@ func _register_default_tools() -> void:
 	)
 
 	register_tool(
+		"apply_material",
+		"Apply PBR textures to all objects matching a model name. Improves visual quality of low-poly models by adding color, normal, and roughness maps.\nAvailable PBR sets:\n- grass: res://textures/pbr/Grass006_1K/ (for terrain, ground, grass models)\n- rock: res://textures/pbr/Rock062_1K/ (for rocks, pebbles, stone)\n- ground_dirt: res://textures/pbr/Ground042_1K/ (for dirt paths, terrain)\n- ground_gravel: res://textures/pbr/Ground085_1K/ (for gravel, rocky ground)",
+		{
+			"type": "object",
+			"properties": {
+				"model_name": {"type": "string", "description": "Name pattern to match (e.g. 'CommonTree' matches all CommonTree_1, CommonTree_2, etc.)"},
+				"texture_set": {"type": "string", "description": "PBR texture set: 'grass', 'rock', 'ground_dirt', or 'ground_gravel'"}
+			},
+			"required": ["model_name", "texture_set"]
+		},
+		Callable(self, "_tool_apply_material")
+	)
+
+	register_tool(
 		"load_build_plan",
 		"Load build instructions from a file. Returns the full text of the build plan for you to follow.",
 		{
@@ -846,9 +860,9 @@ func _tool_spawn_model(args: Dictionary) -> Dictionary:
 	var s = float(args.get("scale", 1.0))
 	var rot = float(args.get("rotation", 0))
 
-	# Validate position is within world bounds (2.5km)
-	if abs(x) > 1250 or abs(z) > 1250:
-		return {"error": "Position out of bounds. World is 2.5km, keep x and z between -1250 and 1250. Got x=%.1f z=%.1f" % [x, z]}
+	# Validate position is within world bounds (0.25km)
+	if abs(x) > 125 or abs(z) > 125:
+		return {"error": "Position out of bounds. World is 0.25km, keep x and z between -125 and 125. Got x=%.1f z=%.1f" % [x, z]}
 
 	# Validate scale
 	if s <= 0 or s > 20:
@@ -887,11 +901,11 @@ func _tool_scatter_models(args: Dictionary) -> Dictionary:
 	var y = float(args.get("y", 0))
 	count = clamp(count, 1, 100)
 
-	# Validate center is within world bounds
-	if abs(cx) > 1250 or abs(cz) > 1250:
-		return {"error": "Center out of bounds. Keep center_x and center_z between -1250 and 1250. Got x=%.1f z=%.1f" % [cx, cz]}
-	if radius <= 0 or radius > 500:
-		return {"error": "Invalid radius %.1f. Use 1 to 500" % radius}
+	# Validate center is within world bounds (0.25km)
+	if abs(cx) > 125 or abs(cz) > 125:
+		return {"error": "Center out of bounds. Keep center_x and center_z between -125 and 125. Got x=%.1f z=%.1f" % [cx, cz]}
+	if radius <= 0 or radius > 100:
+		return {"error": "Invalid radius %.1f. Use 1 to 100" % radius}
 	if min_s <= 0 or max_s > 20 or min_s > max_s:
 		return {"error": "Invalid scale range min=%.1f max=%.1f. Use 0.1-10.0, min must be <= max" % [min_s, max_s]}
 
@@ -923,6 +937,63 @@ func _tool_scatter_models(args: Dictionary) -> Dictionary:
 
 	print("[LLMTools] Scattered %d x %s around (%.1f, %.1f) radius=%.1f" % [spawned, node_name, cx, cz, radius])
 	return {"ok": true, "model": node_name, "spawned": spawned, "center": {"x": cx, "z": cz}, "radius": radius}
+
+const PBR_PATHS = {
+	"grass": "res://textures/pbr/Grass006_1K/Grass006_1K-JPG",
+	"rock": "res://textures/pbr/Rock062_1K/Rock062_1K-JPG",
+	"ground_dirt": "res://textures/pbr/Ground042_1K/Ground042_1K-JPG",
+	"ground_gravel": "res://textures/pbr/Ground085_1K/Ground085_1K-JPG"
+}
+
+func _tool_apply_material(args: Dictionary) -> Dictionary:
+	if _world_root == null:
+		return {"error": "No world root"}
+	var model_name: String = args.get("model_name", "")
+	var texture_set: String = args.get("texture_set", "")
+	if model_name == "":
+		return {"error": "No model_name specified"}
+	if not PBR_PATHS.has(texture_set):
+		return {"error": "Unknown texture set '%s'. Available: %s" % [texture_set, ", ".join(PBR_PATHS.keys())]}
+
+	var base_path: String = PBR_PATHS[texture_set]
+	var color_tex = load(base_path + "_Color.jpg")
+	var normal_tex = load(base_path + "_NormalGL.jpg")
+	var rough_tex = load(base_path + "_Roughness.jpg")
+	var ao_tex = load(base_path + "_AmbientOcclusion.jpg")
+
+	if color_tex == null:
+		return {"error": "Failed to load color texture from %s" % base_path}
+
+	var updated = 0
+	for child in _world_root.get_children():
+		if not (child is Node3D):
+			continue
+		if not child.name.contains(model_name):
+			continue
+		# Find all mesh instances in this node and apply material
+		_apply_pbr_to_node(child, color_tex, normal_tex, rough_tex, ao_tex)
+		updated += 1
+
+	print("[LLMTools] Applied %s PBR material to %d objects matching '%s'" % [texture_set, updated, model_name])
+	return {"ok": true, "texture_set": texture_set, "updated": updated, "model_name": model_name}
+
+func _apply_pbr_to_node(node: Node, color_tex, normal_tex, rough_tex, ao_tex) -> void:
+	if node is MeshInstance3D:
+		var mat = StandardMaterial3D.new()
+		mat.albedo_texture = color_tex
+		if normal_tex:
+			mat.normal_texture = normal_tex
+			mat.normal_enabled = true
+		if rough_tex:
+			mat.roughness_texture = rough_tex
+			mat.roughness = 1.0
+		if ao_tex:
+			mat.ao_texture = ao_tex
+			mat.ao_enabled = true
+		mat.uv1_scale = Vector3(2, 2, 2)
+		node.material_override = mat
+	for child in node.get_children():
+		_apply_pbr_to_node(child, color_tex, normal_tex, rough_tex, ao_tex)
 
 func _pick_female_voice() -> void:
 	var voices = DisplayServer.tts_get_voices()

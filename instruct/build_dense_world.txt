@@ -1,0 +1,74 @@
+Build a dense, high-quality 0.25km world (250m x 250m). Use scatter_models for efficiency. Apply PBR materials after spawning. Build in this order.
+
+PHASE 1 - TERRAIN:
+- create_terrain x=0 z=0 size=250 resolution=64 height=5 color=darkgreen
+- add_note: "Phase 1 terrain done"
+
+PHASE 2 - WATER:
+- spawn_water x=80 z=60 size=40 color=deepblue
+- spawn_water x=-60 z=-40 size=25 color=deepskyblue
+- add_note: "Phase 2 water done"
+
+PHASE 3 - FORESTS (use scatter_models for density):
+- scatter_models model_path=res://models/nature/FBX/CommonTree_1.fbx center_x=50 center_z=50 radius=80 count=40 min_scale=1.0 max_scale=2.5
+- scatter_models model_path=res://models/nature/FBX/CommonTree_2.fbx center_x=-50 center_z=30 radius=70 count=30 min_scale=0.8 max_scale=2.0
+- scatter_models model_path=res://models/nature/FBX/CommonTree_3.fbx center_x=30 center_z=-60 radius=60 count=25 min_scale=1.0 max_scale=2.2
+- scatter_models model_path=res://models/nature/FBX/Pine_1.fbx center_x=-70 center_z=-50 radius=65 count=30 min_scale=0.8 max_scale=1.8
+- scatter_models model_path=res://models/nature/FBX/Pine_2.fbx center_x=80 center_z=-30 radius=55 count=20 min_scale=0.8 max_scale=1.6
+- scatter_models model_path=res://models/nature/FBX/TwistedTree_1.fbx center_x=-30 center_z=70 radius=50 count=15 min_scale=1.0 max_scale=2.0
+- scatter_models model_path=res://models/nature/FBX/DeadTree_1.fbx center_x=60 center_z=80 radius=40 count=8 min_scale=1.0 max_scale=1.8
+- add_note: "Phase 3 forests done - 168 trees scattered"
+
+PHASE 4 - ROCKS:
+- scatter_models model_path=res://models/nature/FBX/Rock_Medium_1.fbx center_x=70 center_z=-50 radius=50 count=15 min_scale=0.5 max_scale=2.0
+- scatter_models model_path=res://models/nature/FBX/Rock_Medium_2.fbx center_x=-60 center_z=40 radius=45 count=12 min_scale=0.5 max_scale=1.8
+- scatter_models model_path=res://models/nature/FBX/Rock_Medium_3.fbx center_x=20 center_z=80 radius=40 count=10 min_scale=0.5 max_scale=1.5
+- scatter_models model_path=res://models/nature/FBX/Pebble_Round_1.fbx center_x=0 center_z=0 radius=100 count=25 min_scale=0.2 max_scale=0.6
+- scatter_models model_path=res://models/nature/FBX/Pebble_Round_2.fbx center_x=0 center_z=0 radius=100 count=25 min_scale=0.2 max_scale=0.6
+- add_note: "Phase 4 rocks done - 87 rocks scattered"
+
+PHASE 5 - DECORATIONS (ground cover):
+- scatter_models model_path=res://models/nature/FBX/Bush_Common.fbx center_x=0 center_z=0 radius=100 count=30 min_scale=0.5 max_scale=1.2
+- scatter_models model_path=res://models/nature/FBX/Fern_1.fbx center_x=0 center_z=0 radius=100 count=25 min_scale=0.4 max_scale=0.8
+- scatter_models model_path=res://models/nature/FBX/Grass_Common_Tall.fbx center_x=0 center_z=0 radius=110 count=50 min_scale=0.3 max_scale=0.7
+- scatter_models model_path=res://models/nature/FBX/Grass_Common_Short.fbx center_x=0 center_z=0 radius=110 count=40 min_scale=0.3 max_scale=0.6
+- scatter_models model_path=res://models/nature/FBX/Flower_4_Group.fbx center_x=0 center_z=0 radius=90 count=20 min_scale=0.4 max_scale=0.8
+- scatter_models model_path=res://models/nature/FBX/Mushroom_Laetiporus.fbx center_x=-40 center_z=40 radius=50 count=10 min_scale=0.3 max_scale=0.6
+- add_note: "Phase 5 decorations done - 175 ground cover objects"
+
+PHASE 6 - BUILDINGS:
+- spawn_model model_path=res://models/industrial/Models/GLB format/building-a.glb x=90 z=-70 scale=1.5
+- spawn_model model_path=res://models/industrial/Models/GLB format/building-b.glb x=100 z=-60 scale=1.2
+- spawn_model model_path=res://models/industrial/Models/GLB format/chimney-medium.glb x=85 z=-80 scale=1.0
+- spawn_model model_path=res://models/medieval/Medieval Village MegaKit[Standard]/FBX/Prop_Crate.fbx x=95 z=-65 scale=1.0
+- spawn_model model_path=res://models/medieval/Medieval Village MegaKit[Standard]/FBX/Prop_Crate.fbx x=98 z=-62 scale=1.0
+- spawn_model model_path=res://models/medieval/Medieval Village MegaKit[Standard]/FBX/Prop_WoodenFence_Single.fbx x=88 z=-68 scale=1.0
+- spawn_model model_path=res://models/medieval/Medieval Village MegaKit[Standard]/FBX/Prop_WoodenFence_Single.fbx x=105 z=-68 scale=1.0
+- add_note: "Phase 6 buildings done"
+
+PHASE 7 - LIGHTING:
+- spawn_light x=0 z=0 energy=8 range=30 color=white
+- spawn_light x=90 z=-70 energy=5 range=20 color=warmyellow
+- spawn_light x=-50 z=50 energy=3 range=15 color=orange
+- spawn_light x=50 z=-50 energy=3 range=15 color=orange
+- add_note: "Phase 7 lighting done"
+
+PHASE 8 - APPLY PBR MATERIALS (improve visual quality):
+- apply_material model_name=CommonTree texture_set=grass
+- apply_material model_name=Pine texture_set=grass
+- apply_material model_name=TwistedTree texture_set=grass
+- apply_material model_name=DeadTree texture_set=grass
+- apply_material model_name=Rock texture_set=rock
+- apply_material model_name=Pebble texture_set=rock
+- apply_material model_name=Bush texture_set=grass
+- apply_material model_name=Fern texture_set=grass
+- apply_material model_name=Grass texture_set=grass
+- apply_material model_name=Flower texture_set=grass
+- apply_material model_name=Mushroom texture_set=ground_dirt
+- add_note: "Phase 8 PBR materials applied"
+
+PHASE 9 - FINALIZE:
+- add_note: "Dense 0.25km world COMPLETE. 168 trees, 87 rocks, 175 decorations, 7 buildings, 4 lights. PBR materials applied."
+- say: "Dense high-quality 0.25km world complete with PBR textures!"
+
+RULES: Use scatter_models for all trees, rocks, and decorations. Use spawn_model only for buildings. Keep all positions between -125 and 125. After spawning everything, call apply_material to improve textures. Do not skip phases. After each phase call add_note.
