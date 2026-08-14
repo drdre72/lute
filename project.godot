@@ -36,7 +36,7 @@ project/assembly_name="Lute"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/DVs_behavior_tree/plugin.cfg", "res://addons/ai_pipeline/plugin.cfg", "res://addons/godot_ai/plugin.cfg", "res://addons/open-world-database/plugin.cfg", "res://addons/terrain_generator/plugin.cfg", "res://addons/csg_blockout/plugin.cfg", "res://addons/terrain_3d/plugin.cfg", "res://addons/zylann.hterrain/plugin.cfg", "res://addons/godotvmf/plugin.cfg", "res://addons/godotfgd/plugin.cfg")
+enabled=PackedStringArray("res://addons/DVs_behavior_tree/plugin.cfg", "res://addons/ai_pipeline/plugin.cfg", "res://addons/godot_ai/plugin.cfg", "res://addons/open-world-database/plugin.cfg", "res://addons/terrain_3d/plugin.cfg", "res://addons/csg_blockout/plugin.cfg", "res://addons/godotvmf/plugin.cfg", "res://addons/godotfgd/plugin.cfg", "res://addons/scatter/plugin.cfg", "res://addons/sky_3d/plugin.cfg", "res://addons/simplegrasstextured/plugin.cfg", "res://addons/road-generator/plugin.cfg", "res://addons/PathMesh3D/plugin.cfg")
 
 [physics]
 

@@ -30,8 +30,8 @@ PHASE 4 - ROCKS:
 PHASE 5 - DECORATIONS (ground cover):
 - scatter_on_terrain model_path=res://models/nature/FBX/Bush_Common.fbx center_x=0 center_z=0 radius=100 count=30 min_scale=0.5 max_scale=1.2
 - scatter_on_terrain model_path=res://models/nature/FBX/Fern_1.fbx center_x=0 center_z=0 radius=100 count=25 min_scale=0.4 max_scale=0.8
-- scatter_on_terrain model_path=res://models/nature/FBX/Grass_Common_Tall.fbx center_x=0 center_z=0 radius=110 count=50 min_scale=0.3 max_scale=0.7
-- scatter_on_terrain model_path=res://models/nature/FBX/Grass_Common_Short.fbx center_x=0 center_z=0 radius=110 count=40 min_scale=0.3 max_scale=0.6
+- scatter_on_terrain model_path=res://models/nature/FBX/Grass_Common_Tall.fbx center_x=0 center_z=0 radius=100 count=50 min_scale=0.3 max_scale=0.7
+- scatter_on_terrain model_path=res://models/nature/FBX/Grass_Common_Short.fbx center_x=0 center_z=0 radius=100 count=40 min_scale=0.3 max_scale=0.6
 - scatter_on_terrain model_path=res://models/nature/FBX/Flower_4_Group.fbx center_x=0 center_z=0 radius=90 count=20 min_scale=0.4 max_scale=0.8
 - scatter_on_terrain model_path=res://models/nature/FBX/Mushroom_Laetiporus.fbx center_x=-40 center_z=40 radius=50 count=10 min_scale=0.3 max_scale=0.6
 - add_note: "Phase 5 decorations done - 175 ground cover objects on terrain"

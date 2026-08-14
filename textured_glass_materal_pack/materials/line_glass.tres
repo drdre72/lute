@@ -1,0 +1,10 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://btdcflyergdbw"]
+
+[ext_resource type="Texture2D" uid="uid://cenhfsph4pinm" path="res://textured_glass_materal_pack/materials/line_normal.png" id="1_wyvm7"]
+
+[resource]
+albedo_color = Color(1, 1, 1, 0)
+roughness = 0.25
+normal_enabled = true
+normal_texture = ExtResource("1_wyvm7")
+refraction_enabled = true
