@@ -10,7 +10,7 @@ signal tool_call_executed(tool_name: String, result: Dictionary)
 
 @export_category("LLM Configuration")
 @export var api_url: String = "http://127.0.0.1:1234/v1/chat/completions"
-@export var model_name: String = "qwen2.5-3b-instruct"
+@export var model_name: String = "qwen2.5-vl-3b-instruct"
 @export var api_key: String = ""
 @export var system_prompt: String = ""
 @export var max_tokens: int = 512
@@ -452,6 +452,10 @@ func _on_request_completed(result: int, response_code: int, headers: PackedStrin
 		_add_log("[color=#88ccff]LLM says:[/color] %s" % content.substr(0, 100))
 		llm_response_received.emit(content)
 	
+	# Fallback: parse tool calls from text content if model didn't use structured format
+	if tool_calls.is_empty() and content != "":
+		tool_calls = _parse_text_tool_calls(content)
+	
 	if not tool_calls.is_empty():
 		for tc in tool_calls:
 			var func_def = tc.get("function", {})
@@ -492,6 +496,67 @@ func _on_request_completed(result: int, response_code: int, headers: PackedStrin
 			think_and_act(pending_msg)
 	else:
 		_add_log("[color=#888]No tool calls returned[/color]")
+
+func _parse_text_tool_calls(content: String) -> Array:
+	# Try to extract tool calls from text when model doesn't use structured format
+	# Looks for patterns like: tool_name({"key": "value"}) or tool_name(key=value)
+	var results: Array = []
+	
+	# Pattern 1: JSON-style tool_name({...})
+	var regex = RegEx.new()
+	regex.compile("(\\w+)\\s*\\(\\s*(\\{[^)]*\\})\\s*\\)")
+	for match in regex.search_all(content):
+		var tool_name = match.get_string(1)
+		var args_str = match.get_string(2)
+		var args = JSON.parse_string(args_str)
+		if args == null:
+			args = {}
+		results.append({
+			"id": "text_call_%d" % results.size(),
+			"function": {"name": tool_name, "arguments": JSON.stringify(args)}
+		})
+	
+	if not results.is_empty():
+		_add_log("[color=#ffaa44]Parsed %d tool call(s) from text[/color]" % results.size())
+		return results
+	
+	# Pattern 2: Look for known tool names followed by params
+	var known_tools = _tools.get_tool_definitions()
+	var tool_names = []
+	for td in known_tools:
+		tool_names.append(td.function.name)
+	
+	for tn in tool_names:
+		if tn in content:
+			# Extract args from text like: spawn_tree at x=8, z=8, scale=1.5
+			var args = {}
+			var idx = content.find(tn)
+			var rest = content.substr(idx + tn.length())
+			
+			# Parse key=value pairs
+			var arg_regex = RegEx.new()
+			arg_regex.compile("(\\w+)\\s*[=:]\\s*['\"]?([\\w.-]+)['\"]?")
+			for match in arg_regex.search_all(rest):
+				var key = match.get_string(1)
+				var val = match.get_string(2)
+				# Try to convert to number
+				if val.is_valid_float():
+					args[key] = float(val)
+				elif val.is_valid_int():
+					args[key] = int(val)
+				else:
+					args[key] = val
+			
+			results.append({
+				"id": "text_call_%d" % results.size(),
+				"function": {"name": tn, "arguments": JSON.stringify(args)}
+			})
+			break  # Only take first tool found
+	
+	if not results.is_empty():
+		_add_log("[color=#ffaa44]Parsed tool call from text: %s[/color]" % results[0].function.name)
+	
+	return results
 
 func _add_log(msg: String) -> void:
 	print("[LLMAgent3D] %s" % msg)
