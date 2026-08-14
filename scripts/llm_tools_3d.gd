@@ -895,9 +895,9 @@ func _tool_spawn_model(args: Dictionary) -> Dictionary:
 	var s = float(args.get("scale", 1.0))
 	var rot = float(args.get("rotation", 0))
 
-	# Validate position is within world bounds (0.25km)
-	if abs(x) > 125 or abs(z) > 125:
-		return {"error": "Position out of bounds. World is 0.25km, keep x and z between -125 and 125. Got x=%.1f z=%.1f" % [x, z]}
+	# Validate position is within world bounds (0.125km)
+	if abs(x) > 62 or abs(z) > 62:
+		return {"error": "Position out of bounds. World is 0.125km, keep x and z between -62 and 62. Got x=%.1f z=%.1f" % [x, z]}
 
 	# Validate scale
 	if s <= 0 or s > 20:
@@ -936,11 +936,10 @@ func _tool_scatter_models(args: Dictionary) -> Dictionary:
 	var y = float(args.get("y", 0))
 	count = clamp(count, 1, 100)
 
-	# Validate center is within world bounds (0.25km)
-	if abs(cx) > 125 or abs(cz) > 125:
-		return {"error": "Center out of bounds. Keep center_x and center_z between -125 and 125. Got x=%.1f z=%.1f" % [cx, cz]}
-	if radius <= 0 or radius > 100:
-		return {"error": "Invalid radius %.1f. Use 1 to 100" % radius}
+	if abs(cx) > 62 or abs(cz) > 62:
+		return {"error": "Center out of bounds. Keep center_x and center_z between -62 and 62. Got x=%.1f z=%.1f" % [cx, cz]}
+	if radius <= 0 or radius > 60:
+		return {"error": "Invalid radius %.1f. Use 1 to 60" % radius}
 	if min_s <= 0 or max_s > 20 or min_s > max_s:
 		return {"error": "Invalid scale range min=%.1f max=%.1f. Use 0.1-10.0, min must be <= max" % [min_s, max_s]}
 
@@ -972,6 +971,64 @@ func _tool_scatter_models(args: Dictionary) -> Dictionary:
 
 	print("[LLMTools] Scattered %d x %s around (%.1f, %.1f) radius=%.1f" % [spawned, node_name, cx, cz, radius])
 	return {"ok": true, "model": node_name, "spawned": spawned, "center": {"x": cx, "z": cz}, "radius": radius}
+
+func _tool_scatter_on_terrain(args: Dictionary) -> Dictionary:
+	if _world_root == null:
+		return {"error": "No world root"}
+	if _terrain3d == null or not is_instance_valid(_terrain3d):
+		return {"error": "No Terrain3D exists. Call create_terra_terrain first."}
+	var model_path: String = args.get("model_path", "")
+	if model_path == "":
+		return {"error": "No model_path specified"}
+	var cx = float(args.get("center_x", 0))
+	var cz = float(args.get("center_z", 0))
+	var radius = float(args.get("radius", 50))
+	var count = int(args.get("count", 10))
+	var min_s = float(args.get("min_scale", 0.8))
+	var max_s = float(args.get("max_scale", 2.0))
+	count = clamp(count, 1, 100)
+
+	if abs(cx) > 62 or abs(cz) > 62:
+		return {"error": "Center out of bounds. Keep between -62 and 62"}
+	if radius <= 0 or radius > 60:
+		return {"error": "Invalid radius %.1f. Use 1 to 60" % radius}
+	if min_s <= 0 or max_s > 20 or min_s > max_s:
+		return {"error": "Invalid scale range. Use 0.1-10.0, min <= max"}
+
+	if not ResourceLoader.exists(model_path):
+		return {"error": "Model not found: %s" % model_path}
+
+	var res = load(model_path)
+	if res == null or not (res is PackedScene):
+		return {"error": "Failed to load model: %s" % model_path}
+
+	var node_name = model_path.get_file().get_basename()
+	var terrain: Terrain3D = _terrain3d
+	var spawned = 0
+	for i in range(count):
+		var angle = randf() * TAU
+		var dist = randf() * radius
+		var px = cx + cos(angle) * dist
+		var pz = cz + sin(angle) * dist
+		var s = randf_range(min_s, max_s)
+		var rot = randf() * 360.0
+
+		# Get terrain height at this position
+		var py = 0.0
+		if terrain and terrain.data:
+			py = terrain.data.get_height(Vector3(px, 0, pz))
+
+		var instance = res.instantiate()
+		instance.name = "%s_%d_%d" % [node_name, int(px), int(pz)]
+		instance.position = Vector3(px, py, pz)
+		instance.scale = Vector3(s, s, s)
+		instance.rotation_degrees.y = rot
+		_world_root.add_child(instance)
+		instance.owner = _world_root
+		spawned += 1
+
+	print("[LLMTools] Scattered %d x %s on terrain around (%.1f, %.1f) radius=%.1f" % [spawned, node_name, cx, cz, radius])
+	return {"ok": true, "model": node_name, "spawned": spawned, "center": {"x": cx, "z": cz}, "radius": radius, "on_terrain": true}
 
 const PBR_PATHS = {
 	"grass": "res://textures/pbr/Grass006_1K/Grass006_1K-JPG",
@@ -1109,64 +1166,6 @@ func _tool_create_terra_terrain(args: Dictionary) -> Dictionary:
 	_terrain3d = terrain
 	print("[LLMTools] Created Terrain3D: size=%.0f height=%.0f texture=%s" % [size, height, texture_set])
 	return {"ok": true, "size": size, "height": height, "texture_set": texture_set, "type": "Terrain3D"}
-
-func _tool_scatter_on_terrain(args: Dictionary) -> Dictionary:
-	if _world_root == null:
-		return {"error": "No world root"}
-	if _terrain3d == null or not is_instance_valid(_terrain3d):
-		return {"error": "No Terrain3D exists. Call create_terra_terrain first."}
-	var model_path: String = args.get("model_path", "")
-	if model_path == "":
-		return {"error": "No model_path specified"}
-	var cx = float(args.get("center_x", 0))
-	var cz = float(args.get("center_z", 0))
-	var radius = float(args.get("radius", 50))
-	var count = int(args.get("count", 10))
-	var min_s = float(args.get("min_scale", 0.8))
-	var max_s = float(args.get("max_scale", 2.0))
-	count = clamp(count, 1, 100)
-
-	if abs(cx) > 125 or abs(cz) > 125:
-		return {"error": "Center out of bounds. Keep between -125 and 125"}
-	if radius <= 0 or radius > 100:
-		return {"error": "Invalid radius %.1f. Use 1 to 100" % radius}
-	if min_s <= 0 or max_s > 20 or min_s > max_s:
-		return {"error": "Invalid scale range. Use 0.1-10.0, min <= max"}
-
-	if not ResourceLoader.exists(model_path):
-		return {"error": "Model not found: %s" % model_path}
-
-	var res = load(model_path)
-	if res == null or not (res is PackedScene):
-		return {"error": "Failed to load model: %s" % model_path}
-
-	var node_name = model_path.get_file().get_basename()
-	var terrain: Terrain3D = _terrain3d
-	var spawned = 0
-	for i in range(count):
-		var angle = randf() * TAU
-		var dist = randf() * radius
-		var px = cx + cos(angle) * dist
-		var pz = cz + sin(angle) * dist
-		var s = randf_range(min_s, max_s)
-		var rot = randf() * 360.0
-
-		# Get terrain height at this position
-		var py = 0.0
-		if terrain and terrain.data:
-			py = terrain.data.get_height(Vector3(px, 0, pz))
-
-		var instance = res.instantiate()
-		instance.name = "%s_%d_%d" % [node_name, int(px), int(pz)]
-		instance.position = Vector3(px, py, pz)
-		instance.scale = Vector3(s, s, s)
-		instance.rotation_degrees.y = rot
-		_world_root.add_child(instance)
-		instance.owner = _world_root
-		spawned += 1
-
-	print("[LLMTools] Scattered %d x %s on terrain around (%.1f, %.1f) radius=%.1f" % [spawned, node_name, cx, cz, radius])
-	return {"ok": true, "model": node_name, "spawned": spawned, "center": {"x": cx, "z": cz}, "radius": radius, "on_terrain": true}
 
 func _pick_female_voice() -> void:
 	var voices = DisplayServer.tts_get_voices()

@@ -1,59 +1,71 @@
-Build a dense, high-quality 0.25km world (250m x 250m) with Terrain3D. Use scatter_on_terrain for efficiency - objects follow terrain height. Apply PBR materials after spawning. Build in this order.
+Build a Rust-style survival map at 0.125km (125m x 125m). All positions MUST be between -62 and 62. Use create_terra_terrain for terrain, scatter_on_terrain for all nature objects, spawn_model for buildings. Apply PBR materials after spawning. Build in this exact order. Do NOT add extra phases.
 
-PHASE 1 - TERRAIN3D:
-- create_terra_terrain size=256 height=15 texture_set=grass noise_scale=0.005
-- add_note: "Phase 1 Terrain3D created with heightmap and PBR textures"
+PHASE 1 - TERRAIN3D + SKY:
+- create_terra_terrain size=128 height=20 texture_set=grass noise_scale=0.008
+- add_note: "Phase 1: Terrain3D heightmap (128m, height 20) with PBR grass textures"
 
-PHASE 2 - WATER:
-- spawn_water x=80 z=60 size=40 color=deepblue
-- spawn_water x=-60 z=-40 size=25 color=deepskyblue
-- add_note: "Phase 2 water done"
+PHASE 2 - WATER (Rust-style lakes):
+- spawn_water x=30 z=-20 size=30 color=deepblue
+- spawn_water x=-30 z=25 size=20 color=deepblue
+- add_note: "Phase 2: 2 water features placed (small lake + pond)"
 
-PHASE 3 - FORESTS (use scatter_on_terrain - follows terrain height!):
-- scatter_on_terrain model_path=res://models/nature/FBX/CommonTree_1.fbx center_x=50 center_z=50 radius=80 count=40 min_scale=1.0 max_scale=2.5
-- scatter_on_terrain model_path=res://models/nature/FBX/CommonTree_2.fbx center_x=-50 center_z=30 radius=70 count=30 min_scale=0.8 max_scale=2.0
-- scatter_on_terrain model_path=res://models/nature/FBX/CommonTree_3.fbx center_x=30 center_z=-60 radius=60 count=25 min_scale=1.0 max_scale=2.2
-- scatter_on_terrain model_path=res://models/nature/FBX/Pine_1.fbx center_x=-70 center_z=-50 radius=65 count=30 min_scale=0.8 max_scale=1.8
-- scatter_on_terrain model_path=res://models/nature/FBX/Pine_2.fbx center_x=80 center_z=-30 radius=55 count=20 min_scale=0.8 max_scale=1.6
-- scatter_on_terrain model_path=res://models/nature/FBX/TwistedTree_1.fbx center_x=-30 center_z=70 radius=50 count=15 min_scale=1.0 max_scale=2.0
-- scatter_on_terrain model_path=res://models/nature/FBX/DeadTree_1.fbx center_x=60 center_z=80 radius=40 count=8 min_scale=1.0 max_scale=1.8
-- add_note: "Phase 3 forests done - 168 trees scattered on terrain"
+PHASE 3 - FORESTS (dense Rust grassland style, 133 trees):
+- scatter_on_terrain model_path=res://models/nature/FBX/CommonTree_1.fbx center_x=20 center_z=20 radius=50 count=30 min_scale=1.0 max_scale=2.5
+- scatter_on_terrain model_path=res://models/nature/FBX/CommonTree_2.fbx center_x=-20 center_z=15 radius=45 count=25 min_scale=0.8 max_scale=2.0
+- scatter_on_terrain model_path=res://models/nature/FBX/CommonTree_3.fbx center_x=15 center_z=-25 radius=40 count=20 min_scale=1.0 max_scale=2.2
+- scatter_on_terrain model_path=res://models/nature/FBX/Pine_1.fbx center_x=-25 center_z=-20 radius=45 count=25 min_scale=0.8 max_scale=1.8
+- scatter_on_terrain model_path=res://models/nature/FBX/Pine_2.fbx center_x=30 center_z=-15 radius=35 count=15 min_scale=0.8 max_scale=1.6
+- scatter_on_terrain model_path=res://models/nature/FBX/TwistedTree_1.fbx center_x=-15 center_z=30 radius=30 count=12 min_scale=1.0 max_scale=2.0
+- scatter_on_terrain model_path=res://models/nature/FBX/DeadTree_1.fbx center_x=25 center_z=25 radius=25 count=6 min_scale=1.0 max_scale=1.8
+- add_note: "Phase 3: 133 trees scattered on terrain (Rust-style dense forest)"
 
-PHASE 4 - ROCKS:
-- scatter_on_terrain model_path=res://models/nature/FBX/Rock_Medium_1.fbx center_x=70 center_z=-50 radius=50 count=15 min_scale=0.5 max_scale=2.0
-- scatter_on_terrain model_path=res://models/nature/FBX/Rock_Medium_2.fbx center_x=-60 center_z=40 radius=45 count=12 min_scale=0.5 max_scale=1.8
-- scatter_on_terrain model_path=res://models/nature/FBX/Rock_Medium_3.fbx center_x=20 center_z=80 radius=40 count=10 min_scale=0.5 max_scale=1.5
-- scatter_on_terrain model_path=res://models/nature/FBX/Pebble_Round_1.fbx center_x=0 center_z=0 radius=100 count=25 min_scale=0.2 max_scale=0.6
-- scatter_on_terrain model_path=res://models/nature/FBX/Pebble_Round_2.fbx center_x=0 center_z=0 radius=100 count=25 min_scale=0.2 max_scale=0.6
-- add_note: "Phase 4 rocks done - 87 rocks scattered on terrain"
+PHASE 4 - ROCKS AND ORE NODES (70 rocks):
+- scatter_on_terrain model_path=res://models/nature/FBX/Rock_Medium_1.fbx center_x=35 center_z=-30 radius=30 count=12 min_scale=0.5 max_scale=2.0
+- scatter_on_terrain model_path=res://models/nature/FBX/Rock_Medium_2.fbx center_x=-35 center_z=20 radius=25 count=10 min_scale=0.5 max_scale=1.8
+- scatter_on_terrain model_path=res://models/nature/FBX/Rock_Medium_3.fbx center_x=10 center_z=35 radius=20 count=8 min_scale=0.5 max_scale=1.5
+- scatter_on_terrain model_path=res://models/nature/FBX/Pebble_Round_1.fbx center_x=0 center_z=0 radius=60 count=20 min_scale=0.2 max_scale=0.6
+- scatter_on_terrain model_path=res://models/nature/FBX/Pebble_Round_2.fbx center_x=0 center_z=0 radius=60 count=20 min_scale=0.2 max_scale=0.6
+- add_note: "Phase 4: 70 rocks scattered (ore nodes and decoration)"
 
-PHASE 5 - DECORATIONS (ground cover):
-- scatter_on_terrain model_path=res://models/nature/FBX/Bush_Common.fbx center_x=0 center_z=0 radius=100 count=30 min_scale=0.5 max_scale=1.2
-- scatter_on_terrain model_path=res://models/nature/FBX/Fern_1.fbx center_x=0 center_z=0 radius=100 count=25 min_scale=0.4 max_scale=0.8
-- scatter_on_terrain model_path=res://models/nature/FBX/Grass_Common_Tall.fbx center_x=0 center_z=0 radius=100 count=50 min_scale=0.3 max_scale=0.7
-- scatter_on_terrain model_path=res://models/nature/FBX/Grass_Common_Short.fbx center_x=0 center_z=0 radius=100 count=40 min_scale=0.3 max_scale=0.6
-- scatter_on_terrain model_path=res://models/nature/FBX/Flower_4_Group.fbx center_x=0 center_z=0 radius=90 count=20 min_scale=0.4 max_scale=0.8
-- scatter_on_terrain model_path=res://models/nature/FBX/Mushroom_Laetiporus.fbx center_x=-40 center_z=40 radius=50 count=10 min_scale=0.3 max_scale=0.6
-- add_note: "Phase 5 decorations done - 175 ground cover objects on terrain"
+PHASE 5 - GROUND COVER (bushes, ferns, flowers - NO grass models):
+- scatter_on_terrain model_path=res://models/nature/FBX/Bush_Common.fbx center_x=0 center_z=0 radius=60 count=25 min_scale=0.5 max_scale=1.2
+- scatter_on_terrain model_path=res://models/nature/FBX/Fern_1.fbx center_x=0 center_z=0 radius=60 count=20 min_scale=0.4 max_scale=0.8
+- scatter_on_terrain model_path=res://models/nature/FBX/Flower_4_Group.fbx center_x=0 center_z=0 radius=55 count=15 min_scale=0.4 max_scale=0.8
+- scatter_on_terrain model_path=res://models/nature/FBX/Mushroom_Laetiporus.fbx center_x=-20 center_z=20 radius=30 count=8 min_scale=0.3 max_scale=0.6
+- add_note: "Phase 5: 68 bushes/ferns/flowers scattered (grass handled by SimpleGrassTextured)"
 
-PHASE 6 - BUILDINGS:
-- spawn_model model_path=res://models/industrial/Models/GLB format/building-a.glb x=90 z=-70 scale=1.5
-- spawn_model model_path=res://models/industrial/Models/GLB format/building-b.glb x=100 z=-60 scale=1.2
-- spawn_model model_path=res://models/industrial/Models/GLB format/chimney-medium.glb x=85 z=-80 scale=1.0
-- spawn_model model_path=res://models/medieval/Medieval Village MegaKit[Standard]/FBX/Prop_Crate.fbx x=95 z=-65 scale=1.0
-- spawn_model model_path=res://models/medieval/Medieval Village MegaKit[Standard]/FBX/Prop_Crate.fbx x=98 z=-62 scale=1.0
-- spawn_model model_path=res://models/medieval/Medieval Village MegaKit[Standard]/FBX/Prop_WoodenFence_Single.fbx x=88 z=-68 scale=1.0
-- spawn_model model_path=res://models/medieval/Medieval Village MegaKit[Standard]/FBX/Prop_WoodenFence_Single.fbx x=105 z=-68 scale=1.0
-- add_note: "Phase 6 buildings done"
+PHASE 6 - MONUMENTS (Rust-style building clusters):
+Industrial monument (north-east):
+- spawn_model model_path=res://models/industrial/Models/GLB format/building-a.glb x=40 z=-40 scale=1.2
+- spawn_model model_path=res://models/industrial/Models/GLB format/building-b.glb x=45 z=-35 scale=1.0
+- spawn_model model_path=res://models/industrial/Models/GLB format/chimney-medium.glb x=38 z=-42 scale=0.8
+- spawn_model model_path=res://models/industrial/Models/GLB format/detail-tank.glb x=48 z=-38 scale=0.6
+- spawn_model model_path=res://models/medieval/FBX/Prop_Crate.fbx x=42 z=-38 scale=0.5
+- spawn_model model_path=res://models/medieval/FBX/Prop_Crate.fbx x=44 z=-36 scale=0.5
+- spawn_model model_path=res://models/medieval/FBX/Prop_WoodenFence_Single.fbx x=36 z=-40 scale=0.7
+- spawn_model model_path=res://models/medieval/FBX/Prop_WoodenFence_Single.fbx x=50 z=-40 scale=0.7
+- spawn_model model_path=res://models/medieval/FBX/Stairs_Exterior_Sides.fbx x=43 z=-33 scale=0.6
+Gas Station monument (south-west):
+- spawn_model model_path=res://models/industrial/Models/GLB format/building-c.glb x=-40 z=30 scale=1.0
+- spawn_model model_path=res://models/industrial/Models/GLB format/chimney-small.glb x=-42 z=28 scale=0.6
+- spawn_model model_path=res://models/medieval/FBX/Prop_Crate.fbx x=-38 z=32 scale=0.5
+- add_note: "Phase 6: 2 monument clusters placed (Industrial + Gas Station style)"
 
-PHASE 7 - LIGHTING:
-- spawn_light x=0 z=0 energy=8 range=30 color=white
-- spawn_light x=90 z=-70 energy=5 range=20 color=warmyellow
-- spawn_light x=-50 z=50 energy=3 range=15 color=orange
-- spawn_light x=50 z=-50 energy=3 range=15 color=orange
-- add_note: "Phase 7 lighting done"
+PHASE 7 - ROADS (connecting monuments):
+- spawn_box x=0 z=-5 w=60 h=0.2 d=4 color=#3a3a3a
+- spawn_box x=20 z=-20 w=4 h=0.2 d=30 color=#3a3a3a
+- spawn_box x=-20 z=15 w=4 h=0.2 d=30 color=#3a3a3a
+- add_note: "Phase 7: 3 road segments connecting monuments"
 
-PHASE 8 - APPLY PBR MATERIALS (improve visual quality):
+PHASE 8 - LIGHTING:
+- spawn_light x=0 z=0 energy=10 range=40 color=white
+- spawn_light x=40 z=-40 energy=5 range=20 color=warmyellow
+- spawn_light x=-40 z=30 energy=4 range=15 color=warmorange
+- spawn_light x=20 z=20 energy=3 range=12 color=orange
+- spawn_light x=-20 z=-20 energy=3 range=12 color=orange
+- add_note: "Phase 8: 5 lights placed at monuments and forest edges"
+
+PHASE 9 - APPLY PBR MATERIALS:
 - apply_material model_name=CommonTree texture_set=grass
 - apply_material model_name=Pine texture_set=grass
 - apply_material model_name=TwistedTree texture_set=grass
@@ -62,13 +74,28 @@ PHASE 8 - APPLY PBR MATERIALS (improve visual quality):
 - apply_material model_name=Pebble texture_set=rock
 - apply_material model_name=Bush texture_set=grass
 - apply_material model_name=Fern texture_set=grass
-- apply_material model_name=Grass texture_set=grass
 - apply_material model_name=Flower texture_set=grass
 - apply_material model_name=Mushroom texture_set=ground_dirt
-- add_note: "Phase 8 PBR materials applied"
+- add_note: "Phase 9: PBR materials applied to all objects"
 
-PHASE 9 - FINALIZE:
-- add_note: "Dense 0.25km Terrain3D world COMPLETE. 168 trees, 87 rocks, 175 decorations, 7 buildings, 4 lights. PBR materials applied. All objects follow terrain height."
-- say: "Dense high-quality 0.25km Terrain3D world complete with PBR textures and heightmap terrain!"
+PHASE 10 - QUALITY GATE AND FINALIZE:
+- teleport x=0 z=0
+- teleport x=40 z=-40
+- teleport x=-40 z=30
+- add_note: "Phase 10: Quality gate passed. Rust-style 0.125km world complete. 133 trees, 70 rocks, 68 decorations, 12 monument buildings, 3 roads, 5 lights. PBR materials applied. All objects on terrain."
+- say: "Rust-style 0.125km world complete. Quality gate passed. Awaiting admin instructions."
+- save_world
+- save_state
 
-RULES: Use create_terra_terrain for terrain (NOT create_terrain). Use scatter_on_terrain for all trees, rocks, and decorations (follows terrain height). Use spawn_model only for buildings. Keep all positions between -125 and 125. After spawning everything, call apply_material to improve textures. Do not skip phases. After each phase call add_note.
+CRITICAL RULES:
+1. Use create_terra_terrain for terrain (NOT create_terrain).
+2. Use scatter_on_terrain for all trees, rocks, and decorations (follows terrain height).
+3. Use spawn_model only for buildings. Use spawn_box for roads.
+4. Keep ALL positions between -62 and 62. This is a 0.125km world.
+5. Do NOT skip phases. Do NOT add phases beyond Phase 10.
+6. After each phase, call add_note with the phase summary.
+7. After Phase 10 (save_world + save_state), STOP. Do NOT take any more actions.
+8. Do NOT teleport or move_self except for quality gate verification in Phase 10.
+9. Do NOT call read_notes more than once after completion.
+10. Do NOT create Phase 11 or beyond. The plan has exactly 10 phases.
+11. After save_world and save_state, output ONLY: say "World build complete. Awaiting admin instructions." Then STOP.
