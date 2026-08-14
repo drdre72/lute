@@ -839,6 +839,25 @@ func _auto_save_world() -> void:
 	if err != OK:
 		_add_log("[color=red]Auto-save write failed: %d[/color]" % err)
 		return
+	# Also save to project path for persistence across restarts and git
+	ResourceSaver.save(packed, PROJECT_WORLD_PATH)
+	# Scrub API key from project save to avoid leaking secrets
+	_scrub_save_file(PROJECT_WORLD_PATH)
 	
 	_add_log("[color=#44ff44][AUTO-SAVE] World saved (%d actions)[/color]" % _action_count)
 	print("[LLMAgent3D] Auto-saved world to %s (actions: %d)" % [WORLD_SAVE_PATH, _action_count])
+
+func _scrub_save_file(path: String) -> void:
+	if not FileAccess.file_exists(path):
+		return
+	var f = FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		return
+	var content = f.get_as_text()
+	f.close()
+	content = content.replace("api_key = \"" + api_key + "\"", "api_key = \"\"")
+	f = FileAccess.open(path, FileAccess.WRITE)
+	if f == null:
+		return
+	f.store_string(content)
+	f.close()
