@@ -576,15 +576,16 @@ func _pick_female_voice() -> void:
 	if voices.is_empty():
 		print("[LLMTools] No TTS voices available")
 		return
-	# Try to find a female voice by name
+	# voices is Array of Dictionaries with 'name' key
 	for v in voices:
-		var lower = v.to_lower()
+		var name = v.get("name", "")
+		var lower = name.to_lower()
 		if "female" in lower or "samantha" in lower or "victoria" in lower or "karen" in lower or "fiona" in lower or "tessa" in lower or "moira" in lower or "zira" in lower:
-			_tts_voice = v
-			print("[LLMTools] Selected female voice: %s" % v)
+			_tts_voice = name
+			print("[LLMTools] Selected female voice: %s" % name)
 			return
 	# Fallback: just use the first voice
-	_tts_voice = voices[0]
+	_tts_voice = voices[0].get("name", "")
 	print("[LLMTools] Using fallback voice: %s" % _tts_voice)
 
 func _show_speech_bubble(agent: Node3D, text: String) -> void:

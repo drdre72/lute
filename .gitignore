@@ -25,3 +25,4 @@ textures/pbr/*.zip
 *.blend
 *.usdc
 *.mtlx
+instruct/Grok_api.rtf

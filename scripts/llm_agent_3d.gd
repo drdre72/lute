@@ -9,12 +9,12 @@ signal llm_response_received(response: String)
 signal tool_call_executed(tool_name: String, result: Dictionary)
 
 @export_category("LLM Configuration")
-@export var api_url: String = "https://api.x.ai/v1/chat/completions"
-@export var model_name: String = "grok-beta"
+@export var api_url: String = "http://127.0.0.1:1234/v1/chat/completions"
+@export var model_name: String = "qwen2.5-3b-instruct"
 @export var api_key: String = ""
 @export var system_prompt: String = ""
-@export var max_tokens: int = 1024
-@export var temperature: float = 0.7
+@export var max_tokens: int = 512
+@export var temperature: float = 0.3
 
 @export_category("Agent Behavior")
 @export var auto_act: bool = false
@@ -59,12 +59,9 @@ var _cam_offset: Vector3 = Vector3(0, 8, 12)
 var _cam_pos: Vector3 = Vector3.ZERO
 
 func _ready() -> void:
-	# Set Grok API key if not overridden in scene
-	if api_key == "":
-		api_key = "1c0dbf78-2fc2-4eba-99be-72bfb1ea6bbe"
 	# Set default world-builder prompt if not overridden in scene
 	if system_prompt == "":
-		system_prompt = "You are an AI world-builder agent inside a Godot 3D game called Lute. Build the world following this checklist IN ORDER. Use checklist_update after each step.\n\nCHECKLIST:\n1. Terrain: Call create_terrain ONCE at (x=0, z=0, size=50, resolution=16, height=3, color='darkgreen'). Do NOT call it multiple times.\n2. Water: Call spawn_water ONCE at (x=15, z=15, size=12, color='deepskyblue').\n3. Forest: Call spawn_tree 6 times at: (8,8), (-8,8), (12,-5), (-12,-5), (5,-12), (-5,12). Use scale=1.5.\n4. Time Portal: Call spawn_portal at (x=0, z=0, color='cyan').\n5. Settlement: Build ONE building at (x=5, z=5). Use spawn_wall 4 times: (3,3)to(7,3), (7,3)to(7,7), (7,7)to(3,7), (3,7)to(3,3). color='tan', height=3.\n6. Lighting: Call spawn_light at (x=0, z=0, energy=5, range=15) and (x=5, z=5, color='orange', energy=3, range=8).\n7. Landmarks: spawn_cylinder at (x=-8, z=0, r=0.5, h=6, color='lightgray'). spawn_box at (x=8, z=-8, w=2, h=4, d=2, color='darkred').\n8. Detailing: spawn_box at (x=0, z=3, w=6, h=0.1, d=1, color='brown'). spawn_sphere at (x=-3, z=3, r=0.5) and (x=3, z=-3, r=0.5).\n\nRULES:\n- Always respond with tool calls only.\n- Follow the checklist EXACTLY.\n- If you see existing world objects, skip steps that are already done.\n- The world saves automatically every 7 minutes. Do NOT call save_world yourself.\n- After all 8 items, use say() to announce completion."
+		system_prompt = "You are a world-builder agent in a 3D game. Build the world step by step. Always respond with exactly ONE tool call per turn.\n\nSTEPS (do in order):\n1. create_terrain at x=0,z=0,size=50,resolution=16,height=3,color='darkgreen'\n2. spawn_water at x=15,z=15,size=12,color='deepskyblue'\n3. spawn_tree 6x at (8,8),(-8,8),(12,-5),(-12,-5),(5,-12),(-5,12) scale=1.5\n4. spawn_portal at x=0,z=0,color='cyan'\n5. spawn_wall 4x for building: (3,3)-(7,3),(7,3)-(7,7),(7,7)-(3,7),(3,7)-(3,3) color='tan',height=3\n6. spawn_light at x=0,z=0,energy=5,range=15 and x=5,z=5,color='orange',energy=3,range=8\n7. spawn_cylinder at x=-8,z=0,r=0.5,h=6,color='lightgray' and spawn_box at x=8,z=-8,w=2,h=4,d=2,color='darkred'\n8. spawn_box at x=0,z=3,w=6,h=0.1,d=1,color='brown' and spawn_sphere at x=-3,z=3,r=0.5 and x=3,z=-3,r=0.5\n9. say() to announce completion\n\nRULES: One tool call per turn. Use checklist_update after each step. Skip done steps. World saves automatically."
 	# Load and instantiate the 3D body model
 	_body = null
 	if ResourceLoader.exists(body_model_path):
@@ -388,7 +385,7 @@ func think_and_act(user_message: String = "") -> void:
 	}
 	
 	var json_body = JSON.stringify(body)
-	var headers = ["Content-Type: application/json", "Authorization: Bearer " + api_key]
+	var headers = ["Content-Type: application/json"]
 	
 	_is_requesting = true
 	_add_log("[color=#88aaff]Thinking...[/color]")
