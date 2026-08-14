@@ -23,6 +23,7 @@ config/icon="res://icon.svg"
 [autoload]
 
 BTDebuggerListener="*uid://b3mmp5xw5hl3i"
+_mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
 
 [display]
 
@@ -35,7 +36,7 @@ project/assembly_name="Lute"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/ai_pipeline/plugin.cfg", "res://addons/terrain_generator/plugin.cfg", "res://addons/DVs_behavior_tree/plugin.cfg", "res://addons/open-world-database/plugin.cfg", "res://addons/godot_ai/plugin.cfg")
+enabled=PackedStringArray("res://addons/DVs_behavior_tree/plugin.cfg", "res://addons/ai_pipeline/plugin.cfg", "res://addons/godot_ai/plugin.cfg", "res://addons/open-world-database/plugin.cfg", "res://addons/terrain_generator/plugin.cfg", "res://addons/csg_blockout/plugin.cfg")
 
 [physics]
 
