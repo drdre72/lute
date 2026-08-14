@@ -522,11 +522,20 @@ func _on_request_completed(result: int, response_code: int, headers: PackedStrin
 			_last_tool_args = args_str
 			
 			if _loop_count >= 3:
-				_add_log("[color=#ff4444]Loop detected! Resetting memory...[/color]")
+				_add_log("[color=#ff4444]Loop detected! Injecting course correction...[/color]")
 				_loop_count = 0
 				_last_tool_name = ""
 				_last_tool_args = ""
-				_conversation_history = [{"role": "system", "content": system_prompt}]
+				# Don't fully reset — just inject guidance and trim more aggressively
+				_conversation_history.append({
+					"role": "user",
+					"content": "You are repeating the same action. Try a completely different approach. Review your notes with read_notes, check your state with load_state, and pick a different tool or parameters."
+				})
+				# Trim harder to escape the loop
+				if _conversation_history.size() > 6:
+					var system = _conversation_history[0]
+					var recent = _conversation_history.slice(-4)
+					_conversation_history = [system] + recent
 				continue
 			
 			# Trigger build animation for spawn tools
@@ -545,10 +554,17 @@ func _on_request_completed(result: int, response_code: int, headers: PackedStrin
 			# Update persistent state after each tool call
 			_update_state_from_tool(tool_name, args, result_dict)
 			
-			_conversation_history.append({
-				"role": "user",
-				"content": "Tool result for %s: %s" % [tool_name, JSON.stringify(result_dict)]
-			})
+			# Error feedback injection: if tool failed, give actionable feedback
+			if result_dict.has("error"):
+				_conversation_history.append({
+					"role": "user",
+					"content": "ERROR from %s: %s. Fix the issue and try again with corrected parameters." % [tool_name, result_dict["error"]]
+				})
+			else:
+				_conversation_history.append({
+					"role": "user",
+					"content": "Tool result for %s: %s" % [tool_name, JSON.stringify(result_dict)]
+				})
 		
 		_trim_conversation()
 		

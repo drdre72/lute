@@ -36,8 +36,21 @@ func get_tool_definitions() -> Array:
 	return defs
 
 func execute_tool(tool_name: String, args: Dictionary) -> Dictionary:
+	# Auto-repair tool name casing (e.g. Spawn_Model -> spawn_model)
 	if not _tools.has(tool_name):
-		return {"error": "Unknown tool: %s" % tool_name}
+		var repaired = tool_name.to_lower().replace(" ", "_")
+		if _tools.has(repaired):
+			tool_name = repaired
+			print("[LLMTools] Auto-repaired tool name: %s -> %s" % [tool_name, repaired])
+		else:
+			# Try fuzzy match
+			for key in _tools.keys():
+				if key.to_lower() == tool_name.to_lower():
+					tool_name = key
+					print("[LLMTools] Auto-repaired tool name: %s" % key)
+					break
+	if not _tools.has(tool_name):
+		return {"error": "Unknown tool: %s. Available tools: %s" % [tool_name, ", ".join(_tools.keys().slice(0, 15))]}
 	var t = _tools[tool_name]
 	var handler: Callable = t.handler
 	var result = handler.call(args)
@@ -833,8 +846,16 @@ func _tool_spawn_model(args: Dictionary) -> Dictionary:
 	var s = float(args.get("scale", 1.0))
 	var rot = float(args.get("rotation", 0))
 
+	# Validate position is within world bounds (2.5km)
+	if abs(x) > 1250 or abs(z) > 1250:
+		return {"error": "Position out of bounds. World is 2.5km, keep x and z between -1250 and 1250. Got x=%.1f z=%.1f" % [x, z]}
+
+	# Validate scale
+	if s <= 0 or s > 20:
+		return {"error": "Invalid scale %.1f. Use 0.1 to 10.0" % s}
+
 	if not ResourceLoader.exists(model_path):
-		return {"error": "Model not found: %s" % model_path}
+		return {"error": "Model not found: %s. Check available models in the system prompt." % model_path}
 
 	var res = load(model_path)
 	if res == null or not (res is PackedScene):
@@ -866,8 +887,16 @@ func _tool_scatter_models(args: Dictionary) -> Dictionary:
 	var y = float(args.get("y", 0))
 	count = clamp(count, 1, 100)
 
+	# Validate center is within world bounds
+	if abs(cx) > 1250 or abs(cz) > 1250:
+		return {"error": "Center out of bounds. Keep center_x and center_z between -1250 and 1250. Got x=%.1f z=%.1f" % [cx, cz]}
+	if radius <= 0 or radius > 500:
+		return {"error": "Invalid radius %.1f. Use 1 to 500" % radius}
+	if min_s <= 0 or max_s > 20 or min_s > max_s:
+		return {"error": "Invalid scale range min=%.1f max=%.1f. Use 0.1-10.0, min must be <= max" % [min_s, max_s]}
+
 	if not ResourceLoader.exists(model_path):
-		return {"error": "Model not found: %s" % model_path}
+		return {"error": "Model not found: %s. Check available models in the system prompt." % model_path}
 
 	var res = load(model_path)
 	if res == null or not (res is PackedScene):
