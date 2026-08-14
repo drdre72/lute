@@ -1,59 +1,136 @@
-Build a Rust-quality survival world at 2.5km scale (2500x2500 units). Use ALL available tools. Build in this order:
+Build a Rust-quality survival world at 2.5km scale (2500x2500 units). Use spawn_model for real 3D assets. Use create_terrain, spawn_water, spawn_light, spawn_portal as CSG. Build in this order. After each phase, add_note with progress. Take screenshot every 1km.
 
 PHASE 1 - TERRAIN (use create_terrain):
-- Large terrain patch: x=0 z=0 size=2500 resolution=32 height=8 color=darkgreen
-- Second patch: x=800 z=0 size=2500 resolution=32 height=6 color=forestgreen
-- Third patch: x=-800 z=800 size=2500 resolution=32 height=10 color=olive
-- Fourth patch: x=0 z=-800 size=2500 resolution=32 height=5 color=saddlebrown
+- x=0 z=0 size=2500 resolution=32 height=8 color=darkgreen
+- x=800 z=0 size=2500 resolution=32 height=6 color=forestgreen
+- x=-800 z=800 size=2500 resolution=32 height=10 color=olive
+- x=0 z=-800 size=2500 resolution=32 height=5 color=saddlebrown
+- add_note: "Phase 1 terrain done"
 
 PHASE 2 - WATER (use spawn_water):
-- Large lake: x=400 z=400 size=200 color=deepblue
-- Small pond: x=-300 z=200 size=80 color=deepskyblue
-- River section 1: x=0 z=600 size=150 color=blue
-- River section 2: x=200 z=400 size=150 color=blue
-- Ocean edge: x=1000 z=0 size=500 color=darkblue
+- Lake: x=400 z=400 size=200 color=deepblue
+- Pond: x=-300 z=200 size=80 color=deepskyblue
+- River 1: x=0 z=600 size=150 color=blue
+- River 2: x=200 z=400 size=150 color=blue
+- Ocean: x=1000 z=0 size=500 color=darkblue
+- add_note: "Phase 2 water done"
 
-PHASE 3 - FORESTS (use spawn_tree, spread them out):
-- Forest cluster 1: 8 trees around x=100 z=100, scale 1.5-2.5
-- Forest cluster 2: 8 trees around x=-200 z=300, scale 1.5-2.5
-- Forest cluster 3: 8 trees around x=500 z=-200, scale 1.5-2.5
-- Forest cluster 4: 6 trees around x=-400 z=-400, scale 2.0-3.0
-- Scattered lone trees: 5 trees at random positions, scale 2.0-3.5
+PHASE 3 - FORESTS (use spawn_model with real trees):
+Cluster 1 around x=100 z=100 (8 trees, vary types and scale 1.5-2.5):
+- spawn_model model_path=res://models/nature/FBX/CommonTree_1.fbx x=100 z=100 scale=2.0
+- spawn_model model_path=res://models/nature/FBX/CommonTree_2.fbx x=110 z=95 scale=1.8
+- spawn_model model_path=res://models/nature/FBX/CommonTree_3.fbx x=90 z=110 scale=2.2
+- spawn_model model_path=res://models/nature/FBX/CommonTree_4.fbx x=105 z=115 scale=1.5
+- spawn_model model_path=res://models/nature/FBX/TwistedTree_1.fbx x=95 z=85 scale=2.5
+- spawn_model model_path=res://models/nature/FBX/Pine_1.fbx x=115 z=105 scale=2.0
+- spawn_model model_path=res://models/nature/FBX/Pine_2.fbx x=85 z=100 scale=1.7
+- spawn_model model_path=res://models/nature/FBX/CommonTree_5.fbx x=120 z=90 scale=2.3
 
-PHASE 4 - ROCK FORMATIONS (use spawn_sphere, spawn_cylinder):
-- Boulder cluster: 4 spheres at x=300 z=-100, r=2-4, color=gray
-- Rock pillars: 3 cylinders at x=-500 z=200, r=1.5 h=5-8, color=dimgray
-- Mountain rocks: 5 spheres at x=700 z=500, r=3-6, color=slategray
+Cluster 2 around x=-200 z=300 (8 trees):
+- spawn_model model_path=res://models/nature/FBX/CommonTree_1.fbx x=-200 z=300 scale=2.0
+- spawn_model model_path=res://models/nature/FBX/CommonTree_3.fbx x=-190 z=290 scale=1.8
+- spawn_model model_path=res://models/nature/FBX/TwistedTree_2.fbx x=-210 z=310 scale=2.2
+- spawn_model model_path=res://models/nature/FBX/Pine_3.fbx x=-195 z=315 scale=1.6
+- spawn_model model_path=res://models/nature/FBX/CommonTree_2.fbx x=-185 z=295 scale=2.4
+- spawn_model model_path=res://models/nature/FBX/Pine_4.fbx x=-215 z=305 scale=1.9
+- spawn_model model_path=res://models/nature/FBX/TwistedTree_3.fbx x=-205 z=285 scale=2.1
+- spawn_model model_path=res://models/nature/FBX/CommonTree_4.fbx x=-180 z=320 scale=1.5
 
-PHASE 5 - MONUMENTS (use spawn_portal, spawn_arch, spawn_cylinder):
-- Central portal: x=0 z=0 color=cyan
-- Arch gateway: 2 arches at x=200 z=0 and x=-200 z=0, width=6 height=8 color=stone
-- Lighthouse tower: cylinder at x=600 z=-300, r=2 h=20 color=white
-- Obelisk: cylinder at x=-600 z=-200, r=1 h=15 color=black
+Cluster 3 around x=500 z=-200 (8 trees):
+- spawn_model model_path=res://models/nature/FBX/CommonTree_2.fbx x=500 z=-200 scale=2.0
+- spawn_model model_path=res://models/nature/FBX/Pine_5.fbx x=510 z=-190 scale=2.2
+- spawn_model model_path=res://models/nature/FBX/CommonTree_5.fbx x=490 z=-210 scale=1.8
+- spawn_model model_path=res://models/nature/FBX/TwistedTree_1.fbx x=515 z=-195 scale=2.5
+- spawn_model model_path=res://models/nature/FBX/Pine_1.fbx x=495 z=-185 scale=1.6
+- spawn_model model_path=res://models/nature/FBX/CommonTree_3.fbx x=505 z=-215 scale=2.3
+- spawn_model model_path=res://models/nature/FBX/DeadTree_1.fbx x=520 z=-205 scale=2.0
+- spawn_model model_path=res://models/nature/FBX/CommonTree_1.fbx x=485 z=-195 scale=1.9
 
-PHASE 6 - PLAYER BASE (use spawn_wall, spawn_box, spawn_stairs):
-- Base walls: 4 walls forming 20x20 enclosure at x=100 z=100, height=4, color=tan
-- Watchtower 1: box at x=110 z=110, w=3 h=8 d=3, color=darkgray
-- Watchtower 2: box at x=90 z=90, w=3 h=8 d=3, color=darkgray
-- Storage: box at x=100 z=95, w=4 h=3 d=4, color=brown
-- Stairs to tower: spawn_stairs at x=110 z=115, steps=8 width=3 height=8 color=gray
+Cluster 4 around x=-400 z=-400 (6 trees, larger):
+- spawn_model model_path=res://models/nature/FBX/CommonTree_4.fbx x=-400 z=-400 scale=3.0
+- spawn_model model_path=res://models/nature/FBX/TwistedTree_2.fbx x=-390 z=-390 scale=2.5
+- spawn_model model_path=res://models/nature/FBX/Pine_2.fbx x=-410 z=-410 scale=2.8
+- spawn_model model_path=res://models/nature/FBX/CommonTree_2.fbx x=-395 z=-415 scale=2.2
+- spawn_model model_path=res://models/nature/FBX/DeadTree_3.fbx x=-415 z=-395 scale=2.6
+- spawn_model model_path=res://models/nature/FBX/TwistedTree_4.fbx x=-405 z=-385 scale=2.4
+
+Scattered lone trees (5):
+- spawn_model model_path=res://models/nature/FBX/CommonTree_3.fbx x=300 z=300 scale=3.5
+- spawn_model model_path=res://models/nature/FBX/TwistedTree_5.fbx x=-600 z=100 scale=3.0
+- spawn_model model_path=res://models/nature/FBX/Pine_3.fbx x=700 z=-400 scale=3.2
+- spawn_model model_path=res://models/nature/FBX/DeadTree_2.fbx x=-100 z=-600 scale=2.8
+- spawn_model model_path=res://models/nature/FBX/CommonTree_5.fbx x=800 z=200 scale=3.0
+- add_note: "Phase 3 forests done - 35 real trees placed"
+
+PHASE 4 - ROCK FORMATIONS (use spawn_model with real rocks):
+- spawn_model model_path=res://models/nature/FBX/Rock_Medium_1.fbx x=300 z=-100 scale=3.0
+- spawn_model model_path=res://models/nature/FBX/Rock_Medium_2.fbx x=310 z=-95 scale=2.5
+- spawn_model model_path=res://models/nature/FBX/Rock_Medium_3.fbx x=295 z=-110 scale=2.8
+- spawn_model model_path=res://models/nature/FBX/Rock_Medium_1.fbx x=320 z=-105 scale=2.0
+- spawn_model model_path=res://models/nature/FBX/Rock_Medium_2.fbx x=-500 z=200 scale=4.0
+- spawn_model model_path=res://models/nature/FBX/Rock_Medium_3.fbx x=-490 z=210 scale=3.5
+- spawn_model model_path=res://models/nature/FBX/Rock_Medium_1.fbx x=-510 z=190 scale=3.8
+- spawn_model model_path=res://models/nature/FBX/Rock_Medium_2.fbx x=700 z=500 scale=5.0
+- spawn_model model_path=res://models/nature/FBX/Rock_Medium_3.fbx x=710 z=490 scale=4.5
+- spawn_model model_path=res://models/nature/FBX/Rock_Medium_1.fbx x=690 z=510 scale=4.8
+- spawn_model model_path=res://models/nature/FBX/Pebble_Round_1.fbx x=705 z=495 scale=2.0
+- spawn_model model_path=res://models/nature/FBX/Pebble_Round_2.fbx x=695 z=505 scale=1.5
+- add_note: "Phase 4 rocks done - 12 real rocks placed"
+
+PHASE 5 - MONUMENTS:
+- spawn_portal x=0 z=0 color=cyan
+- spawn_model model_path=res://models/industrial/Models/GLB format/chimney-large.glb x=600 z=-300 scale=3.0
+- spawn_model model_path=res://models/industrial/Models/GLB format/chimney-medium.glb x=-600 z=-200 scale=2.5
+- spawn_model model_path=res://models/industrial/Models/GLB format/detail-tank.glb x=400 z=-300 scale=2.0
+- add_note: "Phase 5 monuments done"
+
+PHASE 6 - PLAYER BASE (use medieval assets):
+- spawn_wall x1=90 z1=90 x2=110 z2=90 color=tan height=4
+- spawn_wall x1=110 z1=90 x2=110 z2=110 color=tan height=4
+- spawn_wall x1=110 z1=110 x2=90 z2=110 color=tan height=4
+- spawn_wall x1=90 z1=110 x2=90 z2=90 color=tan height=4
+- spawn_model model_path=res://models/medieval/Medieval Village MegaKit[Standard]/FBX/Prop_Crate.fbx x=100 z=100 scale=1.0
+- spawn_model model_path=res://models/medieval/Medieval Village MegaKit[Standard]/FBX/Prop_Crate.fbx x=103 z=100 scale=1.0
+- spawn_model model_path=res://models/medieval/Medieval Village MegaKit[Standard]/FBX/Prop_Crate.fbx x=100 z=103 scale=1.0
+- spawn_model model_path=res://models/medieval/Medieval Village MegaKit[Standard]/FBX/Prop_WoodenFence_Single.fbx x=95 z=95 scale=1.0
+- spawn_model model_path=res://models/medieval/Medieval Village MegaKit[Standard]/FBX/Prop_WoodenFence_Single.fbx x=105 z=95 scale=1.0
+- spawn_model model_path=res://models/medieval/Medieval Village MegaKit[Standard]/FBX/Stairs_Exterior_Sides.fbx x=110 z=115 scale=1.0
+- add_note: "Phase 6 player base done"
 
 PHASE 7 - LIGHTING (use spawn_light):
-- Central light: x=0 z=0 energy=10 range=50 color=white
-- Base lights: x=100 z=100 energy=5 range=20 color=warmyellow
-- Portal glow: x=0 z=0 energy=8 range=15 color=cyan
-- Path lights: 4 lights at x=50 z=50, x=-50 z=50, x=50 z=-50, x=-50 z=-50, energy=3 range=10 color=orange
-- Lighthouse beam: x=600 z=-300 energy=15 range=80 color=white
+- x=0 z=0 energy=10 range=50 color=white
+- x=100 z=100 energy=5 range=20 color=warmyellow
+- x=0 z=0 energy=8 range=15 color=cyan
+- x=50 z=50 energy=3 range=10 color=orange
+- x=-50 z=50 energy=3 range=10 color=orange
+- x=50 z=-50 energy=3 range=10 color=orange
+- x=-50 z=-50 energy=3 range=10 color=orange
+- x=600 z=-300 energy=15 range=80 color=white
+- add_note: "Phase 7 lighting done"
 
-PHASE 8 - DECORATIONS (use spawn_box, spawn_sphere):
-- Crates: 3 boxes at x=105 z=100, w=1 h=1 d=1, color=woodbrown
-- Barrel: cylinder at x=103 z=98, r=0.8 h=1.5, color=rust
-- Campfire: cylinder at x=100 z=105, r=1 h=0.5, color=darkorange
-- Fence posts: 6 cylinders around base perimeter, r=0.3 h=2, color=brown
+PHASE 8 - DECORATIONS (use spawn_model):
+- spawn_model model_path=res://models/nature/FBX/Bush_Common.fbx x=105 z=95 scale=1.0
+- spawn_model model_path=res://models/nature/FBX/Fern_1.fbx x=98 z=108 scale=1.0
+- spawn_model model_path=res://models/nature/FBX/Grass_Common_Tall.fbx x=115 z=100 scale=1.0
+- spawn_model model_path=res://models/nature/FBX/Grass_Common_Short.fbx x=85 z=105 scale=1.0
+- spawn_model model_path=res://models/nature/FBX/Flower_4_Group.fbx x=112 z=112 scale=0.8
+- spawn_model model_path=res://models/nature/FBX/Mushroom_Laetiporus.fbx x=93 z=107 scale=0.8
+- spawn_model model_path=res://models/nature/FBX/Pebble_Round_1.fbx x=108 z=96 scale=0.5
+- spawn_model model_path=res://models/nature/FBX/Pebble_Round_2.fbx x=96 z=104 scale=0.5
+- add_note: "Phase 8 decorations done"
 
-PHASE 9 - FINALIZE:
-- add_note: "Rust-quality world 2.5km built. Terrain, water, forests, rocks, monuments, base, lighting, decorations complete."
+PHASE 9 - INDUSTRIAL BUILDINGS (use spawn_model):
+- spawn_model model_path=res://models/industrial/Models/GLB format/building-a.glb x=800 z=0 scale=2.0
+- spawn_model model_path=res://models/industrial/Models/GLB format/building-b.glb x=850 z=0 scale=2.0
+- spawn_model model_path=res://models/industrial/Models/GLB format/building-c.glb x=800 z=50 scale=2.0
+- spawn_model model_path=res://models/industrial/Models/GLB format/chimney-small.glb x=820 z=30 scale=1.5
+- spawn_model model_path=res://models/industrial/Models/GLB format/building-d.glb x=-800 z=0 scale=2.0
+- spawn_model model_path=res://models/industrial/Models/GLB format/building-e.glb x=-850 z=0 scale=2.0
+- add_note: "Phase 9 industrial buildings done"
+
+PHASE 10 - FINALIZE:
+- add_note: "Rust-quality world 2.5km COMPLETE. 35 trees, 12 rocks, 6 industrial buildings, player base, decorations, lighting all placed with real 3D assets."
 - inventory_add: "World Builder Kit" quantity 1
-- say: "Rust-quality world generation complete! 2.5km squared with terrain, forests, water, monuments, player base, and lighting."
+- say: "Rust-quality world complete! 2.5km with real trees, rocks, industrial buildings, and a medieval player base."
 
-RULES: Build everything spread across the 2.5km area. Use move_self to walk to each area before building there. Add trees and rocks with variety in scale. Do not skip phases. Do not repeat actions.
+RULES: Use spawn_model for all trees, rocks, buildings, and props. Use create_terrain, spawn_water, spawn_light, spawn_portal, spawn_wall as CSG. Use move_self to walk to each area before building. Vary tree types and scale for natural look. Do not skip phases. Do not repeat actions. After each phase call add_note to track progress.
