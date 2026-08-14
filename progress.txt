@@ -1,0 +1,50 @@
+# Lute Progress Log
+## Aug 13, 2026
+
+### Working
+- [x] LLM agent auto-acting with tool calls (qwen2.5-coder-7b-instruct-mlx)
+- [x] World building: terrain, water, trees, portal, walls, lights, landmarks
+- [x] Admin HTTP server on port 6401 — receives commands via TCP
+- [x] Admin in-game text input (toggle game input to type)
+- [x] Agent responds conversationally to admin chat via say() tool
+- [x] 3D speech bubble above agent (Label3D + billboarded bg plate, auto-fade after 5s)
+- [x] Auto-save every 7 minutes to user://generated_world.tscn
+- [x] World resume on startup (loads saved objects, skips camera/light/ground/agent)
+- [x] Camera follow agent (built into llm_agent_3d.gd, lerp smooth tracking)
+- [x] Procedural idle animation (breathing bob) — visible and working
+- [x] Procedural walk animation (bob, lean, sway) — triggers on movement
+- [x] Build animation (crouch + raise gesture) — triggers on spawn_* tools
+- [x] Agent faces spawn target before building
+- [x] GLB body model loading with fallback capsule
+- [x] AnimationPlayer detection (if GLB has embedded animations)
+- [x] Agent completed full 8-step checklist and announced completion
+- [x] RAM optimizations: conversation history trimmed to 6 messages, max_tokens 1024, act_interval 8s
+
+### New Tools Added
+- [x] teleport — instant position change
+- [x] scale_object — multiply node scale
+- [x] rotate_object — set Y rotation in degrees
+- [x] recolor_object — change material color
+- [x] duplicate_object — clone with offset
+- [x] spawn_stairs — N-step staircase
+- [x] spawn_arch — two pillars + top beam
+
+### Bugs Fixed This Session
+- [x] Speech bubble crash: Label3D doesn't have billboard_mode property — moved to material_override
+- [x] Camera follow crash: separate camera_follow.gd script crashed Godot — moved inline to llm_agent_3d.gd
+- [x] Scene file corruption: Godot strips properties on save — set defaults in script, prompt in _ready()
+- [x] Admin messages not reaching agent: think_and_act() auto-continue didn't pass pending admin msg — fixed
+- [x] Agent not responding conversationally: was treated as "ADMIN INSTRUCTION" — now injected as direct chat with say() nudge
+
+### Known Issues
+- [ ] Godot editor auto-save strips scene properties (unique_id, reorders) — harmless, defaults in script
+- [ ] Saving to res:// causes reimport crash — fixed by saving to user://
+- [ ] RAM pressure on M1 Pro with 7B LLM + Godot — mitigated with reduced token/history limits
+
+### Pending / Next Steps
+- [ ] Voice for agent (TTS integration — female voice)
+- [ ] Check if GLB has embedded walk/idle animations (AnimationPlayer found but no anim names logged yet)
+- [ ] Vision integration (screenshots to LLM)
+- [ ] More build variety (roofs, doors, windows)
+- [ ] Agent pathfinding around obstacles
+- [ ] Make agent use new tools (teleport, scale, rotate, recolor, duplicate, stairs, arch)

@@ -1,0 +1,344 @@
+{
+  "tasks": [
+    {
+      "id": "task_1786637232_0",
+      "type": "run_script",
+      "spec": {
+        "script": "build_phase41_stone.py",
+        "args": [
+          0
+        ]
+      },
+      "status": "completed",
+      "priority": "high",
+      "created_at": "2026-08-13 11:07:12",
+      "result": {
+        "returncode": 0,
+        "stdout": "Batch 0: buildings 0-29 (30 nodes)\nUpdated 30/30 building nodes in batch 0\nSave: {'ok': True}\n",
+        "stderr": ""
+      },
+      "started_at": "2026-08-13 11:07:16",
+      "completed_at": "2026-08-13 11:08:03"
+    },
+    {
+      "id": "task_1786637232_1",
+      "type": "run_script",
+      "spec": {
+        "script": "build_phase41_stone.py",
+        "args": [
+          1
+        ]
+      },
+      "status": "completed",
+      "priority": "high",
+      "created_at": "2026-08-13 11:07:12",
+      "result": {
+        "returncode": 0,
+        "stdout": "Batch 1: buildings 30-59 (30 nodes)\nUpdated 30/30 building nodes in batch 1\nSave: {'ok': True}\n",
+        "stderr": ""
+      },
+      "started_at": "2026-08-13 11:08:03",
+      "completed_at": "2026-08-13 11:08:51"
+    },
+    {
+      "id": "task_1786637232_2",
+      "type": "run_script",
+      "spec": {
+        "script": "build_phase41_stone.py",
+        "args": [
+          2
+        ]
+      },
+      "status": "completed",
+      "priority": "high",
+      "created_at": "2026-08-13 11:07:12",
+      "result": {
+        "returncode": 0,
+        "stdout": "Batch 2: buildings 60-71 (12 nodes)\nUpdated 12/12 building nodes in batch 2\nSave: {'ok': True}\n",
+        "stderr": ""
+      },
+      "started_at": "2026-08-13 11:08:51",
+      "completed_at": "2026-08-13 11:09:11"
+    },
+    {
+      "id": "task_1786637232_3",
+      "type": "run_script",
+      "spec": {
+        "script": "build_phase41_wood.py",
+        "args": [
+          0
+        ]
+      },
+      "status": "completed",
+      "priority": "medium",
+      "created_at": "2026-08-13 11:07:12",
+      "result": {
+        "returncode": 0,
+        "stdout": "Batch 0: wood 0-29 (30 nodes)\nUpdated 30/30 wood nodes in batch 0\nSave: {'ok': True}\n",
+        "stderr": ""
+      },
+      "started_at": "2026-08-13 11:09:12",
+      "completed_at": "2026-08-13 11:10:01"
+    },
+    {
+      "id": "task_1786637233_4",
+      "type": "run_script",
+      "spec": {
+        "script": "build_phase41_wood.py",
+        "args": [
+          1
+        ]
+      },
+      "status": "completed",
+      "priority": "medium",
+      "created_at": "2026-08-13 11:07:13",
+      "result": {
+        "returncode": 0,
+        "stdout": "Batch 1: wood 30-59 (30 nodes)\nUpdated 30/30 wood nodes in batch 1\nSave: {'ok': True}\n",
+        "stderr": ""
+      },
+      "started_at": "2026-08-13 11:10:01",
+      "completed_at": "2026-08-13 11:10:48"
+    },
+    {
+      "id": "task_1786637233_5",
+      "type": "run_script",
+      "spec": {
+        "script": "build_phase41_wood.py",
+        "args": [
+          2
+        ]
+      },
+      "status": "completed",
+      "priority": "medium",
+      "created_at": "2026-08-13 11:07:13",
+      "result": {
+        "returncode": 0,
+        "stdout": "Batch 2: wood 60-89 (30 nodes)\nUpdated 30/30 wood nodes in batch 2\nSave: {'ok': True}\n",
+        "stderr": ""
+      },
+      "started_at": "2026-08-13 11:10:49",
+      "completed_at": "2026-08-13 11:11:37"
+    },
+    {
+      "id": "task_1786637233_6",
+      "type": "run_script",
+      "spec": {
+        "script": "build_phase41_wood.py",
+        "args": [
+          3
+        ]
+      },
+      "status": "completed",
+      "priority": "medium",
+      "created_at": "2026-08-13 11:07:13",
+      "result": {
+        "returncode": 0,
+        "stdout": "Batch 3: wood 90-119 (30 nodes)\nUpdated 30/30 wood nodes in batch 3\nSave: {'ok': True}\n",
+        "stderr": ""
+      },
+      "started_at": "2026-08-13 11:11:37",
+      "completed_at": "2026-08-13 11:12:25"
+    },
+    {
+      "id": "task_1786637233_7",
+      "type": "run_script",
+      "spec": {
+        "script": "build_phase41_wood.py",
+        "args": [
+          4
+        ]
+      },
+      "status": "completed",
+      "priority": "medium",
+      "created_at": "2026-08-13 11:07:13",
+      "result": {
+        "returncode": 0,
+        "stdout": "Batch 4: wood 120-149 (30 nodes)\nUpdated 30/30 wood nodes in batch 4\nSave: {'ok': True}\n",
+        "stderr": ""
+      },
+      "started_at": "2026-08-13 11:12:25",
+      "completed_at": "2026-08-13 11:13:16"
+    },
+    {
+      "id": "task_1786637233_8",
+      "type": "run_script",
+      "spec": {
+        "script": "build_phase41_wood.py",
+        "args": [
+          5
+        ]
+      },
+      "status": "completed",
+      "priority": "medium",
+      "created_at": "2026-08-13 11:07:13",
+      "result": {
+        "returncode": 0,
+        "stdout": "Batch 5: wood 150-179 (30 nodes)\nUpdated 30/30 wood nodes in batch 5\nSave: {'ok': True}\n",
+        "stderr": ""
+      },
+      "started_at": "2026-08-13 11:13:16",
+      "completed_at": "2026-08-13 11:14:04"
+    },
+    {
+      "id": "task_1786637233_9",
+      "type": "run_script",
+      "spec": {
+        "script": "build_phase41_wood.py",
+        "args": [
+          6
+        ]
+      },
+      "status": "completed",
+      "priority": "medium",
+      "created_at": "2026-08-13 11:07:13",
+      "result": {
+        "returncode": 0,
+        "stdout": "Batch 6: wood 180-209 (30 nodes)\nUpdated 30/30 wood nodes in batch 6\nSave: {'ok': True}\n",
+        "stderr": ""
+      },
+      "started_at": "2026-08-13 11:14:04",
+      "completed_at": "2026-08-13 11:14:53"
+    },
+    {
+      "id": "task_1786637233_10",
+      "type": "run_script",
+      "spec": {
+        "script": "build_phase41_wood.py",
+        "args": [
+          7
+        ]
+      },
+      "status": "completed",
+      "priority": "medium",
+      "created_at": "2026-08-13 11:07:13",
+      "result": {
+        "returncode": 0,
+        "stdout": "Batch 7: wood 210-239 (30 nodes)\nUpdated 30/30 wood nodes in batch 7\nSave: {'ok': True}\n",
+        "stderr": ""
+      },
+      "started_at": "2026-08-13 11:14:53",
+      "completed_at": "2026-08-13 11:15:42"
+    },
+    {
+      "id": "task_1786637233_11",
+      "type": "run_script",
+      "spec": {
+        "script": "build_phase41_wood.py",
+        "args": [
+          8
+        ]
+      },
+      "status": "completed",
+      "priority": "medium",
+      "created_at": "2026-08-13 11:07:13",
+      "result": {
+        "returncode": 0,
+        "stdout": "Batch 8: wood 240-269 (30 nodes)\nUpdated 30/30 wood nodes in batch 8\nSave: {'ok': True}\n",
+        "stderr": ""
+      },
+      "started_at": "2026-08-13 11:15:42",
+      "completed_at": "2026-08-13 11:16:31"
+    },
+    {
+      "id": "task_1786637233_12",
+      "type": "run_script",
+      "spec": {
+        "script": "build_phase41_wood.py",
+        "args": [
+          9
+        ]
+      },
+      "status": "completed",
+      "priority": "medium",
+      "created_at": "2026-08-13 11:07:13",
+      "result": {
+        "returncode": 0,
+        "stdout": "Batch 9: wood 270-299 (30 nodes)\nUpdated 30/30 wood nodes in batch 9\nSave: {'ok': True}\n",
+        "stderr": ""
+      },
+      "started_at": "2026-08-13 11:16:31",
+      "completed_at": "2026-08-13 11:17:19"
+    },
+    {
+      "id": "task_1786637233_13",
+      "type": "run_script",
+      "spec": {
+        "script": "build_phase41_wood.py",
+        "args": [
+          10
+        ]
+      },
+      "status": "completed",
+      "priority": "medium",
+      "created_at": "2026-08-13 11:07:13",
+      "result": {
+        "returncode": 0,
+        "stdout": "Batch 10: wood 300-329 (30 nodes)\nUpdated 30/30 wood nodes in batch 10\nSave: {'ok': True}\n",
+        "stderr": ""
+      },
+      "started_at": "2026-08-13 11:17:19",
+      "completed_at": "2026-08-13 11:18:09"
+    },
+    {
+      "id": "task_1786637233_14",
+      "type": "run_script",
+      "spec": {
+        "script": "build_phase41_wood.py",
+        "args": [
+          11
+        ]
+      },
+      "status": "completed",
+      "priority": "medium",
+      "created_at": "2026-08-13 11:07:13",
+      "result": {
+        "returncode": 0,
+        "stdout": "Batch 11: wood 330-359 (30 nodes)\nUpdated 30/30 wood nodes in batch 11\nSave: {'ok': True}\n",
+        "stderr": ""
+      },
+      "started_at": "2026-08-13 11:18:09",
+      "completed_at": "2026-08-13 11:18:59"
+    },
+    {
+      "id": "task_1786637233_15",
+      "type": "run_script",
+      "spec": {
+        "script": "build_phase41_wood.py",
+        "args": [
+          12
+        ]
+      },
+      "status": "completed",
+      "priority": "medium",
+      "created_at": "2026-08-13 11:07:13",
+      "result": {
+        "returncode": 0,
+        "stdout": "Batch 12: wood 360-389 (30 nodes)\nUpdated 30/30 wood nodes in batch 12\nSave: {'ok': True}\n",
+        "stderr": ""
+      },
+      "started_at": "2026-08-13 11:18:59",
+      "completed_at": "2026-08-13 11:19:49"
+    },
+    {
+      "id": "task_1786637233_16",
+      "type": "run_script",
+      "spec": {
+        "script": "build_phase41_wood.py",
+        "args": [
+          13
+        ]
+      },
+      "status": "completed",
+      "priority": "medium",
+      "created_at": "2026-08-13 11:07:13",
+      "result": {
+        "returncode": 0,
+        "stdout": "Batch 13: wood 390-393 (4 nodes)\nUpdated 4/4 wood nodes in batch 13\nSave: {'ok': True}\n",
+        "stderr": ""
+      },
+      "started_at": "2026-08-13 11:19:49",
+      "completed_at": "2026-08-13 11:19:57"
+    }
+  ]
+}

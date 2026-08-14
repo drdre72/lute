@@ -1,0 +1,26 @@
+[gd_scene format=3 uid="uid://bllm3dagent01"]
+
+[ext_resource type="Script" uid="uid://cty6lfdibng7q" path="res://scripts/llm_agent_3d.gd" id="1"]
+
+[sub_resource type="StandardMaterial3D" id="ground_mat"]
+albedo_color = Color(0.2, 0.3, 0.15, 1)
+
+[node name="LLMWorld3D" type="Node3D" unique_id=1483825610]
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=541327991]
+transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 8, 12)
+current = true
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1220595984]
+transform = Transform3D(0.866, 0.25, -0.433, 0, 0.866, 0.5, 0.5, -0.433, 0.75, 10, 15, 10)
+light_energy = 1.5
+
+[node name="Ground" type="CSGBox3D" parent="." unique_id=1024665498]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
+size = Vector3(40, 0.2, 40)
+material = SubResource("ground_mat")
+
+[node name="LLMAgent" type="Node3D" parent="." unique_id=1431921664]
+script = ExtResource("1")
+auto_act = true
+context_radius = 50.0

@@ -1,0 +1,13 @@
+Target Engine: Godot 4.x (GDScript)
+Goal: Create a self-contained procedural terrain generator script attached to a MeshInstance3D.
+
+Requirements:
+1. Generate a grid mesh dynamically using SurfaceTool based on `map_size` (e.g. 128x128) and `mesh_resolution` (e.g. 1.0 unit spacing).
+2. Use FastNoiseLite for height generation:
+   - Noise type: TYPE_SIMPLEX
+   - Fractal type: FRACTAL_FBM
+   - Frequency: 0.005
+3. Apply a Radial Island Mask: Calculate normalized distance from center (0.0 to 1.0). Scale height by `(1.0 - distance^2)` so edges fall to Y=0 (water level).
+4. Auto-generate mesh normals and tangents via SurfaceTool.
+5. Create a static collision shape (ConcavePolygonShape3D) attached as a child node so characters can walk on it.
+6. Create a MultiMeshInstance3D child node that scatters primitive placeholder meshes (e.g., green cylinders for trees) across flat terrain vertices above water level (Y > 2.0 and normal.y > 0.85).

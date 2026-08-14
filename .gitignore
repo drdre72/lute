@@ -1,0 +1,27 @@
+# Godot 4+ specific ignores
+.godot/
+/android/
+
+# macOS
+.DS_Store
+
+# Godot app binary (too large for git)
+Godot_mono.app/
+
+# Screenshots
+*.png.import
+Screenshot*
+
+# Scrap/scratch
+scrap/
+
+# Build artifacts
+*.exe
+*.app
+*.dmg
+
+# Large texture archives
+textures/pbr/*.zip
+*.blend
+*.usdc
+*.mtlx

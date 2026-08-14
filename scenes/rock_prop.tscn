@@ -1,0 +1,19 @@
+[gd_scene format=3 uid="uid://dbykydskhq7du"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_2cei7"]
+albedo_color = Color(0.25, 0.23, 0.2, 1)
+roughness = 0.92
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_m2533"]
+albedo_color = Color(0.22, 0.2, 0.18, 1)
+roughness = 0.92
+
+[node name="rock_prop" type="Node3D" unique_id=1411890753]
+
+[node name="RockBody" type="CSGSphere3D" parent="." unique_id=1540982259]
+material_override = SubResource("StandardMaterial3D_2cei7")
+radius = 1.0
+
+[node name="RockChunk" type="CSGSphere3D" parent="." unique_id=1163921731]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.8, -0.2, 0.5)
+material_override = SubResource("StandardMaterial3D_m2533")

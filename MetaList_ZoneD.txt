@@ -1,0 +1,51 @@
+# Zone D: Door of Time Altar Structure
+# Builds the raised altar platform, staircase, Door of Time slab,
+# and the Spiritual Stone pedestal table at the far end of the Main Nave
+# (opposite the rose window, at the +Z end of the nave).
+# Values are pre-computed from the Temple of Time spec: 1 unit = 1 meter.
+
+- [x] node_add parent_path=Architecture/NaveCombiner type=CSGBox3D name=AltarPlatform
+- [x] node_set_property node_path=Architecture/NaveCombiner/AltarPlatform property=size value={"x":10.0,"y":1.2,"z":2.4}
+- [x] node_set_property node_path=Architecture/NaveCombiner/AltarPlatform property=position value={"x":0,"y":0.6,"z":20.8}
+- [x] node_set_property node_path=Architecture/NaveCombiner/AltarPlatform property=use_collision value=true
+- [x] node_add parent_path=Architecture/NaveCombiner/AltarPlatform type=CSGBox3D name=Step01
+- [x] node_set_property node_path=Architecture/NaveCombiner/AltarPlatform/Step01 property=size value={"x":10.0,"y":0.2,"z":0.4}
+- [x] node_set_property node_path=Architecture/NaveCombiner/AltarPlatform/Step01 property=position value={"x":0,"y":-0.5,"z":-1.2}
+- [x] node_add parent_path=Architecture/NaveCombiner/AltarPlatform type=CSGBox3D name=Step02
+- [x] node_set_property node_path=Architecture/NaveCombiner/AltarPlatform/Step02 property=size value={"x":10.0,"y":0.2,"z":0.4}
+- [x] node_set_property node_path=Architecture/NaveCombiner/AltarPlatform/Step02 property=position value={"x":0,"y":-0.3,"z":-1.6}
+- [x] node_add parent_path=Architecture/NaveCombiner/AltarPlatform type=CSGBox3D name=Step03
+- [x] node_set_property node_path=Architecture/NaveCombiner/AltarPlatform/Step03 property=size value={"x":10.0,"y":0.2,"z":0.4}
+- [x] node_set_property node_path=Architecture/NaveCombiner/AltarPlatform/Step03 property=position value={"x":0,"y":-0.1,"z":-2.0}
+- [x] node_add parent_path=Architecture/NaveCombiner/AltarPlatform type=CSGBox3D name=Step04
+- [x] node_set_property node_path=Architecture/NaveCombiner/AltarPlatform/Step04 property=size value={"x":10.0,"y":0.2,"z":0.4}
+- [x] node_set_property node_path=Architecture/NaveCombiner/AltarPlatform/Step04 property=position value={"x":0,"y":0.1,"z":-2.4}
+- [ ] node_add parent_path=Architecture/NaveCombiner/AltarPlatform type=CSGBox3D name=Step05
+- [ ] node_set_property node_path=Architecture/NaveCombiner/AltarPlatform/Step05 property=size value={"x":10.0,"y":0.2,"z":0.4}
+- [ ] node_set_property node_path=Architecture/NaveCombiner/AltarPlatform/Step05 property=position value={"x":0,"y":0.3,"z":-2.8}
+- [ ] node_add parent_path=Architecture/NaveCombiner/AltarPlatform type=CSGBox3D name=Step06
+- [ ] node_set_property node_path=Architecture/NaveCombiner/AltarPlatform/Step06 property=size value={"x":10.0,"y":0.2,"z":0.4}
+- [ ] node_set_property node_path=Architecture/NaveCombiner/AltarPlatform/Step06 property=position value={"x":0,"y":0.5,"z":-3.2}
+- [ ] node_add parent_path=Architecture/NaveCombiner type=CSGBox3D name=DoorOfTimeSlab
+- [ ] node_set_property node_path=Architecture/NaveCombiner/DoorOfTimeSlab property=size value={"x":7.0,"y":10.0,"z":0.6}
+- [ ] node_set_property node_path=Architecture/NaveCombiner/DoorOfTimeSlab property=position value={"x":0,"y":6.2,"z":22.3}
+- [ ] node_set_property node_path=Architecture/NaveCombiner/DoorOfTimeSlab property=use_collision value=true
+- [ ] node_set_property node_path=Architecture/NaveCombiner/DoorOfTimeSlab property=material_override value={"class":"StandardMaterial3D","albedo_color":{"r":0.25,"g":0.23,"b":0.21,"a":1},"roughness":0.75,"metallic":0.1}
+- [ ] node_add parent_path=Architecture/NaveCombiner/AltarPlatform type=CSGBox3D name=PedestalTable
+- [ ] node_set_property node_path=Architecture/NaveCombiner/AltarPlatform/PedestalTable property=size value={"x":3.0,"y":1.1,"z":1.2}
+- [ ] node_set_property node_path=Architecture/NaveCombiner/AltarPlatform/PedestalTable property=position value={"x":0,"y":1.15,"z":0.6}
+- [ ] node_set_property node_path=Architecture/NaveCombiner/AltarPlatform/PedestalTable property=use_collision value=true
+- [ ] node_set_property node_path=Architecture/NaveCombiner/AltarPlatform/PedestalTable property=material_override value={"class":"StandardMaterial3D","albedo_color":{"r":0.35,"g":0.33,"b":0.3,"a":1},"roughness":0.6,"metallic":0.2}
+- [ ] node_add parent_path=Architecture/NaveCombiner/AltarPlatform/PedestalTable type=CSGBox3D name=SocketLeft
+- [ ] node_set_property node_path=Architecture/NaveCombiner/AltarPlatform/PedestalTable/SocketLeft property=operation value=2
+- [ ] node_set_property node_path=Architecture/NaveCombiner/AltarPlatform/PedestalTable/SocketLeft property=size value={"x":0.3,"y":0.2,"z":0.3}
+- [ ] node_set_property node_path=Architecture/NaveCombiner/AltarPlatform/PedestalTable/SocketLeft property=position value={"x":-0.8,"y":0.35,"z":0}
+- [ ] node_add parent_path=Architecture/NaveCombiner/AltarPlatform/PedestalTable type=CSGBox3D name=SocketCenter
+- [ ] node_set_property node_path=Architecture/NaveCombiner/AltarPlatform/PedestalTable/SocketCenter property=operation value=2
+- [ ] node_set_property node_path=Architecture/NaveCombiner/AltarPlatform/PedestalTable/SocketCenter property=size value={"x":0.3,"y":0.2,"z":0.3}
+- [ ] node_set_property node_path=Architecture/NaveCombiner/AltarPlatform/PedestalTable/SocketCenter property=position value={"x":0,"y":0.35,"z":0}
+- [ ] node_add parent_path=Architecture/NaveCombiner/AltarPlatform/PedestalTable type=CSGBox3D name=SocketRight
+- [ ] node_set_property node_path=Architecture/NaveCombiner/AltarPlatform/PedestalTable/SocketRight property=operation value=2
+- [ ] node_set_property node_path=Architecture/NaveCombiner/AltarPlatform/PedestalTable/SocketRight property=size value={"x":0.3,"y":0.2,"z":0.3}
+- [ ] node_set_property node_path=Architecture/NaveCombiner/AltarPlatform/PedestalTable/SocketRight property=position value={"x":0.8,"y":0.35,"z":0}
+- [ ] get_scene_tree to verify the AltarPlatform, DoorOfTimeSlab, and PedestalTable with sockets are correctly placed, then scene_save

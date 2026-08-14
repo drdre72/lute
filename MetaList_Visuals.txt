@@ -1,0 +1,19 @@
+# Visual pass for Main Nave scene -- apply materials so the grey CSG geometry
+# looks like a real stone temple with a glowing rose window.
+#
+# Work through this one step at a time using checklist_next. Material values are
+# pre-computed below -- apply them exactly. When the whole list is done, save the
+# scene and verify with get_scene_tree.
+
+- [x] node_set_property node_path=Architecture/NaveCombiner/Floor property=material_override value={"class":"StandardMaterial3D","albedo_color":{"r":0.22,"g":0.20,"b":0.18,"a":1},"roughness":0.92,"metallic":0.05,"uv1_scale":{"x":4,"y":4,"z":4}}
+- [x] node_set_property node_path=Architecture/NaveCombiner/NaveVault property=material_override value={"class":"StandardMaterial3D","albedo_color":{"r":0.38,"g":0.35,"b":0.30,"a":1},"roughness":0.85,"metallic":0.03,"uv1_scale":{"x":3,"y":8,"z":3}}
+- [x] node_set_property node_path=Architecture/NaveCombiner/RearFacade property=material_override value={"class":"StandardMaterial3D","albedo_color":{"r":0.30,"g":0.28,"b":0.25,"a":1},"roughness":0.88,"metallic":0.04,"uv1_scale":{"x":4,"y":4,"z":1}}
+- [x] node_set_property node_path=Architecture/NaveCombiner/RearFacade/RoseWindowCut property=material_override value={"class":"StandardMaterial3D","albedo_color":{"r":0.08,"g":0.12,"b":0.25,"a":1},"emission_enabled":true,"emission":{"r":0.15,"g":0.35,"b":0.8,"a":1},"emission_energy_multiplier":2.5,"roughness":0.3,"metallic":0.0,"transparency":2}
+- [x] apply stone material to the left colonnade (Pillar_L0 through Pillar_L5) using node_set_property material_override={"class":"StandardMaterial3D","albedo_color":{"r":0.35,"g":0.33,"b":0.30,"a":1},"roughness":0.65,"metallic":0.15,"uv1_scale":{"x":1,"y":4,"z":1}} on each pillar
+- [x] apply the same stone material to the right colonnade (Pillar_R0 through Pillar_R5)
+- [x] node_add parent_path=. type=OmniLight3D name=RoseWindowGlow
+- [x] node_set_property node_path=RoseWindowGlow property=position value={"x":0,"y":13,"z":-18}
+- [x] node_set_property node_path=RoseWindowGlow property=light_color value={"r":0.2,"g":0.4,"b":0.9,"a":1}
+- [x] node_set_property node_path=RoseWindowGlow property=light_energy value=2.0
+- [x] node_set_property node_path=RoseWindowGlow property=omni_range value=30.0
+- [x] get_scene_tree to verify all materials and the new RoseWindowGlow light are in place, then scene_save

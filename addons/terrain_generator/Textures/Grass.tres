@@ -1,0 +1,11 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://dqroy8wnd1ryt"]
+
+[ext_resource type="Texture2D" uid="uid://0qohebyc1wgp" path="res://addons/terrain_generator/Textures/coast_sand_rocks_02_diff_4k.jpg" id="1_kxv33"]
+[ext_resource type="Texture2D" uid="uid://2axx2w0v8sk5" path="res://addons/terrain_generator/Textures/coast_sand_rocks_02_rough_4k.exr" id="2_8qyfx"]
+
+[resource]
+cull_mode = 1
+albedo_texture = ExtResource("1_kxv33")
+roughness_texture = ExtResource("2_8qyfx")
+roughness_texture_channel = 4
+uv1_triplanar = true

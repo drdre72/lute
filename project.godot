@@ -1,0 +1,46 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[GD-Sync]
+
+version="1.0"
+
+[application]
+
+config/name="Lute"
+run/main_scene="uid://bbypr0pepyiu7"
+config/features=PackedStringArray("4.7", "Forward Plus")
+run/max_fps=30
+config/icon="res://icon.svg"
+
+[autoload]
+
+BTDebuggerListener="*uid://b3mmp5xw5hl3i"
+
+[display]
+
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[dotnet]
+
+project/assembly_name="Lute"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/ai_pipeline/plugin.cfg", "res://addons/terrain_generator/plugin.cfg", "res://addons/DVs_behavior_tree/plugin.cfg", "res://addons/open-world-database/plugin.cfg")
+
+[physics]
+
+3d/physics_engine="Jolt Physics"
+
+[rendering]
+
+rendering_device/driver.windows="d3d12"

@@ -1,0 +1,361 @@
+2026-08-13 00:57:20,033 [INFO] Task worker started (once=True, dry_run=True)
+2026-08-13 00:57:20,033 [INFO] No pending tasks. Exiting.
+2026-08-13 00:57:20,033 [INFO] Task worker stopped.
+2026-08-13 00:57:26,455 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 00:57:26,455 [INFO] Processing task: task_1786600644_0 type=cleanup_duplicates
+2026-08-13 00:57:26,507 [INFO] cleanup_duplicates: 80 CSG nodes to delete (dry_run=True)
+2026-08-13 00:57:26,509 [INFO] Task task_1786600644_0 completed: {"dry_run": true, "would_delete": 80, "sample_paths": ["TownArea/Terrain/RTree_1000_Trunk", "TownArea/Terrain/RTree_1000_Canopy1", "TownArea/Terrain/RTree_1000_Canopy2", "TownArea/Terrain/RTree_1000_C
+2026-08-13 00:57:26,511 [INFO] Task worker stopped.
+2026-08-13 00:57:31,622 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 00:57:31,622 [INFO] Processing task: task_1786600648_0 type=cleanup_duplicates
+2026-08-13 00:57:31,668 [INFO] cleanup_duplicates: 80 CSG nodes to delete (dry_run=False)
+2026-08-13 00:58:21,480 [INFO]   Progress: 50/80
+2026-08-13 00:58:52,096 [INFO] Task task_1786600648_0 completed: {"deleted": 0, "errors": 80, "total": 80}
+2026-08-13 00:58:52,097 [INFO] Task worker stopped.
+2026-08-13 01:00:47,555 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 01:00:47,556 [INFO] Processing task: task_1786600813_0 type=batch_delete
+2026-08-13 01:00:47,556 [INFO] batch_delete: 85 paths
+2026-08-13 01:02:07,698 [INFO]   Progress: 50/85
+2026-08-13 01:02:56,600 [INFO] Task task_1786600813_0 completed: {"deleted": 85, "errors": 0, "total": 85}
+2026-08-13 01:02:56,605 [INFO] Task worker stopped.
+2026-08-13 01:02:56,811 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 01:02:56,816 [INFO] Processing task: task_1786600823_1 type=set_materials
+2026-08-13 01:02:56,866 [INFO] set_materials: 64 nodes, pattern='Stall*Leg*', prop='material_override'
+2026-08-13 01:03:46,569 [INFO]   Progress: 50/64 (updated=50)
+2026-08-13 01:04:01,625 [INFO] Task task_1786600823_1 completed: {"updated": 64, "errors": 0, "total_found": 64}
+2026-08-13 01:04:01,631 [INFO] Task worker stopped.
+2026-08-13 01:04:01,848 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 01:04:01,854 [INFO] Processing task: task_1786600843_2 type=set_materials
+2026-08-13 01:04:01,936 [INFO] set_materials: 32 nodes, pattern='Stall*Pole*', prop='material_override'
+2026-08-13 01:04:35,541 [INFO] Task task_1786600843_2 completed: {"updated": 32, "errors": 0, "total_found": 32}
+2026-08-13 01:04:35,543 [INFO] Task worker stopped.
+2026-08-13 01:05:11,667 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 01:05:11,668 [INFO] Processing task: task_1786601109_3 type=run_script
+2026-08-13 01:05:11,668 [INFO] run_script: build_phase39.py
+2026-08-13 01:10:11,682 [ERROR] Task task_1786601109_3 failed: Command '['/Users/andrebaker/periphery/agent/.venv/bin/python3', '/Users/andrebaker/periphery/agent/build_phase39.py']' timed out after 300 seconds
+2026-08-13 01:10:11,685 [INFO] Task worker stopped.
+2026-08-13 01:12:51,669 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 01:12:51,670 [INFO] Processing task: task_1786601499_0 type=run_script
+2026-08-13 01:12:51,670 [INFO] run_script: build_phase39.py
+2026-08-13 01:22:51,688 [ERROR] Task task_1786601499_0 failed: Command '['/Users/andrebaker/periphery/agent/.venv/bin/python3', '/Users/andrebaker/periphery/agent/build_phase39.py']' timed out after 600 seconds
+2026-08-13 01:22:51,691 [INFO] Task worker stopped.
+2026-08-13 01:23:21,262 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 01:23:21,263 [INFO] Processing task: task_1786602195_0 type=set_materials
+2026-08-13 01:23:21,313 [INFO] set_materials: 9 nodes, pattern='RustBarrel*', prop='material_override'
+2026-08-13 01:23:32,225 [INFO] Task task_1786602195_0 completed: {"updated": 9, "errors": 0, "total_found": 9}
+2026-08-13 01:23:32,227 [INFO] Task worker stopped.
+2026-08-13 01:23:32,450 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 01:23:32,453 [INFO] Processing task: task_1786602195_1 type=set_materials
+2026-08-13 01:23:32,505 [INFO] set_materials: 6 nodes, pattern='DrumRing*', prop='material_override'
+2026-08-13 01:23:41,031 [INFO] Task task_1786602195_1 completed: {"updated": 6, "errors": 0, "total_found": 6}
+2026-08-13 01:23:41,032 [INFO] Task worker stopped.
+2026-08-13 01:23:41,242 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 01:23:41,244 [INFO] Processing task: task_1786602195_2 type=set_materials
+2026-08-13 01:23:41,312 [INFO] set_materials: 2 nodes, pattern='WaterTowerRing*', prop='material_override'
+2026-08-13 01:23:45,265 [INFO] Task task_1786602195_2 completed: {"updated": 2, "errors": 0, "total_found": 2}
+2026-08-13 01:23:45,270 [INFO] Task worker stopped.
+2026-08-13 01:24:00,809 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 01:24:00,809 [INFO] Processing task: task_1786602237_3 type=set_materials
+2026-08-13 01:24:00,867 [INFO] set_materials: 3 nodes, pattern='Socket*', prop='material_override'
+2026-08-13 01:24:05,540 [INFO] Task task_1786602237_3 completed: {"updated": 3, "errors": 0, "total_found": 3}
+2026-08-13 01:24:05,541 [INFO] Task worker stopped.
+2026-08-13 01:24:05,884 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 01:24:05,886 [INFO] Processing task: task_1786602237_4 type=set_materials
+2026-08-13 01:24:05,947 [INFO] set_materials: 1 nodes, pattern='ScatterTree02_Trunk', prop='material_override'
+2026-08-13 01:24:08,999 [INFO] Task task_1786602237_4 completed: {"updated": 1, "errors": 0, "total_found": 1}
+2026-08-13 01:24:09,000 [INFO] Task worker stopped.
+2026-08-13 01:28:30,482 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 01:28:30,483 [INFO] Processing task: task_1786602496_0 type=run_script
+2026-08-13 01:28:30,484 [INFO] run_script: build_phase40.py args=[0]
+2026-08-13 01:30:06,834 [INFO] Task task_1786602496_0 completed: {"returncode": 0, "stdout": "Batch 0: TownArea/Terrain x=[-55,-20] z=[50,80] target=15\nExisting grass cells: 275\nAdded 15 tufts in batch 0\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 01:30:06,836 [INFO] Task worker stopped.
+2026-08-13 01:30:11,924 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 01:30:11,924 [INFO] Processing task: task_1786602497_1 type=run_script
+2026-08-13 01:30:11,925 [INFO] run_script: build_phase40.py args=[1]
+2026-08-13 01:31:48,588 [INFO] Task task_1786602497_1 completed: {"returncode": 0, "stdout": "Batch 1: TownArea/Terrain x=[-20,15] z=[50,80] target=15\nExisting grass cells: 290\nAdded 15 tufts in batch 1\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 01:31:48,591 [INFO] Task worker stopped.
+2026-08-13 01:31:48,981 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 01:31:48,988 [INFO] Processing task: task_1786602497_2 type=run_script
+2026-08-13 01:31:48,990 [INFO] run_script: build_phase40.py args=[2]
+2026-08-13 01:33:26,868 [INFO] Task task_1786602497_2 completed: {"returncode": 0, "stdout": "Batch 2: TownArea/Terrain x=[35,65] z=[50,80] target=15\nExisting grass cells: 290\nAdded 15 tufts in batch 2\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 01:33:26,871 [INFO] Task worker stopped.
+2026-08-13 01:33:27,123 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 01:33:27,138 [INFO] Processing task: task_1786602497_3 type=run_script
+2026-08-13 01:33:27,139 [INFO] run_script: build_phase40.py args=[3]
+2026-08-13 01:35:06,432 [INFO] Task task_1786602497_3 completed: {"returncode": 0, "stdout": "Batch 3: TownArea/Terrain x=[-55,-20] z=[80,110] target=15\nExisting grass cells: 305\nAdded 15 tufts in batch 3\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 01:35:06,434 [INFO] Task worker stopped.
+2026-08-13 01:35:06,699 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 01:35:06,704 [INFO] Processing task: task_1786602497_4 type=run_script
+2026-08-13 01:35:06,705 [INFO] run_script: build_phase40.py args=[4]
+2026-08-13 01:36:46,822 [INFO] Task task_1786602497_4 completed: {"returncode": 0, "stdout": "Batch 4: TownArea/Terrain x=[35,65] z=[80,110] target=15\nExisting grass cells: 320\nAdded 15 tufts in batch 4\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 01:36:46,825 [INFO] Task worker stopped.
+2026-08-13 01:36:47,035 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 01:36:47,042 [INFO] Processing task: task_1786602497_5 type=run_script
+2026-08-13 01:36:47,043 [INFO] run_script: build_phase40.py args=[5]
+2026-08-13 01:38:27,563 [INFO] Task task_1786602497_5 completed: {"returncode": 0, "stdout": "Batch 5: TownArea/Terrain x=[-55,-20] z=[110,145] target=15\nExisting grass cells: 335\nAdded 15 tufts in batch 5\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 01:38:27,566 [INFO] Task worker stopped.
+2026-08-13 01:38:27,914 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 01:38:27,923 [INFO] Processing task: task_1786602497_6 type=run_script
+2026-08-13 01:38:27,925 [INFO] run_script: build_phase40.py args=[6]
+2026-08-13 01:40:02,968 [INFO] Task task_1786602497_6 completed: {"returncode": 0, "stdout": "Batch 6: TownArea/Terrain x=[35,65] z=[110,145] target=15\nExisting grass cells: 350\nAdded 14 tufts in batch 6\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 01:40:02,971 [INFO] Task worker stopped.
+2026-08-13 01:40:03,221 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 01:40:03,230 [INFO] Processing task: task_1786602497_7 type=run_script
+2026-08-13 01:40:03,231 [INFO] run_script: build_phase40.py args=[7]
+2026-08-13 01:41:45,404 [INFO] Task task_1786602497_7 completed: {"returncode": 0, "stdout": "Batch 7: TownArea/Terrain x=[-38,0] z=[142,178] target=15\nExisting grass cells: 365\nAdded 15 tufts in batch 7\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 01:41:45,406 [INFO] Task worker stopped.
+2026-08-13 01:41:45,631 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 01:41:45,639 [INFO] Processing task: task_1786602497_8 type=run_script
+2026-08-13 01:41:45,640 [INFO] run_script: build_phase40.py args=[8]
+2026-08-13 01:43:27,934 [INFO] Task task_1786602497_8 completed: {"returncode": 0, "stdout": "Batch 8: TownArea/Terrain x=[0,38] z=[142,178] target=15\nExisting grass cells: 379\nAdded 15 tufts in batch 8\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 01:43:27,936 [INFO] Task worker stopped.
+2026-08-13 01:43:28,166 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 01:43:28,174 [INFO] Processing task: task_1786602497_9 type=run_script
+2026-08-13 01:43:28,175 [INFO] run_script: build_phase40.py args=[9]
+2026-08-13 01:44:30,259 [INFO] Task task_1786602497_9 completed: {"returncode": 0, "stdout": "Batch 9: TownArea/LakeRegion x=[-15,20] z=[192,212] target=12\nExisting grass cells: 394\nAdded 10 tufts in batch 9\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 01:44:30,261 [INFO] Task worker stopped.
+2026-08-13 01:44:30,484 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 01:44:30,491 [INFO] Processing task: task_1786602497_10 type=run_script
+2026-08-13 01:44:30,492 [INFO] run_script: build_phase40.py args=[10]
+2026-08-13 01:45:38,673 [INFO] Task task_1786602497_10 completed: {"returncode": 0, "stdout": "Batch 10: TownArea/LakeRegion x=[20,55] z=[192,212] target=12\nExisting grass cells: 409\nAdded 11 tufts in batch 10\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 01:45:38,675 [INFO] Task worker stopped.
+2026-08-13 01:45:38,900 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 01:45:38,917 [INFO] Processing task: task_1786602497_11 type=run_script
+2026-08-13 01:45:38,921 [INFO] run_script: build_phase40.py args=[11]
+2026-08-13 01:46:53,251 [INFO] Task task_1786602497_11 completed: {"returncode": 0, "stdout": "Batch 11: TownArea/Graveyard x=[-55,-25] z=[190,220] target=12\nExisting grass cells: 419\nAdded 12 tufts in batch 11\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 01:46:53,253 [INFO] Task worker stopped.
+2026-08-13 01:46:53,483 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 01:46:53,488 [INFO] Processing task: task_1786602497_12 type=run_script
+2026-08-13 01:46:53,489 [INFO] run_script: build_phase40.py args=[12]
+2026-08-13 01:47:02,027 [INFO] Task task_1786602497_12 completed: {"returncode": 0, "stdout": "Batch 12: TownArea/HiddenGrove x=[-38,-22] z=[92,108] target=10\nExisting grass cells: 430\nAdded 1 tufts in batch 12\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 01:47:02,028 [INFO] Task worker stopped.
+2026-08-13 01:47:02,207 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 01:47:02,209 [INFO] Processing task: task_1786602497_13 type=run_script
+2026-08-13 01:47:02,209 [INFO] run_script: build_phase40.py args=[13]
+2026-08-13 01:48:25,816 [INFO] Task task_1786602497_13 completed: {"returncode": 0, "stdout": "Batch 13: TownArea/Terrain x=[-10,10] z=[25,50] target=12\nExisting grass cells: 442\nAdded 12 tufts in batch 13\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 01:48:25,818 [INFO] Task worker stopped.
+2026-08-13 01:48:26,174 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 01:48:26,183 [INFO] Processing task: task_1786602497_14 type=run_script
+2026-08-13 01:48:26,184 [INFO] run_script: build_phase40.py args=[14]
+2026-08-13 01:48:35,321 [INFO] Task task_1786602497_14 completed: {"returncode": 0, "stdout": "Batch 14: TownArea/Terrain x=[-10,10] z=[145,165] target=12\nExisting grass cells: 443\nAdded 1 tufts in batch 14\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 01:48:35,322 [INFO] Task worker stopped.
+2026-08-13 10:36:52,891 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 10:36:52,892 [INFO] Processing task: task_1786635408_0 type=run_script
+2026-08-13 10:36:52,892 [INFO] run_script: build_phase41_grass.py args=[0]
+2026-08-13 10:37:53,659 [INFO] Task task_1786635408_0 completed: {"returncode": 0, "stdout": "Batch 0: grass 0-49 (50 nodes)\nUpdated 50/50 grass nodes in batch 0\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 10:37:53,661 [INFO] Task worker stopped.
+2026-08-13 10:37:53,963 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 10:37:53,969 [INFO] Processing task: task_1786635408_1 type=run_script
+2026-08-13 10:37:53,970 [INFO] run_script: build_phase41_grass.py args=[1]
+2026-08-13 10:38:58,176 [INFO] Task task_1786635408_1 completed: {"returncode": 0, "stdout": "Batch 1: grass 50-99 (50 nodes)\nUpdated 50/50 grass nodes in batch 1\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 10:38:58,178 [INFO] Task worker stopped.
+2026-08-13 10:38:58,389 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 10:38:58,396 [INFO] Processing task: task_1786635408_2 type=run_script
+2026-08-13 10:38:58,396 [INFO] run_script: build_phase41_grass.py args=[2]
+2026-08-13 10:40:04,112 [INFO] Task task_1786635408_2 completed: {"returncode": 0, "stdout": "Batch 2: grass 100-149 (50 nodes)\nUpdated 50/50 grass nodes in batch 2\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 10:40:04,114 [INFO] Task worker stopped.
+2026-08-13 10:40:04,429 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 10:40:04,435 [INFO] Processing task: task_1786635408_3 type=run_script
+2026-08-13 10:40:04,436 [INFO] run_script: build_phase41_grass.py args=[3]
+2026-08-13 10:41:11,780 [INFO] Task task_1786635408_3 completed: {"returncode": 0, "stdout": "Batch 3: grass 150-199 (50 nodes)\nUpdated 50/50 grass nodes in batch 3\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 10:41:11,783 [INFO] Task worker stopped.
+2026-08-13 10:41:12,021 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 10:41:12,028 [INFO] Processing task: task_1786635408_4 type=run_script
+2026-08-13 10:41:12,028 [INFO] run_script: build_phase41_grass.py args=[4]
+2026-08-13 10:42:20,148 [INFO] Task task_1786635408_4 completed: {"returncode": 0, "stdout": "Batch 4: grass 200-249 (50 nodes)\nUpdated 50/50 grass nodes in batch 4\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 10:42:20,151 [INFO] Task worker stopped.
+2026-08-13 10:42:20,385 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 10:42:20,392 [INFO] Processing task: task_1786635408_5 type=run_script
+2026-08-13 10:42:20,393 [INFO] run_script: build_phase41_grass.py args=[5]
+2026-08-13 10:43:28,855 [INFO] Task task_1786635408_5 completed: {"returncode": 0, "stdout": "Batch 5: grass 250-299 (50 nodes)\nUpdated 50/50 grass nodes in batch 5\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 10:43:28,858 [INFO] Task worker stopped.
+2026-08-13 10:43:29,066 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 10:43:29,075 [INFO] Processing task: task_1786635408_6 type=run_script
+2026-08-13 10:43:29,075 [INFO] run_script: build_phase41_grass.py args=[6]
+2026-08-13 10:44:38,583 [INFO] Task task_1786635408_6 completed: {"returncode": 0, "stdout": "Batch 6: grass 300-349 (50 nodes)\nUpdated 50/50 grass nodes in batch 6\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 10:44:38,585 [INFO] Task worker stopped.
+2026-08-13 10:44:38,793 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 10:44:38,798 [INFO] Processing task: task_1786635408_7 type=run_script
+2026-08-13 10:44:38,798 [INFO] run_script: build_phase41_grass.py args=[7]
+2026-08-13 10:45:46,746 [INFO] Task task_1786635408_7 completed: {"returncode": 0, "stdout": "Batch 7: grass 350-399 (50 nodes)\nUpdated 50/50 grass nodes in batch 7\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 10:45:46,748 [INFO] Task worker stopped.
+2026-08-13 10:45:46,959 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 10:45:46,968 [INFO] Processing task: task_1786635408_8 type=run_script
+2026-08-13 10:45:46,968 [INFO] run_script: build_phase41_grass.py args=[8]
+2026-08-13 10:46:55,944 [INFO] Task task_1786635408_8 completed: {"returncode": 0, "stdout": "Batch 8: grass 400-449 (50 nodes)\nUpdated 50/50 grass nodes in batch 8\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 10:46:55,946 [INFO] Task worker stopped.
+2026-08-13 10:46:56,182 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 10:46:56,206 [INFO] Processing task: task_1786635408_9 type=run_script
+2026-08-13 10:46:56,214 [INFO] run_script: build_phase41_grass.py args=[9]
+2026-08-13 10:48:05,615 [INFO] Task task_1786635408_9 completed: {"returncode": 0, "stdout": "Batch 9: grass 450-499 (50 nodes)\nUpdated 50/50 grass nodes in batch 9\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 10:48:05,619 [INFO] Task worker stopped.
+2026-08-13 10:48:05,841 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 10:48:05,849 [INFO] Processing task: task_1786635408_10 type=run_script
+2026-08-13 10:48:05,849 [INFO] run_script: build_phase41_grass.py args=[10]
+2026-08-13 10:49:14,738 [INFO] Task task_1786635408_10 completed: {"returncode": 0, "stdout": "Batch 10: grass 500-549 (50 nodes)\nUpdated 50/50 grass nodes in batch 10\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 10:49:14,740 [INFO] Task worker stopped.
+2026-08-13 10:49:14,952 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 10:49:14,957 [INFO] Processing task: task_1786635408_11 type=run_script
+2026-08-13 10:49:14,957 [INFO] run_script: build_phase41_grass.py args=[11]
+2026-08-13 10:50:24,432 [INFO] Task task_1786635408_11 completed: {"returncode": 0, "stdout": "Batch 11: grass 550-599 (50 nodes)\nUpdated 50/50 grass nodes in batch 11\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 10:50:24,435 [INFO] Task worker stopped.
+2026-08-13 10:50:24,643 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 10:50:24,650 [INFO] Processing task: task_1786635408_12 type=run_script
+2026-08-13 10:50:24,650 [INFO] run_script: build_phase41_grass.py args=[12]
+2026-08-13 10:51:35,184 [INFO] Task task_1786635408_12 completed: {"returncode": 0, "stdout": "Batch 12: grass 600-649 (50 nodes)\nUpdated 50/50 grass nodes in batch 12\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 10:51:35,188 [INFO] Task worker stopped.
+2026-08-13 10:51:35,400 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 10:51:35,411 [INFO] Processing task: task_1786635408_13 type=run_script
+2026-08-13 10:51:35,411 [INFO] run_script: build_phase41_grass.py args=[13]
+2026-08-13 10:52:46,272 [INFO] Task task_1786635408_13 completed: {"returncode": 0, "stdout": "Batch 13: grass 650-699 (50 nodes)\nUpdated 50/50 grass nodes in batch 13\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 10:52:46,275 [INFO] Task worker stopped.
+2026-08-13 10:52:46,512 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 10:52:46,519 [INFO] Processing task: task_1786635408_14 type=run_script
+2026-08-13 10:52:46,520 [INFO] run_script: build_phase41_grass.py args=[14]
+2026-08-13 10:53:57,752 [INFO] Task task_1786635408_14 completed: {"returncode": 0, "stdout": "Batch 14: grass 700-749 (50 nodes)\nUpdated 50/50 grass nodes in batch 14\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 10:53:57,754 [INFO] Task worker stopped.
+2026-08-13 10:53:58,018 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 10:53:58,026 [INFO] Processing task: task_1786635409_15 type=run_script
+2026-08-13 10:53:58,027 [INFO] run_script: build_phase41_grass.py args=[15]
+2026-08-13 10:55:09,736 [INFO] Task task_1786635409_15 completed: {"returncode": 0, "stdout": "Batch 15: grass 750-799 (50 nodes)\nUpdated 50/50 grass nodes in batch 15\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 10:55:09,740 [INFO] Task worker stopped.
+2026-08-13 10:55:09,965 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 10:55:09,972 [INFO] Processing task: task_1786635409_16 type=run_script
+2026-08-13 10:55:09,972 [INFO] run_script: build_phase41_grass.py args=[16]
+2026-08-13 10:56:22,558 [INFO] Task task_1786635409_16 completed: {"returncode": 0, "stdout": "Batch 16: grass 800-849 (50 nodes)\nUpdated 50/50 grass nodes in batch 16\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 10:56:22,561 [INFO] Task worker stopped.
+2026-08-13 10:56:22,770 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 10:56:22,781 [INFO] Processing task: task_1786635409_17 type=run_script
+2026-08-13 10:56:22,782 [INFO] run_script: build_phase41_grass.py args=[17]
+2026-08-13 10:57:35,776 [INFO] Task task_1786635409_17 completed: {"returncode": 0, "stdout": "Batch 17: grass 850-899 (50 nodes)\nUpdated 50/50 grass nodes in batch 17\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 10:57:35,780 [INFO] Task worker stopped.
+2026-08-13 10:57:35,988 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 10:57:35,999 [INFO] Processing task: task_1786635409_18 type=run_script
+2026-08-13 10:57:36,000 [INFO] run_script: build_phase41_grass.py args=[18]
+2026-08-13 10:58:49,961 [INFO] Task task_1786635409_18 completed: {"returncode": 0, "stdout": "Batch 18: grass 900-949 (50 nodes)\nUpdated 50/50 grass nodes in batch 18\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 10:58:49,964 [INFO] Task worker stopped.
+2026-08-13 10:58:50,180 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 10:58:50,187 [INFO] Processing task: task_1786635409_19 type=run_script
+2026-08-13 10:58:50,187 [INFO] run_script: build_phase41_grass.py args=[19]
+2026-08-13 11:00:03,596 [INFO] Task task_1786635409_19 completed: {"returncode": 0, "stdout": "Batch 19: grass 950-999 (50 nodes)\nUpdated 50/50 grass nodes in batch 19\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 11:00:03,598 [INFO] Task worker stopped.
+2026-08-13 11:00:03,811 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 11:00:03,817 [INFO] Processing task: task_1786635409_20 type=run_script
+2026-08-13 11:00:03,818 [INFO] run_script: build_phase41_grass.py args=[20]
+2026-08-13 11:00:55,766 [INFO] Task task_1786635409_20 completed: {"returncode": 0, "stdout": "Batch 20: grass 1000-1033 (34 nodes)\nUpdated 34/34 grass nodes in batch 20\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 11:00:55,769 [INFO] Task worker stopped.
+2026-08-13 11:01:41,398 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 11:01:41,401 [INFO] Processing task: task_1786636898_0 type=run_script
+2026-08-13 11:01:41,405 [INFO] run_script: build_phase41_trunks.py args=[0]
+2026-08-13 11:02:33,834 [INFO] Task task_1786636898_0 completed: {"returncode": 0, "stdout": "Batch 0: trees 0-5 (6 trees)\n  +RTree_1000_Trunk at (17.2, 1.75, 52.9)\n  +RTree_1001_Trunk at (54.4, 1.75, 164.5)\n  +RTree_1002_Trunk at (-6.2, 1.75, 155.7)\n  +RTree_1
+2026-08-13 11:02:33,836 [INFO] Task worker stopped.
+2026-08-13 11:02:34,055 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 11:02:34,066 [INFO] Processing task: task_1786636898_1 type=run_script
+2026-08-13 11:02:34,066 [INFO] run_script: build_phase41_trunks.py args=[1]
+2026-08-13 11:03:24,593 [INFO] Task task_1786636898_1 completed: {"returncode": 0, "stdout": "Batch 1: trees 6-11 (6 trees)\n  +RTree_1008_Trunk at (48.7, 1.75, 54.0)\n  +RTree_1010_Trunk at (-37.9, 1.75, 108.5)\n  +RTree_1012_Trunk at (-15.3, 1.75, 53.6)\n  +RTree
+2026-08-13 11:03:24,595 [INFO] Task worker stopped.
+2026-08-13 11:03:24,805 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 11:03:24,814 [INFO] Processing task: task_1786636898_2 type=run_script
+2026-08-13 11:03:24,814 [INFO] run_script: build_phase41_trunks.py args=[2]
+2026-08-13 11:04:16,345 [INFO] Task task_1786636898_2 completed: {"returncode": 0, "stdout": "Batch 2: trees 12-17 (6 trees)\n  +RTree_1021_Trunk at (-30.2, 1.75, 158.5)\n  +RTree_1026_Trunk at (-22.4, 1.75, 141.6)\n  +RTree_1029_Trunk at (-1.9, 1.75, 155.8)\n  +RT
+2026-08-13 11:04:16,347 [INFO] Task worker stopped.
+2026-08-13 11:04:16,624 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 11:04:16,636 [INFO] Processing task: task_1786636898_3 type=run_script
+2026-08-13 11:04:16,637 [INFO] run_script: build_phase41_trunks.py args=[3]
+2026-08-13 11:05:06,436 [INFO] Task task_1786636898_3 completed: {"returncode": 0, "stdout": "Batch 3: trees 18-23 (6 trees)\n  +RTree_1039_Trunk at (-7.2, 1.75, 144.0)\n  +RTree_1040_Trunk at (-13.0, 1.75, 154.9)\n  +RTree_1044_Trunk at (-32.5, 1.75, 157.2)\n  +RT
+2026-08-13 11:05:06,438 [INFO] Task worker stopped.
+2026-08-13 11:05:06,651 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 11:05:06,659 [INFO] Processing task: task_1786636898_4 type=run_script
+2026-08-13 11:05:06,659 [INFO] run_script: build_phase41_trunks.py args=[4]
+2026-08-13 11:05:54,448 [INFO] Task task_1786636898_4 completed: {"returncode": 0, "stdout": "Batch 4: trees 24-29 (6 trees)\n  +RTree_1056_Trunk at (-8.9, 1.75, 172.9)\n  +RTree_1057_Trunk at (11.9, 1.75, 172.4)\n  +RTree_1058_Trunk at (-5.0, 1.75, 175.0)\n  +RTre
+2026-08-13 11:05:54,450 [INFO] Task worker stopped.
+2026-08-13 11:05:54,679 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 11:05:54,686 [INFO] Processing task: task_1786636898_5 type=run_script
+2026-08-13 11:05:54,686 [INFO] run_script: build_phase41_trunks.py args=[5]
+2026-08-13 11:06:43,195 [INFO] Task task_1786636898_5 completed: {"returncode": 0, "stdout": "Batch 5: trees 30-35 (6 trees)\n  +RTree_1062_Trunk at (-28.1, 1.75, 96.8)\n  +RTree_1063_Trunk at (-30.6, 1.75, 106.0)\n  +RTree_1064_Trunk at (-23.0, 1.75, 92.1)\n  +RTr
+2026-08-13 11:06:43,197 [INFO] Task worker stopped.
+2026-08-13 11:07:16,997 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 11:07:16,997 [INFO] Processing task: task_1786637232_0 type=run_script
+2026-08-13 11:07:16,998 [INFO] run_script: build_phase41_stone.py args=[0]
+2026-08-13 11:08:03,733 [INFO] Task task_1786637232_0 completed: {"returncode": 0, "stdout": "Batch 0: buildings 0-29 (30 nodes)\nUpdated 30/30 building nodes in batch 0\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 11:08:03,734 [INFO] Task worker stopped.
+2026-08-13 11:08:03,965 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 11:08:03,971 [INFO] Processing task: task_1786637232_1 type=run_script
+2026-08-13 11:08:03,971 [INFO] run_script: build_phase41_stone.py args=[1]
+2026-08-13 11:08:51,408 [INFO] Task task_1786637232_1 completed: {"returncode": 0, "stdout": "Batch 1: buildings 30-59 (30 nodes)\nUpdated 30/30 building nodes in batch 1\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 11:08:51,410 [INFO] Task worker stopped.
+2026-08-13 11:08:51,639 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 11:08:51,644 [INFO] Processing task: task_1786637232_2 type=run_script
+2026-08-13 11:08:51,644 [INFO] run_script: build_phase41_stone.py args=[2]
+2026-08-13 11:09:11,863 [INFO] Task task_1786637232_2 completed: {"returncode": 0, "stdout": "Batch 2: buildings 60-71 (12 nodes)\nUpdated 12/12 building nodes in batch 2\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 11:09:11,865 [INFO] Task worker stopped.
+2026-08-13 11:09:12,226 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 11:09:12,231 [INFO] Processing task: task_1786637232_3 type=run_script
+2026-08-13 11:09:12,233 [INFO] run_script: build_phase41_wood.py args=[0]
+2026-08-13 11:10:01,195 [INFO] Task task_1786637232_3 completed: {"returncode": 0, "stdout": "Batch 0: wood 0-29 (30 nodes)\nUpdated 30/30 wood nodes in batch 0\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 11:10:01,198 [INFO] Task worker stopped.
+2026-08-13 11:10:01,417 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 11:10:01,428 [INFO] Processing task: task_1786637233_4 type=run_script
+2026-08-13 11:10:01,428 [INFO] run_script: build_phase41_wood.py args=[1]
+2026-08-13 11:10:48,939 [INFO] Task task_1786637233_4 completed: {"returncode": 0, "stdout": "Batch 1: wood 30-59 (30 nodes)\nUpdated 30/30 wood nodes in batch 1\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 11:10:48,942 [INFO] Task worker stopped.
+2026-08-13 11:10:49,160 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 11:10:49,165 [INFO] Processing task: task_1786637233_5 type=run_script
+2026-08-13 11:10:49,165 [INFO] run_script: build_phase41_wood.py args=[2]
+2026-08-13 11:11:37,275 [INFO] Task task_1786637233_5 completed: {"returncode": 0, "stdout": "Batch 2: wood 60-89 (30 nodes)\nUpdated 30/30 wood nodes in batch 2\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 11:11:37,278 [INFO] Task worker stopped.
+2026-08-13 11:11:37,509 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 11:11:37,516 [INFO] Processing task: task_1786637233_6 type=run_script
+2026-08-13 11:11:37,516 [INFO] run_script: build_phase41_wood.py args=[3]
+2026-08-13 11:12:25,482 [INFO] Task task_1786637233_6 completed: {"returncode": 0, "stdout": "Batch 3: wood 90-119 (30 nodes)\nUpdated 30/30 wood nodes in batch 3\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 11:12:25,484 [INFO] Task worker stopped.
+2026-08-13 11:12:25,702 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 11:12:25,708 [INFO] Processing task: task_1786637233_7 type=run_script
+2026-08-13 11:12:25,709 [INFO] run_script: build_phase41_wood.py args=[4]
+2026-08-13 11:13:16,194 [INFO] Task task_1786637233_7 completed: {"returncode": 0, "stdout": "Batch 4: wood 120-149 (30 nodes)\nUpdated 30/30 wood nodes in batch 4\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 11:13:16,196 [INFO] Task worker stopped.
+2026-08-13 11:13:16,395 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 11:13:16,404 [INFO] Processing task: task_1786637233_8 type=run_script
+2026-08-13 11:13:16,404 [INFO] run_script: build_phase41_wood.py args=[5]
+2026-08-13 11:14:04,503 [INFO] Task task_1786637233_8 completed: {"returncode": 0, "stdout": "Batch 5: wood 150-179 (30 nodes)\nUpdated 30/30 wood nodes in batch 5\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 11:14:04,505 [INFO] Task worker stopped.
+2026-08-13 11:14:04,719 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 11:14:04,723 [INFO] Processing task: task_1786637233_9 type=run_script
+2026-08-13 11:14:04,724 [INFO] run_script: build_phase41_wood.py args=[6]
+2026-08-13 11:14:53,573 [INFO] Task task_1786637233_9 completed: {"returncode": 0, "stdout": "Batch 6: wood 180-209 (30 nodes)\nUpdated 30/30 wood nodes in batch 6\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 11:14:53,575 [INFO] Task worker stopped.
+2026-08-13 11:14:53,783 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 11:14:53,788 [INFO] Processing task: task_1786637233_10 type=run_script
+2026-08-13 11:14:53,788 [INFO] run_script: build_phase41_wood.py args=[7]
+2026-08-13 11:15:42,492 [INFO] Task task_1786637233_10 completed: {"returncode": 0, "stdout": "Batch 7: wood 210-239 (30 nodes)\nUpdated 30/30 wood nodes in batch 7\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 11:15:42,494 [INFO] Task worker stopped.
+2026-08-13 11:15:42,696 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 11:15:42,700 [INFO] Processing task: task_1786637233_11 type=run_script
+2026-08-13 11:15:42,701 [INFO] run_script: build_phase41_wood.py args=[8]
+2026-08-13 11:16:31,395 [INFO] Task task_1786637233_11 completed: {"returncode": 0, "stdout": "Batch 8: wood 240-269 (30 nodes)\nUpdated 30/30 wood nodes in batch 8\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 11:16:31,398 [INFO] Task worker stopped.
+2026-08-13 11:16:31,597 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 11:16:31,606 [INFO] Processing task: task_1786637233_12 type=run_script
+2026-08-13 11:16:31,607 [INFO] run_script: build_phase41_wood.py args=[9]
+2026-08-13 11:17:19,738 [INFO] Task task_1786637233_12 completed: {"returncode": 0, "stdout": "Batch 9: wood 270-299 (30 nodes)\nUpdated 30/30 wood nodes in batch 9\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 11:17:19,741 [INFO] Task worker stopped.
+2026-08-13 11:17:19,967 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 11:17:19,971 [INFO] Processing task: task_1786637233_13 type=run_script
+2026-08-13 11:17:19,971 [INFO] run_script: build_phase41_wood.py args=[10]
+2026-08-13 11:18:09,406 [INFO] Task task_1786637233_13 completed: {"returncode": 0, "stdout": "Batch 10: wood 300-329 (30 nodes)\nUpdated 30/30 wood nodes in batch 10\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 11:18:09,408 [INFO] Task worker stopped.
+2026-08-13 11:18:09,621 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 11:18:09,628 [INFO] Processing task: task_1786637233_14 type=run_script
+2026-08-13 11:18:09,628 [INFO] run_script: build_phase41_wood.py args=[11]
+2026-08-13 11:18:59,180 [INFO] Task task_1786637233_14 completed: {"returncode": 0, "stdout": "Batch 11: wood 330-359 (30 nodes)\nUpdated 30/30 wood nodes in batch 11\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 11:18:59,182 [INFO] Task worker stopped.
+2026-08-13 11:18:59,411 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 11:18:59,417 [INFO] Processing task: task_1786637233_15 type=run_script
+2026-08-13 11:18:59,417 [INFO] run_script: build_phase41_wood.py args=[12]
+2026-08-13 11:19:49,128 [INFO] Task task_1786637233_15 completed: {"returncode": 0, "stdout": "Batch 12: wood 360-389 (30 nodes)\nUpdated 30/30 wood nodes in batch 12\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 11:19:49,130 [INFO] Task worker stopped.
+2026-08-13 11:19:49,339 [INFO] Task worker started (once=True, dry_run=False)
+2026-08-13 11:19:49,342 [INFO] Processing task: task_1786637233_16 type=run_script
+2026-08-13 11:19:49,343 [INFO] run_script: build_phase41_wood.py args=[13]
+2026-08-13 11:19:57,953 [INFO] Task task_1786637233_16 completed: {"returncode": 0, "stdout": "Batch 13: wood 390-393 (4 nodes)\nUpdated 4/4 wood nodes in batch 13\nSave: {'ok': True}\n", "stderr": ""}
+2026-08-13 11:19:57,954 [INFO] Task worker stopped.
