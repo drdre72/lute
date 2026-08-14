@@ -124,7 +124,7 @@ func _ready() -> void:
 	# Set up HTTPRequest for LLM calls
 	_http = HTTPRequest.new()
 	_http.timeout = 30.0
-	_http.use_threads = true
+	_http.use_threads = false
 	add_child(_http)
 	_http.request_completed.connect(_on_request_completed)
 	
@@ -519,6 +519,8 @@ func _on_request_completed(result: int, response_code: int, headers: PackedStrin
 				pending_msg = _admin_message
 				_admin_message = ""
 				_has_admin_message = false
+			# Delay next action to let scene tree settle
+			await get_tree().create_timer(2.0).timeout
 			think_and_act(pending_msg)
 	else:
 		_add_log("[color=#888]No tool calls returned[/color]")
