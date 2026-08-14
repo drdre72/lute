@@ -10,10 +10,9 @@ Godot_mono.app/
 
 # Screenshots
 *.png.import
-Screenshot*
 
-# Scrap/scratch
-scrap/
+# Scrap/scratch - screenshots only, keep accessible
+scrap/*.png.import
 
 # Build artifacts
 *.exe
@@ -26,3 +25,4 @@ textures/pbr/*.zip
 *.usdc
 *.mtlx
 instruct/Grok_api.rtf
+instruct/api_key.txt

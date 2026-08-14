@@ -9,8 +9,8 @@ signal llm_response_received(response: String)
 signal tool_call_executed(tool_name: String, result: Dictionary)
 
 @export_category("LLM Configuration")
-@export var api_url: String = "http://127.0.0.1:1234/v1/chat/completions"
-@export var model_name: String = "qwen2.5-vl-7b-instruct"
+@export var api_url: String = "https://andregabrielbaker-7754-resource.openai.azure.com/openai/v1/chat/completions"
+@export var model_name: String = "grok-4-1-fast-reasoning"
 @export var api_key: String = ""
 @export var system_prompt: String = ""
 @export var max_tokens: int = 1024
@@ -62,6 +62,14 @@ var _cam_offset: Vector3 = Vector3(0, 8, 12)
 var _cam_pos: Vector3 = Vector3.ZERO
 
 func _ready() -> void:
+	# Load API key from gitignored file if not set in scene
+	if api_key == "":
+		var key_file = FileAccess.open("res://instruct/api_key.txt", FileAccess.READ)
+		if key_file:
+			api_key = key_file.get_as_text().strip_edges()
+			print("[LLMAgent3D] API key loaded from secrets file")
+			key_file.close()
+	
 	# Set default world-builder prompt if not overridden in scene
 	if system_prompt == "":
 		system_prompt = "You are a world-builder agent in a 3D game. You MUST respond with ONE JSON tool call per turn. No text, only JSON.\n\nFORMAT: {\"action\": \"tool_name\", \"parameters\": {\"key\": \"value\"}}\n\nAVAILABLE TOOLS:\n- create_terrain: parameters: x, z, size, resolution, height, color\n- spawn_water: parameters: x, z, size, color\n- spawn_tree: parameters: x, z, scale\n- spawn_portal: parameters: x, z, color\n- spawn_wall: parameters: x1, z1, x2, z2, color, height\n- spawn_light: parameters: x, z, energy, range, color\n- spawn_box: parameters: x, z, w, h, d, color\n- spawn_sphere: parameters: x, z, r, color\n- spawn_cylinder: parameters: x, z, r, h, color\n- move_self: parameters: x, z\n- say: parameters: message\n- checklist_update: parameters: item\n- inventory_add: parameters: item, quantity\n- inventory_remove: parameters: item, quantity\n- inventory_list: parameters: (none)\n- add_note: parameters: note\n- read_notes: parameters: (none)\n\nYOUR TASK: Build a world by calling these tools in order. Do NOT skip steps. Do NOT call checklist_update without also doing the action.\n\nStep 1: Call create_terrain with x=0, z=0, size=50, resolution=16, height=3, color=darkgreen\nStep 2: Call spawn_water with x=15, z=15, size=12, color=deepskyblue\nStep 3: Call spawn_tree with x=8, z=8, scale=1.5\nStep 4: Call spawn_tree with x=-8, z=8, scale=1.5\nStep 5: Call spawn_tree with x=12, z=-5, scale=1.5\nStep 6: Call spawn_tree with x=-12, z=-5, scale=1.5\nStep 7: Call spawn_tree with x=5, z=-12, scale=1.5\nStep 8: Call spawn_tree with x=-5, z=12, scale=1.5\nStep 9: Call spawn_portal with x=0, z=0, color=cyan\nStep 10: Call spawn_wall with x1=3, z1=3, x2=7, z2=3, color=tan, height=3\nStep 11: Call spawn_wall with x1=7, z1=3, x2=7, z2=7, color=tan, height=3\nStep 12: Call spawn_wall with x1=7, z1=7, x2=3, z2=7, color=tan, height=3\nStep 13: Call spawn_wall with x1=3, z1=7, x2=3, z2=3, color=tan, height=3\nStep 14: Call spawn_light with x=0, z=0, energy=5, range=15\nStep 15: Call spawn_light with x=5, z=5, color=orange, energy=3, range=8\nStep 16: Call spawn_cylinder with x=-8, z=0, r=0.5, h=6, color=lightgray\nStep 17: Call spawn_box with x=8, z=-8, w=2, h=4, d=2, color=darkred\nStep 18: Call say with message=World build complete!\n\nRULES: Output ONLY JSON. One tool per turn. Look at world context to see what is already done. Skip steps where objects already exist. Use add_note to remember what you built. Use inventory_add when you create items. Use read_notes if you forget your progress."
@@ -115,7 +123,7 @@ func _ready() -> void:
 	
 	# Set up HTTPRequest for LLM calls
 	_http = HTTPRequest.new()
-	_http.timeout = 60.0
+	_http.timeout = 30.0
 	_http.use_threads = true
 	add_child(_http)
 	_http.request_completed.connect(_on_request_completed)
@@ -386,7 +394,7 @@ func think_and_act(user_message: String = "") -> void:
 	}
 	
 	var json_body = JSON.stringify(body)
-	var headers = ["Content-Type: application/json"]
+	var headers = ["Content-Type: application/json", "api-key: %s" % api_key]
 	
 	_is_requesting = true
 	_add_log("[color=#88aaff]Thinking...[/color]")
