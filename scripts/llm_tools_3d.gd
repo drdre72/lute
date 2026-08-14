@@ -597,14 +597,16 @@ func _show_speech_bubble(agent: Node3D, text: String) -> void:
 	if existing_bg:
 		existing_bg.queue_free()
 	
-	if text.length() > 120:
-		text = text.substr(0, 117) + "..."
+	if text.length() > 100:
+		text = text.substr(0, 97) + "..."
 	
-	# Background plate
+	# Background plate - wider and taller for readability
 	var bg = MeshInstance3D.new()
 	bg.name = "BubbleBG"
 	var plane = PlaneMesh.new()
-	plane.size = Vector2(max(text.length() * 0.35, 2.0), 1.2)
+	var bubble_width = max(text.length() * 0.5, 3.0)
+	var bubble_height = 1.5
+	plane.size = Vector2(bubble_width, bubble_height)
 	bg.mesh = plane
 	var bg_mat = StandardMaterial3D.new()
 	bg_mat.albedo_color = Color(0.1, 0.1, 0.15, 0.85)
@@ -614,15 +616,19 @@ func _show_speech_bubble(agent: Node3D, text: String) -> void:
 	bg_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	bg_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	bg.material_override = bg_mat
-	bg.position = Vector3(0, 3.0, 0)
+	bg.position = Vector3(0, 3.5, 0)
 	
-	# Text label
+	# Text label - smaller font, wider area, proper sizing
 	var bubble = Label3D.new()
 	bubble.name = "SpeechBubble"
 	bubble.text = text
-	bubble.font_size = 48
-	bubble.position = Vector3(0, 3.0, 0.01)
+	bubble.font_size = 24
+	bubble.width = bubble_width
+	bubble.height = bubble_height
+	bubble.position = Vector3(0, 3.5, 0.02)
 	bubble.no_depth_test = true
+	bubble.outline_modulate = Color(0, 0, 0, 0.8)
+	bubble.outline_size = 8
 	
 	# Text material with billboard
 	var text_mat = StandardMaterial3D.new()
@@ -638,14 +644,28 @@ func _show_speech_bubble(agent: Node3D, text: String) -> void:
 	agent.add_child(bubble)
 	bubble.owner = null
 	
-	# Auto-remove after 5 seconds
-	var timer = agent.get_tree().create_timer(5.0)
-	timer.timeout.connect(func():
-		if is_instance_valid(bubble):
-			bubble.queue_free()
-		if is_instance_valid(bg):
-			bg.queue_free()
-	)
+	# Auto-remove after 5 seconds - use node-based timer to avoid lambda capture issues
+	var timer_node = Timer.new()
+	timer_node.name = "BubbleTimer"
+	timer_node.wait_time = 5.0
+	timer_node.one_shot = true
+	agent.add_child(timer_node)
+	timer_node.owner = null
+	timer_node.timeout.connect(_remove_speech_bubble.bind(agent))
+	timer_node.start()
+
+func _remove_speech_bubble(agent: Node3D) -> void:
+	if not is_instance_valid(agent):
+		return
+	var bubble = agent.get_node_or_null("SpeechBubble")
+	if bubble:
+		bubble.queue_free()
+	var bg = agent.get_node_or_null("BubbleBG")
+	if bg:
+		bg.queue_free()
+	var timer = agent.get_node_or_null("BubbleTimer")
+	if timer:
+		timer.queue_free()
 
 func _tool_run_gdscript(args: Dictionary) -> Dictionary:
 	var code: String = args.get("code", "")

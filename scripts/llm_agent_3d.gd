@@ -29,6 +29,9 @@ var _http: HTTPRequest
 var _tools: Node
 var _conversation_history: Array = []
 var _act_timer: float = 0.0
+var _last_tool_name: String = ""
+var _last_tool_args: String = ""
+var _loop_count: int = 0
 var _move_target: Vector3 = Vector3.ZERO
 var _is_moving: bool = false
 var _is_requesting: bool = false
@@ -464,24 +467,42 @@ func _on_request_completed(result: int, response_code: int, headers: PackedStrin
 				args = {}
 			
 			_add_log("[color=#ffcc44]TOOL:[/color] %s(%s)" % [tool_name, args_str])
-			# Trigger build animation for spawn tools
-			if tool_name.begins_with("spawn_") or tool_name == "create_terrain":
-				var tx = float(args.get("x", 0))
-				var tz = float(args.get("z", 0))
-				trigger_build_anim(Vector3(tx, 0, tz))
-			var result_dict = _tools.execute_tool(tool_name, args)
-			_action_count += 1
-			var result_str = str(result_dict)
-			if result_str.length() > 80:
-				result_str = result_str.substr(0, 80) + "..."
-			_add_log("  -> %s" % result_str)
-			tool_call_executed.emit(tool_name, result_dict)
-			
-			_conversation_history.append({
-				"role": "tool",
-				"tool_call_id": tc.get("id", ""),
-				"content": JSON.stringify(result_dict)
-			})
+		
+		# Loop detection: if same tool+args repeated 3 times, reset memory
+		if tool_name == _last_tool_name and args_str == _last_tool_args:
+			_loop_count += 1
+		else:
+			_loop_count = 0
+		_last_tool_name = tool_name
+		_last_tool_args = args_str
+		
+		if _loop_count >= 3:
+			_add_log("[color=#ff4444]Loop detected! Resetting memory...[/color]")
+			_loop_count = 0
+			_last_tool_name = ""
+			_last_tool_args = ""
+			_conversation_history = [{"role": "system", "content": system_prompt}]
+			# Skip this repeated call, force next think
+			continue
+		
+		# Trigger build animation for spawn tools
+		if tool_name.begins_with("spawn_") or tool_name == "create_terrain":
+			var tx = float(args.get("x", 0))
+			var tz = float(args.get("z", 0))
+			trigger_build_anim(Vector3(tx, 0, tz))
+		var result_dict = _tools.execute_tool(tool_name, args)
+		_action_count += 1
+		var result_str = str(result_dict)
+		if result_str.length() > 80:
+			result_str = result_str.substr(0, 80) + "..."
+		_add_log("  -> %s" % result_str)
+		tool_call_executed.emit(tool_name, result_dict)
+		
+		_conversation_history.append({
+			"role": "tool",
+			"tool_call_id": tc.get("id", ""),
+			"content": JSON.stringify(result_dict)
+		})
 		
 		_trim_conversation()
 		
