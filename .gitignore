@@ -26,3 +26,4 @@ textures/pbr/*.zip
 *.mtlx
 instruct/Grok_api.rtf
 instruct/api_key.txt
+instruct/*.zip

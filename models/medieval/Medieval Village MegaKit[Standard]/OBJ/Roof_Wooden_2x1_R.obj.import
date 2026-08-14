@@ -1,0 +1,25 @@
+[remap]
+
+importer="wavefront_obj"
+importer_version=1
+type="Mesh"
+uid="uid://cm4v6144sdj3d"
+path="res://.godot/imported/Roof_Wooden_2x1_R.obj-c9141907f91d256ecac1fe1081ba29ce.mesh"
+
+[deps]
+
+files=["res://.godot/imported/Roof_Wooden_2x1_R.obj-c9141907f91d256ecac1fe1081ba29ce.mesh"]
+
+source_file="res://models/medieval/Medieval Village MegaKit[Standard]/OBJ/Roof_Wooden_2x1_R.obj"
+dest_files=["res://.godot/imported/Roof_Wooden_2x1_R.obj-c9141907f91d256ecac1fe1081ba29ce.mesh", "res://.godot/imported/Roof_Wooden_2x1_R.obj-c9141907f91d256ecac1fe1081ba29ce.mesh"]
+
+[params]
+
+generate_tangents=true
+generate_lods=true
+generate_shadow_mesh=true
+generate_lightmap_uv2=false
+generate_lightmap_uv2_texel_size=0.2
+scale_mesh=Vector3(1, 1, 1)
+offset_mesh=Vector3(0, 0, 0)
+force_disable_mesh_compression=false

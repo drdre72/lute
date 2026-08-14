@@ -493,6 +493,24 @@ func _register_default_tools() -> void:
 	)
 
 	register_tool(
+		"spawn_model",
+		"Spawn a real 3D model from the asset library. Use this instead of spawn_tree/spawn_box for better quality.\nAvailable models:\nNature: res://models/nature/FBX/CommonTree_1.fbx, CommonTree_2.fbx, CommonTree_3.fbx, CommonTree_4.fbx, CommonTree_5.fbx, TwistedTree_1.fbx, TwistedTree_2.fbx, TwistedTree_3.fbx, Rock_Medium_1.fbx, Rock_Medium_2.fbx, Rock_Medium_3.fbx, Bush_Common.fbx, Fern_1.fbx, Grass_Common_Tall.fbx, Grass_Common_Short.fbx, Flower_4_Group.fbx, Mushroom_Laetiporus.fbx, Pebble_Round_1.fbx\nMedieval: res://models/medieval/Medieval Village MegaKit[Standard]/FBX/Prop_Crate.fbx, Prop_WoodenFence_Single.fbx, Prop_Brick1.fbx, Stairs_Exterior_Sides.fbx, Wall_UnevenBrick_Door_Flat.fbx, Roof_RoundTiles_6x10.fbx, Floor_WoodLight.fbx\nIndustrial: res://models/industrial/Models/GLB format/building-a.glb, building-b.glb, building-c.glb, chimney-small.glb, chimney-medium.glb, chimney-large.glb, detail-tank.glb",
+		{
+			"type": "object",
+			"properties": {
+				"model_path": {"type": "string", "description": "Full path to the model file (e.g. res://models/nature/FBX/CommonTree_1.fbx)"},
+				"x": {"type": "number", "description": "X position"},
+				"z": {"type": "number", "description": "Z position"},
+				"y": {"type": "number", "description": "Y position (height, default 0)"},
+				"scale": {"type": "number", "description": "Scale multiplier (default 1.0)"},
+				"rotation": {"type": "number", "description": "Y rotation in degrees (default 0)"}
+			},
+			"required": ["model_path", "x", "z"]
+		},
+		Callable(self, "_tool_spawn_model")
+	)
+
+	register_tool(
 		"load_build_plan",
 		"Load build instructions from a file. Returns the full text of the build plan for you to follow.",
 		{
@@ -717,6 +735,36 @@ func _tool_load_build_plan(args: Dictionary) -> Dictionary:
 	f.close()
 	print("[LLMTools] Loaded build plan from %s (%d chars)" % [filename, content.length()])
 	return {"ok": true, "plan": content, "length": content.length()}
+
+func _tool_spawn_model(args: Dictionary) -> Dictionary:
+	if _world_root == null:
+		return {"error": "No world root"}
+	var model_path: String = args.get("model_path", "")
+	if model_path == "":
+		return {"error": "No model_path specified"}
+	var x = float(args.get("x", 0))
+	var z = float(args.get("z", 0))
+	var y = float(args.get("y", 0))
+	var s = float(args.get("scale", 1.0))
+	var rot = float(args.get("rotation", 0))
+
+	if not ResourceLoader.exists(model_path):
+		return {"error": "Model not found: %s" % model_path}
+
+	var res = load(model_path)
+	if res == null or not (res is PackedScene):
+		return {"error": "Failed to load model: %s" % model_path}
+
+	var instance = res.instantiate()
+	var node_name = model_path.get_file().get_basename()
+	instance.name = "%s_%d_%d" % [node_name, int(x), int(z)]
+	instance.position = Vector3(x, y, z)
+	instance.scale = Vector3(s, s, s)
+	instance.rotation_degrees.y = rot
+	_world_root.add_child(instance)
+	instance.owner = _world_root
+	print("[LLMTools] Spawned model %s at (%.1f, %.1f, %.1f) scale=%.1f" % [node_name, x, y, z, s])
+	return {"ok": true, "model": node_name, "pos": {"x": x, "y": y, "z": z}, "scale": s}
 
 func _pick_female_voice() -> void:
 	var voices = DisplayServer.tts_get_voices()

@@ -1,0 +1,25 @@
+[remap]
+
+importer="wavefront_obj"
+importer_version=1
+type="Mesh"
+uid="uid://gng0nngoeu6g"
+path="res://.godot/imported/Corner_ExteriorWide_Brick.obj-1c1ecfd7a40fab11ea2c4c86cc7a099e.mesh"
+
+[deps]
+
+files=["res://.godot/imported/Corner_ExteriorWide_Brick.obj-1c1ecfd7a40fab11ea2c4c86cc7a099e.mesh"]
+
+source_file="res://models/medieval/Medieval Village MegaKit[Standard]/OBJ/Corner_ExteriorWide_Brick.obj"
+dest_files=["res://.godot/imported/Corner_ExteriorWide_Brick.obj-1c1ecfd7a40fab11ea2c4c86cc7a099e.mesh", "res://.godot/imported/Corner_ExteriorWide_Brick.obj-1c1ecfd7a40fab11ea2c4c86cc7a099e.mesh"]
+
+[params]
+
+generate_tangents=true
+generate_lods=true
+generate_shadow_mesh=true
+generate_lightmap_uv2=false
+generate_lightmap_uv2_texel_size=0.2
+scale_mesh=Vector3(1, 1, 1)
+offset_mesh=Vector3(0, 0, 0)
+force_disable_mesh_compression=false
