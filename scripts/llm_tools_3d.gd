@@ -742,7 +742,9 @@ func _tool_load_build_plan(args: Dictionary) -> Dictionary:
 	var content = f.get_as_text()
 	f.close()
 	print("[LLMTools] Loaded build plan from %s (%d chars)" % [filename, content.length()])
-	return {"ok": true, "plan": content, "length": content.length()}
+	# Save plan summary to notes so agent can recover it after conversation trim
+	_notes.append("BUILD PLAN LOADED from %s. Follow it phase by phase. Call read_notes if you forget the phases." % filename)
+	return {"ok": true, "plan": content, "length": content.length(), "note_saved": true}
 
 func _tool_spawn_model(args: Dictionary) -> Dictionary:
 	if _world_root == null:
