@@ -749,7 +749,7 @@ func _show_speech_bubble(agent: Node3D, text: String) -> void:
 	bubble.outline_size = 8
 	bubble.position = Vector3(0, 3.5, 0.02)
 	bubble.no_depth_test = true
-	bubble.autowrap = true
+	bubble.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	bubble.width = int(bubble_width * 100)
 	bubble.modulate = Color.WHITE
 	
