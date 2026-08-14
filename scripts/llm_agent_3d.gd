@@ -18,7 +18,7 @@ signal tool_call_executed(tool_name: String, result: Dictionary)
 
 @export_category("Agent Behavior")
 @export var auto_act: bool = false
-@export var act_interval: float = 15.0
+@export var act_interval: float = 20.0
 @export var context_radius: float = 300.0
 @export var move_speed: float = 5.0
 
@@ -64,6 +64,7 @@ var _cam_offset: Vector3 = Vector3(0, 8, 12)
 var _cam_pos: Vector3 = Vector3.ZERO
 
 # Agent persistent state
+var _rate_limit_retries: int = 0
 var _state_current_plan: String = ""
 var _state_current_phase: int = 0
 var _state_phases_done: Array = []
@@ -459,11 +460,13 @@ func _on_request_completed(result: int, response_code: int, headers: PackedStrin
 		var err_text = body.get_string_from_utf8()
 		_add_log("[color=red]HTTP error: %d[/color]" % response_code)
 		print("[LLMAgent3D] HTTP %d response body: %s" % [response_code, err_text.substr(0, 500)])
-		# Retry on 429 rate limit with backoff
+		# Retry on 429 rate limit with exponential backoff
 		if response_code == 429 and auto_act:
-			_add_log("[color=#ffaa44]Rate limited. Waiting 10s before retry...[/color]")
+			_rate_limit_retries += 1
+			var wait_time = min(15.0 * pow(2, _rate_limit_retries - 1), 120.0)
+			_add_log("[color=#ffaa44]Rate limited (attempt %d). Waiting %ds...[/color]" % [_rate_limit_retries, int(wait_time)])
 			_is_requesting = true
-			await get_tree().create_timer(10.0).timeout
+			await get_tree().create_timer(wait_time).timeout
 			_is_requesting = false
 			# Re-send the last user message
 			if _conversation_history.size() > 0 and _conversation_history[-1]["role"] == "user":
@@ -482,6 +485,7 @@ func _on_request_completed(result: int, response_code: int, headers: PackedStrin
 	if choices.is_empty():
 		_add_log("[color=red]No choices in response[/color]")
 		return
+	_rate_limit_retries = 0
 	
 	var message = choices[0].get("message", {})
 	var content = message.get("content", "")
