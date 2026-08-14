@@ -3,13 +3,12 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://dlxtbsx6iikgy"
-path="res://.godot/imported/building-t.glb-e12132fd4e3bad7a44c35d3a8992993b.scn"
+uid="uid://dj8dfxb1ng4h4"
+valid=false
 
 [deps]
 
 source_file="res://models/industrial/Models/GLB format/building-t.glb"
-dest_files=["res://.godot/imported/building-t.glb-e12132fd4e3bad7a44c35d3a8992993b.scn"]
 
 [params]
 
