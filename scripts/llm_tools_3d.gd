@@ -618,17 +618,18 @@ func _show_speech_bubble(agent: Node3D, text: String) -> void:
 	bg.material_override = bg_mat
 	bg.position = Vector3(0, 3.5, 0)
 	
-	# Text label - smaller font, wider area, proper sizing
+	# Text label - smaller font, proper sizing
 	var bubble = Label3D.new()
 	bubble.name = "SpeechBubble"
 	bubble.text = text
 	bubble.font_size = 24
-	bubble.width = bubble_width
-	bubble.height = bubble_height
-	bubble.position = Vector3(0, 3.5, 0.02)
-	bubble.no_depth_test = true
 	bubble.outline_modulate = Color(0, 0, 0, 0.8)
 	bubble.outline_size = 8
+	bubble.position = Vector3(0, 3.5, 0.02)
+	bubble.no_depth_test = true
+	bubble.autowrap = true
+	bubble.width = int(bubble_width * 100)
+	bubble.modulate = Color.WHITE
 	
 	# Text material with billboard
 	var text_mat = StandardMaterial3D.new()

@@ -13,8 +13,8 @@ signal tool_call_executed(tool_name: String, result: Dictionary)
 @export var model_name: String = "qwen2.5-vl-3b-instruct"
 @export var api_key: String = ""
 @export var system_prompt: String = ""
-@export var max_tokens: int = 512
-@export var temperature: float = 0.3
+@export var max_tokens: int = 1024
+@export var temperature: float = 0.5
 
 @export_category("Agent Behavior")
 @export var auto_act: bool = false
