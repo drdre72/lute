@@ -53,6 +53,7 @@ const SCREENSHOT_INTERVAL: float = 30.0
 const AUTOSAVE_INTERVAL: int = 5
 const AUTOSAVE_TIME: float = 420.0
 const WORLD_SAVE_PATH: String = "user://generated_world.tscn"
+const PROJECT_WORLD_PATH: String = "res://scenes/saved_world.tscn"
 const STATE_FILE: String = "user://agent_state.json"
 var _admin_input: LineEdit
 var _admin_message: String = ""
@@ -671,9 +672,11 @@ func _on_admin_input(text: String) -> void:
 	_admin_input.clear()
 
 func _load_saved_world(world_root: Node) -> void:
-	if not FileAccess.file_exists(WORLD_SAVE_PATH):
+	# Try project-saved world first, then user:// path
+	var load_path = PROJECT_WORLD_PATH if FileAccess.file_exists(PROJECT_WORLD_PATH) else WORLD_SAVE_PATH
+	if not FileAccess.file_exists(load_path):
 		return
-	var saved_scene = load(WORLD_SAVE_PATH)
+	var saved_scene = load(load_path)
 	if not saved_scene is PackedScene:
 		return
 	var saved_world = saved_scene.instantiate()
@@ -692,10 +695,10 @@ func _load_saved_world(world_root: Node) -> void:
 	saved_world.queue_free()
 	if loaded_count > 0:
 		_add_log("[color=#44ff44]Loaded %d objects from save.[/color]" % loaded_count)
-		print("[LLMAgent3D] Loaded %d objects from %s" % [loaded_count, WORLD_SAVE_PATH])
+		print("[LLMAgent3D] Loaded %d objects from %s" % [loaded_count, load_path])
 	else:
 		_add_log("No saved objects to load.")
-		print("[LLMAgent3D] No saved objects found in %s" % WORLD_SAVE_PATH)
+		print("[LLMAgent3D] No saved objects found in %s" % load_path)
 
 func send_admin_message(msg: String) -> void:
 	_admin_message = "ADMIN INSTRUCTION: " + msg

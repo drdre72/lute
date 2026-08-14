@@ -27,3 +27,5 @@ textures/pbr/*.zip
 instruct/Grok_api.rtf
 instruct/api_key.txt
 instruct/*.zip
+scrap/
+models/base_basic_pbr.glb
