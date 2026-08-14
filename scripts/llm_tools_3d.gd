@@ -728,9 +728,17 @@ func _tool_load_build_plan(args: Dictionary) -> Dictionary:
 	var filename: String = args.get("filename", "")
 	if filename == "":
 		return {"error": "No filename specified"}
+	# Resolve partial names to full paths
+	if not filename.begins_with("res://") and not filename.begins_with("user://"):
+		if not filename.contains("/"):
+			# Try instruct folder
+			filename = "res://instruct/" + filename
+		# Add .txt extension if missing
+		if not filename.ends_with(".txt"):
+			filename = filename + ".txt"
 	var f = FileAccess.open(filename, FileAccess.READ)
 	if f == null:
-		return {"error": "Cannot open file: %s" % filename}
+		return {"error": "Cannot open file: %s. Try res://instruct/build_rust_world.txt" % filename}
 	var content = f.get_as_text()
 	f.close()
 	print("[LLMTools] Loaded build plan from %s (%d chars)" % [filename, content.length()])
