@@ -760,7 +760,7 @@ func _update_state_from_tool(tool_name: String, args: Dictionary, result: Dictio
 		# Auto-detect phase completion from note text
 		var phase_match = RegEx.create_from_string("Phase (\\d+)").search(note_text)
 		if phase_match:
-			var phase_num = int(phase_match.get_capture(1))
+			var phase_num = int(phase_match.get_string(1))
 			if not _state_phases_done.has(phase_num):
 				_state_phases_done.append(phase_num)
 				_state_phases_remaining.erase(phase_num)
