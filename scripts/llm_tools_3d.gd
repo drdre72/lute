@@ -492,6 +492,19 @@ func _register_default_tools() -> void:
 		Callable(self, "_tool_read_notes")
 	)
 
+	register_tool(
+		"load_build_plan",
+		"Load build instructions from a file. Returns the full text of the build plan for you to follow.",
+		{
+			"type": "object",
+			"properties": {
+				"filename": {"type": "string", "description": "Path to the build plan file (e.g. res://instruct/build_rust_world.txt)"}
+			},
+			"required": ["filename"]
+		},
+		Callable(self, "_tool_load_build_plan")
+	)
+
 # --- Tool Handlers ---
 
 func _tool_move_self(args: Dictionary) -> Dictionary:
@@ -692,6 +705,18 @@ func _tool_read_notes(args: Dictionary) -> Dictionary:
 	for i in range(_notes.size()):
 		print("[LLMTools]   Note %d: %s" % [i + 1, _notes[i]])
 	return {"ok": true, "notes": _notes.duplicate()}
+
+func _tool_load_build_plan(args: Dictionary) -> Dictionary:
+	var filename: String = args.get("filename", "")
+	if filename == "":
+		return {"error": "No filename specified"}
+	var f = FileAccess.open(filename, FileAccess.READ)
+	if f == null:
+		return {"error": "Cannot open file: %s" % filename}
+	var content = f.get_as_text()
+	f.close()
+	print("[LLMTools] Loaded build plan from %s (%d chars)" % [filename, content.length()])
+	return {"ok": true, "plan": content, "length": content.length()}
 
 func _pick_female_voice() -> void:
 	var voices = DisplayServer.tts_get_voices()

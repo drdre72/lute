@@ -1,0 +1,59 @@
+Build a Rust-quality survival world at 2.5km scale (2500x2500 units). Use ALL available tools. Build in this order:
+
+PHASE 1 - TERRAIN (use create_terrain):
+- Large terrain patch: x=0 z=0 size=2500 resolution=32 height=8 color=darkgreen
+- Second patch: x=800 z=0 size=2500 resolution=32 height=6 color=forestgreen
+- Third patch: x=-800 z=800 size=2500 resolution=32 height=10 color=olive
+- Fourth patch: x=0 z=-800 size=2500 resolution=32 height=5 color=saddlebrown
+
+PHASE 2 - WATER (use spawn_water):
+- Large lake: x=400 z=400 size=200 color=deepblue
+- Small pond: x=-300 z=200 size=80 color=deepskyblue
+- River section 1: x=0 z=600 size=150 color=blue
+- River section 2: x=200 z=400 size=150 color=blue
+- Ocean edge: x=1000 z=0 size=500 color=darkblue
+
+PHASE 3 - FORESTS (use spawn_tree, spread them out):
+- Forest cluster 1: 8 trees around x=100 z=100, scale 1.5-2.5
+- Forest cluster 2: 8 trees around x=-200 z=300, scale 1.5-2.5
+- Forest cluster 3: 8 trees around x=500 z=-200, scale 1.5-2.5
+- Forest cluster 4: 6 trees around x=-400 z=-400, scale 2.0-3.0
+- Scattered lone trees: 5 trees at random positions, scale 2.0-3.5
+
+PHASE 4 - ROCK FORMATIONS (use spawn_sphere, spawn_cylinder):
+- Boulder cluster: 4 spheres at x=300 z=-100, r=2-4, color=gray
+- Rock pillars: 3 cylinders at x=-500 z=200, r=1.5 h=5-8, color=dimgray
+- Mountain rocks: 5 spheres at x=700 z=500, r=3-6, color=slategray
+
+PHASE 5 - MONUMENTS (use spawn_portal, spawn_arch, spawn_cylinder):
+- Central portal: x=0 z=0 color=cyan
+- Arch gateway: 2 arches at x=200 z=0 and x=-200 z=0, width=6 height=8 color=stone
+- Lighthouse tower: cylinder at x=600 z=-300, r=2 h=20 color=white
+- Obelisk: cylinder at x=-600 z=-200, r=1 h=15 color=black
+
+PHASE 6 - PLAYER BASE (use spawn_wall, spawn_box, spawn_stairs):
+- Base walls: 4 walls forming 20x20 enclosure at x=100 z=100, height=4, color=tan
+- Watchtower 1: box at x=110 z=110, w=3 h=8 d=3, color=darkgray
+- Watchtower 2: box at x=90 z=90, w=3 h=8 d=3, color=darkgray
+- Storage: box at x=100 z=95, w=4 h=3 d=4, color=brown
+- Stairs to tower: spawn_stairs at x=110 z=115, steps=8 width=3 height=8 color=gray
+
+PHASE 7 - LIGHTING (use spawn_light):
+- Central light: x=0 z=0 energy=10 range=50 color=white
+- Base lights: x=100 z=100 energy=5 range=20 color=warmyellow
+- Portal glow: x=0 z=0 energy=8 range=15 color=cyan
+- Path lights: 4 lights at x=50 z=50, x=-50 z=50, x=50 z=-50, x=-50 z=-50, energy=3 range=10 color=orange
+- Lighthouse beam: x=600 z=-300 energy=15 range=80 color=white
+
+PHASE 8 - DECORATIONS (use spawn_box, spawn_sphere):
+- Crates: 3 boxes at x=105 z=100, w=1 h=1 d=1, color=woodbrown
+- Barrel: cylinder at x=103 z=98, r=0.8 h=1.5, color=rust
+- Campfire: cylinder at x=100 z=105, r=1 h=0.5, color=darkorange
+- Fence posts: 6 cylinders around base perimeter, r=0.3 h=2, color=brown
+
+PHASE 9 - FINALIZE:
+- add_note: "Rust-quality world 2.5km built. Terrain, water, forests, rocks, monuments, base, lighting, decorations complete."
+- inventory_add: "World Builder Kit" quantity 1
+- say: "Rust-quality world generation complete! 2.5km squared with terrain, forests, water, monuments, player base, and lighting."
+
+RULES: Build everything spread across the 2.5km area. Use move_self to walk to each area before building there. Add trees and rocks with variety in scale. Do not skip phases. Do not repeat actions.
