@@ -61,7 +61,7 @@ var _cam_pos: Vector3 = Vector3.ZERO
 func _ready() -> void:
 	# Set default world-builder prompt if not overridden in scene
 	if system_prompt == "":
-		system_prompt = "You are a world-builder agent in a 3D game. Build the world step by step. Always respond with exactly ONE tool call per turn.\n\nSTEPS (do in order):\n1. create_terrain at x=0,z=0,size=50,resolution=16,height=3,color='darkgreen'\n2. spawn_water at x=15,z=15,size=12,color='deepskyblue'\n3. spawn_tree 6x at (8,8),(-8,8),(12,-5),(-12,-5),(5,-12),(-5,12) scale=1.5\n4. spawn_portal at x=0,z=0,color='cyan'\n5. spawn_wall 4x for building: (3,3)-(7,3),(7,3)-(7,7),(7,7)-(3,7),(3,7)-(3,3) color='tan',height=3\n6. spawn_light at x=0,z=0,energy=5,range=15 and x=5,z=5,color='orange',energy=3,range=8\n7. spawn_cylinder at x=-8,z=0,r=0.5,h=6,color='lightgray' and spawn_box at x=8,z=-8,w=2,h=4,d=2,color='darkred'\n8. spawn_box at x=0,z=3,w=6,h=0.1,d=1,color='brown' and spawn_sphere at x=-3,z=3,r=0.5 and x=3,z=-3,r=0.5\n9. say() to announce completion\n\nRULES: One tool call per turn. Use checklist_update after each step. Skip done steps. World saves automatically."
+		system_prompt = "You are a world-builder agent in a 3D game. Respond with ONE JSON tool call per turn.\n\nFORMAT: {\"action\": \"tool_name\", \"parameters\": {\"key\": \"value\"}}\n\nTOOLS:\n- create_terrain: {\"action\":\"create_terrain\",\"parameters\":{\"x\":0,\"z\":0,\"size\":50,\"resolution\":16,\"height\":3,\"color\":\"darkgreen\"}}\n- spawn_water: {\"action\":\"spawn_water\",\"parameters\":{\"x\":15,\"z\":15,\"size\":12,\"color\":\"deepskyblue\"}}\n- spawn_tree: {\"action\":\"spawn_tree\",\"parameters\":{\"x\":8,\"z\":8,\"scale\":1.5}}\n- spawn_portal: {\"action\":\"spawn_portal\",\"parameters\":{\"x\":0,\"z\":0,\"color\":\"cyan\"}}\n- spawn_wall: {\"action\":\"spawn_wall\",\"parameters\":{\"x1\":3,\"z1\":3,\"x2\":7,\"z2\":3,\"color\":\"tan\",\"height\":3}}\n- spawn_light: {\"action\":\"spawn_light\",\"parameters\":{\"x\":0,\"z\":0,\"energy\":5,\"range\":15}}\n- spawn_box: {\"action\":\"spawn_box\",\"parameters\":{\"x\":0,\"z\":0,\"w\":2,\"h\":2,\"d\":2,\"color\":\"red\"}}\n- spawn_sphere: {\"action\":\"spawn_sphere\",\"parameters\":{\"x\":0,\"z\":0,\"r\":1,\"color\":\"white\"}}\n- spawn_cylinder: {\"action\":\"spawn_cylinder\",\"parameters\":{\"x\":0,\"z\":0,\"r\":0.5,\"h\":6,\"color\":\"gray\"}}\n- move_self: {\"action\":\"move_self\",\"parameters\":{\"x\":0,\"z\":0}}\n- say: {\"action\":\"say\",\"parameters\":{\"message\":\"text\"}}\n- checklist_update: {\"action\":\"checklist_update\",\"parameters\":{\"item\":\"step name\"}}\n\nBUILD ORDER:\n1. create_terrain x=0 z=0 size=50 resolution=16 height=3 color=darkgreen\n2. spawn_water x=15 z=15 size=12 color=deepskyblue\n3. spawn_tree 6x: (8,8),(-8,8),(12,-5),(-12,-5),(5,-12),(-5,12) scale=1.5\n4. spawn_portal x=0 z=0 color=cyan\n5. spawn_wall 4x: (3,3)-(7,3),(7,3)-(7,7),(7,7)-(3,7),(3,7)-(3,3) color=tan height=3\n6. spawn_light x=0 z=0 energy=5 range=15, then x=5 z=5 color=orange energy=3 range=8\n7. spawn_cylinder x=-8 z=0 r=0.5 h=6 color=lightgray, spawn_box x=8 z=-8 w=2 h=4 d=2 color=darkred\n8. spawn_box x=0 z=3 w=6 h=0.1 d=1 color=brown, spawn_sphere x=-3 z=3 r=0.5, spawn_sphere x=3 z=-3 r=0.5\n9. say message=World complete!\n\nRULES: Output ONLY the JSON. One tool per turn. Use checklist_update after each step. Skip done steps."
 	# Load and instantiate the 3D body model
 	_body = null
 	if ResourceLoader.exists(body_model_path):
@@ -379,9 +379,7 @@ func think_and_act(user_message: String = "") -> void:
 		"model": model_name,
 		"messages": _conversation_history,
 		"max_tokens": max_tokens,
-		"temperature": temperature,
-		"tools": _tools.get_tool_definitions(),
-		"tool_choice": "auto"
+		"temperature": temperature
 	}
 	
 	var json_body = JSON.stringify(body)
@@ -498,9 +496,25 @@ func _on_request_completed(result: int, response_code: int, headers: PackedStrin
 		_add_log("[color=#888]No tool calls returned[/color]")
 
 func _parse_text_tool_calls(content: String) -> Array:
-	# Try to extract tool calls from text when model doesn't use structured format
-	# Looks for patterns like: tool_name({"key": "value"}) or tool_name(key=value)
 	var results: Array = []
+	
+	# Pattern 0: MCP-style {"action": "tool_name", "parameters": {...}}
+	var json_regex = RegEx.new()
+	json_regex.compile("\\{[^{}]*\"action\"[^{}]*\\}")
+	for match in json_regex.search_all(content):
+		var json_str = match.get_string(0)
+		var parsed = JSON.parse_string(json_str)
+		if parsed and parsed.has("action"):
+			var tool_name = parsed["action"]
+			var args = parsed.get("parameters", {})
+			results.append({
+				"id": "text_call_%d" % results.size(),
+				"function": {"name": tool_name, "arguments": JSON.stringify(args)}
+			})
+	
+	if not results.is_empty():
+		_add_log("[color=#ffaa44]Parsed %d MCP tool call(s) from text[/color]" % results.size())
+		return results
 	
 	# Pattern 1: JSON-style tool_name({...})
 	var regex = RegEx.new()
@@ -520,7 +534,7 @@ func _parse_text_tool_calls(content: String) -> Array:
 		_add_log("[color=#ffaa44]Parsed %d tool call(s) from text[/color]" % results.size())
 		return results
 	
-	# Pattern 2: Look for known tool names followed by params
+	# Pattern 2: Look for known tool names followed by key=value params
 	var known_tools = _tools.get_tool_definitions()
 	var tool_names = []
 	for td in known_tools:
@@ -528,30 +542,25 @@ func _parse_text_tool_calls(content: String) -> Array:
 	
 	for tn in tool_names:
 		if tn in content:
-			# Extract args from text like: spawn_tree at x=8, z=8, scale=1.5
 			var args = {}
 			var idx = content.find(tn)
 			var rest = content.substr(idx + tn.length())
-			
-			# Parse key=value pairs
 			var arg_regex = RegEx.new()
 			arg_regex.compile("(\\w+)\\s*[=:]\\s*['\"]?([\\w.-]+)['\"]?")
 			for match in arg_regex.search_all(rest):
 				var key = match.get_string(1)
 				var val = match.get_string(2)
-				# Try to convert to number
 				if val.is_valid_float():
 					args[key] = float(val)
 				elif val.is_valid_int():
 					args[key] = int(val)
 				else:
 					args[key] = val
-			
 			results.append({
 				"id": "text_call_%d" % results.size(),
 				"function": {"name": tn, "arguments": JSON.stringify(args)}
 			})
-			break  # Only take first tool found
+			break
 	
 	if not results.is_empty():
 		_add_log("[color=#ffaa44]Parsed tool call from text: %s[/color]" % results[0].function.name)
