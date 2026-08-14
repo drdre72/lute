@@ -35,7 +35,7 @@ project/assembly_name="Lute"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/ai_pipeline/plugin.cfg", "res://addons/terrain_generator/plugin.cfg", "res://addons/DVs_behavior_tree/plugin.cfg", "res://addons/open-world-database/plugin.cfg")
+enabled=PackedStringArray("res://addons/ai_pipeline/plugin.cfg", "res://addons/terrain_generator/plugin.cfg", "res://addons/DVs_behavior_tree/plugin.cfg", "res://addons/open-world-database/plugin.cfg", "res://addons/godot_ai/plugin.cfg")
 
 [physics]
 
