@@ -18,7 +18,7 @@ signal tool_call_executed(tool_name: String, result: Dictionary)
 
 @export_category("Agent Behavior")
 @export var auto_act: bool = false
-@export var act_interval: float = 8.0
+@export var act_interval: float = 12.0
 @export var context_radius: float = 300.0
 @export var move_speed: float = 5.0
 
@@ -115,7 +115,7 @@ func _ready() -> void:
 	
 	# Set up HTTPRequest for LLM calls
 	_http = HTTPRequest.new()
-	_http.timeout = 30.0
+	_http.timeout = 60.0
 	_http.use_threads = true
 	add_child(_http)
 	_http.request_completed.connect(_on_request_completed)
