@@ -4,12 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://cqbh75mdnulbj"
-path="res://.godot/imported/chimney-medium.glb-9309db37c5876e272ba6ed7f502732af.scn"
+path="res://.godot/imported/chimney-medium.glb-5a11fbbd4a040935d582e61fd6397d90.scn"
 
 [deps]
 
 source_file="res://models/industrial/Models/GLB/chimney-medium.glb"
-dest_files=["res://.godot/imported/chimney-medium.glb-9309db37c5876e272ba6ed7f502732af.scn"]
+dest_files=["res://.godot/imported/chimney-medium.glb-5a11fbbd4a040935d582e61fd6397d90.scn"]
 
 [params]
 

@@ -4,12 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://xbmy5qxo7p5k"
-path="res://.godot/imported/detail-tank.glb-cf76e2c3066d4f5fd6562003a2bf4b03.scn"
+path="res://.godot/imported/detail-tank.glb-d46c91b6681875d1023f6a0f7633f96e.scn"
 
 [deps]
 
 source_file="res://models/industrial/Models/GLB/detail-tank.glb"
-dest_files=["res://.godot/imported/detail-tank.glb-cf76e2c3066d4f5fd6562003a2bf4b03.scn"]
+dest_files=["res://.godot/imported/detail-tank.glb-d46c91b6681875d1023f6a0f7633f96e.scn"]
 
 [params]
 
