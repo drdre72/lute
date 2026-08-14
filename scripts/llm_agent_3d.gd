@@ -10,7 +10,7 @@ signal tool_call_executed(tool_name: String, result: Dictionary)
 
 @export_category("LLM Configuration")
 @export var api_url: String = "http://127.0.0.1:1234/v1/chat/completions"
-@export var model_name: String = "qwen2.5-vl-3b-instruct"
+@export var model_name: String = "qwen2.5-vl-7b-instruct"
 @export var api_key: String = ""
 @export var system_prompt: String = ""
 @export var max_tokens: int = 1024
