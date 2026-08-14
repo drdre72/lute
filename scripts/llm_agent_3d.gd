@@ -10,10 +10,10 @@ signal tool_call_executed(tool_name: String, result: Dictionary)
 
 @export_category("LLM Configuration")
 @export var api_url: String = "https://andregabrielbaker-7754-resource.openai.azure.com/openai/v1/chat/completions"
-@export var model_name: String = "grok-4-1-fast-reasoning"
+@export var model_name: String = "DeepSeek-V3.2"
 @export var api_key: String = ""
 @export var system_prompt: String = ""
-@export var max_tokens: int = 1024
+@export var max_tokens: int = 2048
 @export var temperature: float = 0.5
 
 @export_category("Agent Behavior")
