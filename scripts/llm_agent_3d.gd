@@ -1,6 +1,7 @@
 extends Node3D
 
 const LLMTools = preload("res://scripts/llm_tools_3d.gd")
+const DirectBuild = preload("res://scripts/direct_build.gd")
 
 ## An LLM-controlled 3D agent that lives inside the Godot scene tree.
 ## Sends world context to a local LLM and executes structured tool calls.
@@ -387,6 +388,18 @@ func _handle_admin_connection(conn: StreamPeerTCP) -> void:
 	conn.disconnect_from_host()
 	
 	if msg.strip_edges() != "":
+		# Direct build mode — bypass LLM entirely
+		if msg.strip_edges().to_lower() == "direct_build":
+			_add_log("[color=#44ff44][ADMIN]: Direct build mode — bypassing LLM[/color]")
+			print("[LLMAgent3D] Direct build mode triggered")
+			var world_root = get_parent()
+			if world_root == null:
+				world_root = get_tree().current_scene
+			var builder = DirectBuild.new()
+			add_child(builder)
+			builder.build(_tools, world_root)
+			return
+		
 		_admin_message = msg
 		_has_admin_message = true
 		_add_log("[color=#ff44ff][ADMIN]: %s[/color]" % msg)
@@ -686,6 +699,19 @@ func _add_log(msg: String) -> void:
 func _on_admin_input(text: String) -> void:
 	if text.strip_edges() == "":
 		return
+	
+	# Direct build mode — bypass LLM entirely
+	if text.strip_edges().to_lower() == "direct_build":
+		_add_log("[color=#44ff44][ADMIN]: Direct build mode — bypassing LLM[/color]")
+		_admin_input.clear()
+		var world_root = get_parent()
+		if world_root == null:
+			world_root = get_tree().current_scene
+		var builder = DirectBuild.new()
+		add_child(builder)
+		builder.build(_tools, world_root)
+		return
+	
 	_admin_message = "ADMIN INSTRUCTION: " + text
 	_has_admin_message = true
 	_add_log("[color=#ff44ff][ADMIN]: %s[/color]" % text)
