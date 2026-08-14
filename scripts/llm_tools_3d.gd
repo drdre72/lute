@@ -632,7 +632,7 @@ func _tool_say(args: Dictionary) -> Dictionary:
 	
 	# Speak via TTS
 	if message.strip_edges() != "" and _tts_voice != "":
-		DisplayServer.tts_speak(message, _tts_voice, 50, 1.0, 0.0, false)
+		DisplayServer.tts_speak(message, _tts_voice, 40, 1.4, 0.9, false)
 	
 	return {"ok": true, "message": message}
 
@@ -698,7 +698,16 @@ func _pick_female_voice() -> void:
 	if voices.is_empty():
 		print("[LLMTools] No TTS voices available")
 		return
-	# voices is Array of Dictionaries with 'name' key
+	# Priority list: prefer enhanced/softer female voices
+	var priority = ["samantha", "fiona", "karen", "tessa", "moira", "fiona (enhanced)", "samantha (enhanced)"]
+	for pref in priority:
+		for v in voices:
+			var name = v.get("name", "")
+			if name.to_lower() == pref or name.to_lower().contains(pref):
+				_tts_voice = name
+				print("[LLMTools] Selected voice: %s" % name)
+				return
+	# Fallback: any voice with female indicator
 	for v in voices:
 		var name = v.get("name", "")
 		var lower = name.to_lower()
@@ -706,7 +715,7 @@ func _pick_female_voice() -> void:
 			_tts_voice = name
 			print("[LLMTools] Selected female voice: %s" % name)
 			return
-	# Fallback: just use the first voice
+	# Last resort: first voice
 	_tts_voice = voices[0].get("name", "")
 	print("[LLMTools] Using fallback voice: %s" % _tts_voice)
 
