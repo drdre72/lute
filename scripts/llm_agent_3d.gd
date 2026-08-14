@@ -455,7 +455,9 @@ func _on_request_completed(result: int, response_code: int, headers: PackedStrin
 		return
 	
 	if response_code != 200:
+		var err_text = body.get_string_from_utf8()
 		_add_log("[color=red]HTTP error: %d[/color]" % response_code)
+		print("[LLMAgent3D] HTTP %d response body: %s" % [response_code, err_text.substr(0, 500)])
 		return
 	
 	var response_text = body.get_string_from_utf8()
