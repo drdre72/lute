@@ -8,6 +8,8 @@ var _tools: Dictionary = {}
 var _world_root: Node = null
 var _agent: Node3D = null
 var _tts_voice: String = ""
+var _inventory: Array = []
+var _notes: Array[String] = []
 
 func _safe_color(color_str: String) -> Color:
 	var c = Color.from_string(color_str, Color.WHITE)
@@ -427,6 +429,69 @@ func _register_default_tools() -> void:
 		Callable(self, "_tool_spawn_arch")
 	)
 
+	register_tool(
+		"inventory_add",
+		"Add an item to your inventory. Use this when you collect or create something.",
+		{
+			"type": "object",
+			"properties": {
+				"item": {"type": "string", "description": "Name of the item to add"},
+				"quantity": {"type": "integer", "description": "Quantity to add (default 1)"}
+			},
+			"required": ["item"]
+		},
+		Callable(self, "_tool_inventory_add")
+	)
+
+	register_tool(
+		"inventory_remove",
+		"Remove an item from your inventory. Use this when you use or consume something.",
+		{
+			"type": "object",
+			"properties": {
+				"item": {"type": "string", "description": "Name of the item to remove"},
+				"quantity": {"type": "integer", "description": "Quantity to remove (default 1)"}
+			},
+			"required": ["item"]
+		},
+		Callable(self, "_tool_inventory_remove")
+	)
+
+	register_tool(
+		"inventory_list",
+		"List all items currently in your inventory.",
+		{
+			"type": "object",
+			"properties": {},
+			"required": []
+		},
+		Callable(self, "_tool_inventory_list")
+	)
+
+	register_tool(
+		"add_note",
+		"Write a note to yourself for later reference. Notes persist between actions.",
+		{
+			"type": "object",
+			"properties": {
+				"note": {"type": "string", "description": "The note text to remember"}
+			},
+			"required": ["note"]
+		},
+		Callable(self, "_tool_add_note")
+	)
+
+	register_tool(
+		"read_notes",
+		"Read all your saved notes. Call this to remind yourself of past observations and plans.",
+		{
+			"type": "object",
+			"properties": {},
+			"required": []
+		},
+		Callable(self, "_tool_read_notes")
+	)
+
 # --- Tool Handlers ---
 
 func _tool_move_self(args: Dictionary) -> Dictionary:
@@ -570,6 +635,63 @@ func _tool_say(args: Dictionary) -> Dictionary:
 		DisplayServer.tts_speak(message, _tts_voice, 50, 1.0, 0.0, false)
 	
 	return {"ok": true, "message": message}
+
+func _tool_inventory_add(args: Dictionary) -> Dictionary:
+	var item: String = args.get("item", "")
+	var qty: int = int(args.get("quantity", 1))
+	if item == "":
+		return {"error": "No item specified"}
+	# Check if item already exists
+	for entry in _inventory:
+		if entry.item == item:
+			entry.quantity += qty
+			print("[LLMTools] Inventory: %s x%d (total %d)" % [item, qty, entry.quantity])
+			return {"ok": true, "item": item, "quantity": entry.quantity}
+	_inventory.append({"item": item, "quantity": qty})
+	print("[LLMTools] Inventory added: %s x%d" % [item, qty])
+	return {"ok": true, "item": item, "quantity": qty}
+
+func _tool_inventory_remove(args: Dictionary) -> Dictionary:
+	var item: String = args.get("item", "")
+	var qty: int = int(args.get("quantity", 1))
+	if item == "":
+		return {"error": "No item specified"}
+	for i in range(_inventory.size() - 1, -1, -1):
+		if _inventory[i].item == item:
+			_inventory[i].quantity -= qty
+			if _inventory[i].quantity <= 0:
+				_inventory.remove_at(i)
+				print("[LLMTools] Inventory removed: %s (all)" % item)
+				return {"ok": true, "item": item, "quantity": 0}
+			print("[LLMTools] Inventory removed: %s x%d (remaining %d)" % [item, qty, _inventory[i].quantity])
+			return {"ok": true, "item": item, "quantity": _inventory[i].quantity}
+	return {"error": "Item not in inventory: %s" % item}
+
+func _tool_inventory_list(args: Dictionary) -> Dictionary:
+	if _inventory.is_empty():
+		return {"ok": true, "inventory": [], "message": "Inventory is empty"}
+	var items: Array = []
+	for entry in _inventory:
+		items.append("%s x%d" % [entry.item, entry.quantity])
+	var summary = ", ".join(items)
+	print("[LLMTools] Inventory: %s" % summary)
+	return {"ok": true, "inventory": _inventory.duplicate(true), "summary": summary}
+
+func _tool_add_note(args: Dictionary) -> Dictionary:
+	var note: String = args.get("note", "")
+	if note == "":
+		return {"error": "No note text specified"}
+	_notes.append(note)
+	print("[LLMTools] Note added: %s" % note)
+	return {"ok": true, "note_count": _notes.size()}
+
+func _tool_read_notes(args: Dictionary) -> Dictionary:
+	if _notes.is_empty():
+		return {"ok": true, "notes": [], "message": "No notes saved"}
+	print("[LLMTools] Reading %d notes:" % _notes.size())
+	for i in range(_notes.size()):
+		print("[LLMTools]   Note %d: %s" % [i + 1, _notes[i]])
+	return {"ok": true, "notes": _notes.duplicate()}
 
 func _pick_female_voice() -> void:
 	var voices = DisplayServer.tts_get_voices()
