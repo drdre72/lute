@@ -511,6 +511,26 @@ func _register_default_tools() -> void:
 	)
 
 	register_tool(
+		"scatter_models",
+		"Spawn multiple copies of a model in a radius with random positions, scales, and rotations. Use this to fill areas efficiently - e.g. scatter 30 trees in a forest area, 20 rocks in a field, 50 grass patches across terrain. Much more efficient than calling spawn_model 30 times.",
+		{
+			"type": "object",
+			"properties": {
+				"model_path": {"type": "string", "description": "Full path to the model file (e.g. res://models/nature/FBX/CommonTree_1.fbx)"},
+				"center_x": {"type": "number", "description": "Center X position of the scatter area"},
+				"center_z": {"type": "number", "description": "Center Z position of the scatter area"},
+				"radius": {"type": "number", "description": "Radius of the scatter area in meters (objects placed randomly within this radius)"},
+				"count": {"type": "number", "description": "Number of copies to spawn (1-100)"},
+				"min_scale": {"type": "number", "description": "Minimum random scale (default 0.8)"},
+				"max_scale": {"type": "number", "description": "Maximum random scale (default 2.0)"},
+				"y": {"type": "number", "description": "Y position (height, default 0)"}
+			},
+			"required": ["model_path", "center_x", "center_z", "radius", "count"]
+		},
+		Callable(self, "_tool_scatter_models")
+	)
+
+	register_tool(
 		"load_build_plan",
 		"Load build instructions from a file. Returns the full text of the build plan for you to follow.",
 		{
@@ -830,6 +850,50 @@ func _tool_spawn_model(args: Dictionary) -> Dictionary:
 	instance.owner = _world_root
 	print("[LLMTools] Spawned model %s at (%.1f, %.1f, %.1f) scale=%.1f" % [node_name, x, y, z, s])
 	return {"ok": true, "model": node_name, "pos": {"x": x, "y": y, "z": z}, "scale": s}
+
+func _tool_scatter_models(args: Dictionary) -> Dictionary:
+	if _world_root == null:
+		return {"error": "No world root"}
+	var model_path: String = args.get("model_path", "")
+	if model_path == "":
+		return {"error": "No model_path specified"}
+	var cx = float(args.get("center_x", 0))
+	var cz = float(args.get("center_z", 0))
+	var radius = float(args.get("radius", 50))
+	var count = int(args.get("count", 10))
+	var min_s = float(args.get("min_scale", 0.8))
+	var max_s = float(args.get("max_scale", 2.0))
+	var y = float(args.get("y", 0))
+	count = clamp(count, 1, 100)
+
+	if not ResourceLoader.exists(model_path):
+		return {"error": "Model not found: %s" % model_path}
+
+	var res = load(model_path)
+	if res == null or not (res is PackedScene):
+		return {"error": "Failed to load model: %s" % model_path}
+
+	var node_name = model_path.get_file().get_basename()
+	var spawned = 0
+	for i in range(count):
+		var angle = randf() * TAU
+		var dist = randf() * radius
+		var px = cx + cos(angle) * dist
+		var pz = cz + sin(angle) * dist
+		var s = randf_range(min_s, max_s)
+		var rot = randf() * 360.0
+
+		var instance = res.instantiate()
+		instance.name = "%s_%d_%d" % [node_name, int(px), int(pz)]
+		instance.position = Vector3(px, y, pz)
+		instance.scale = Vector3(s, s, s)
+		instance.rotation_degrees.y = rot
+		_world_root.add_child(instance)
+		instance.owner = _world_root
+		spawned += 1
+
+	print("[LLMTools] Scattered %d x %s around (%.1f, %.1f) radius=%.1f" % [spawned, node_name, cx, cz, radius])
+	return {"ok": true, "model": node_name, "spawned": spawned, "center": {"x": cx, "z": cz}, "radius": radius}
 
 func _pick_female_voice() -> void:
 	var voices = DisplayServer.tts_get_voices()
