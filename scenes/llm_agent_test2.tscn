@@ -1,0 +1,38 @@
+[gd_scene format=3 uid="uid://bllmag2nt2x"]
+
+[ext_resource type="Script" uid="uid://bioi56ncd8gkk" path="res://scripts/llm_agent.gd" id="1"]
+
+[node name="LLMWorld" type="Node2D"]
+
+[node name="MainCamera" type="Camera2D" parent="."]
+zoom = Vector2(1.5, 1.5)
+current = true
+
+[node name="Background" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-600, -400, 600, -400, 600, 400, -600, 400)
+color = Color(0.12, 0.14, 0.18, 1)
+
+[node name="Ground" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-400, 50, 400, 50, 400, 350, -400, 350)
+color = Color(0.2, 0.3, 0.15, 1)
+
+[node name="LLMAgent" type="Node2D" parent="."]
+script = ExtResource("1")
+api_url = "http://127.0.0.1:1234/v1/chat/completions"
+model_name = "qwen2.5-coder-7b-instruct-mlx"
+system_prompt = "You are an AI agent living inside a Godot 2D game world. You can see nearby objects and take actions using tool calls. You are a creative world builder. Always respond with tool calls to interact with the world. Build structures, move around, and explore."
+auto_act = true
+act_interval = 3.0
+context_radius = 400.0
+move_speed = 80.0
+agent_color = Color(0.3, 0.8, 1.0, 1.0)
+agent_size = 24.0
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="Title" type="Label" parent="UI"]
+offset_left = 100.0
+offset_top = 20.0
+offset_right = 800.0
+offset_bottom = 50.0
+text = "LLM Agent Test - Agent auto-acts every 8s (LM Studio: qwen2.5-coder-7b)"

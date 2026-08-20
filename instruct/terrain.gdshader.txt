@@ -1,0 +1,34 @@
+shader_type spatial;
+
+uniform vec3 sand_color : source_color = vec3(0.82, 0.71, 0.55);
+uniform vec3 grass_color : source_color = vec3(0.25, 0.48, 0.18);
+uniform vec3 rock_color : source_color = vec3(0.42, 0.42, 0.42);
+
+varying float world_y;
+varying vec3 world_normal;
+
+void vertex() {
+	world_y = VERTEX.y;
+	world_normal = NORMAL;
+}
+
+void fragment() {
+	// Slope factor: 1.0 is completely flat, 0.0 is vertical cliff
+	float slope = dot(world_normal, vec3(0.0, 1.0, 0.0));
+	
+	vec3 base_color = grass_color;
+
+	// Sand along water boundary
+	if (world_y < 2.5) {
+		base_color = mix(sand_color, grass_color, clamp(world_y / 2.5, 0.0, 1.0));
+	}
+	
+	// Blend into Rock on steep slopes (cliff faces)
+	if (slope < 0.75) {
+		float rock_blend = smoothstep(0.75, 0.5, slope);
+		base_color = mix(base_color, rock_color, rock_blend);
+	}
+
+	ALBEDO = base_color;
+	ROUGHNESS = 0.85;
+}

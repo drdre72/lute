@@ -1,0 +1,37 @@
+[gd_scene load_steps=2 format=3 uid="uid://dpq5ai_pipeline_dock"]
+
+[ext_resource type="Script" path="res://addons/ai_pipeline/dock.gd" id="1"]
+
+[node name="AIPipelineDock" type="VBoxContainer"]
+script = ExtResource("1")
+
+[node name="StatusRow" type="HBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="StatusLabel" type="Label" parent="StatusRow"]
+layout_mode = 2
+text = "Server: stopped"
+
+[node name="PortLabel" type="Label" parent="StatusRow"]
+layout_mode = 2
+text = "Port:"
+
+[node name="PortSpin" type="SpinBox" parent="StatusRow"]
+layout_mode = 2
+min_value = 1024.0
+max_value = 65535.0
+value = 6400.0
+
+[node name="ToggleButton" type="Button" parent="StatusRow"]
+layout_mode = 2
+text = "Start Server"
+
+[node name="ClearLogButton" type="Button" parent="StatusRow"]
+layout_mode = 2
+text = "Clear Log"
+
+[node name="LogEdit" type="TextEdit" parent="."]
+custom_minimum_size = Vector2(0, 150)
+layout_mode = 2
+size_flags_vertical = 3
+editable = false

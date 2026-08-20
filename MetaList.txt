@@ -1,0 +1,76 @@
+# Main Nave (Cathedral Chamber) build checklist -- Zone C of the Temple of Time
+# reference (Scrap/checklist-Temple_meta.rtf). Built as its own standalone scene,
+# consistent with how Zone E (sanctuary_chamber.tscn) was handled in isolation.
+# Values are pre-computed from the spec: 22m wide x 40m long footprint, central
+# aisle 10m + two 6m side aisles = 22m, vault peak 20m, colonnade of 6 pillars
+# per side (1.8x1.8m footprint, 14m to spring line), rose window 6m diameter
+# centered at 13m on the rear facade. Use checklist_next/checklist_complete/
+# checklist_status exactly as instructed in your system prompt.
+
+- [x] scene_create path=res://scenes/main_nave.tscn root_type=Node3D (root will be auto-named "main_nave"; rename to "MainNave" via node_set_property path "." property "name" if desired)
+- [x] node_add parent_path=. type=WorldEnvironment name=WorldEnvironment
+- [x] node_set_property node_path=WorldEnvironment property=environment value={"class":"Environment","background_mode":1,"background_color":{"r":0.02,"g":0.02,"b":0.05,"a":1},"ambient_light_source":2,"ambient_light_color":{"r":0.1,"g":0.1,"b":0.15,"a":1},"ambient_light_energy":0.3}
+- [x] node_add parent_path=. type=DirectionalLight3D name=NaveLight
+- [x] node_set_property node_path=NaveLight property=rotation_degrees value={"x":-55,"y":25,"z":0}
+- [x] node_set_property node_path=NaveLight property=light_energy value=1.2
+- [x] node_set_property node_path=NaveLight property=light_color value={"r":1.0,"g":0.95,"b":0.85,"a":1}
+- [x] node_add parent_path=. type=Node3D name=Architecture
+- [x] node_add parent_path=Architecture type=CSGCombiner3D name=NaveCombiner
+- [x] node_add parent_path=Architecture/NaveCombiner type=CSGBox3D name=Floor
+- [x] node_set_property node_path=Architecture/NaveCombiner/Floor property=size value={"x":22.0,"y":0.5,"z":40.0}
+- [x] node_set_property node_path=Architecture/NaveCombiner/Floor property=use_collision value=true
+- [x] node_set_property node_path=Architecture/NaveCombiner/Floor property=position value={"x":0,"y":-0.25,"z":0}
+- [x] node_add parent_path=Architecture/NaveCombiner type=CSGCylinder3D name=NaveVault (barrel-vault approximation for the 20m vaulted ceiling; laid on its side along the nave's Z-axis length via rotation)
+- [x] node_set_property node_path=Architecture/NaveCombiner/NaveVault property=radius value=11.0
+- [x] node_set_property node_path=Architecture/NaveCombiner/NaveVault property=sides value=24
+- [x] node_set_property node_path=Architecture/NaveCombiner/NaveVault property=height value=40.0
+- [x] node_set_property node_path=Architecture/NaveCombiner/NaveVault property=rotation_degrees value={"x":90,"y":0,"z":0}
+- [x] node_set_property node_path=Architecture/NaveCombiner/NaveVault property=position value={"x":0,"y":9.0,"z":0}
+- [x] node_add parent_path=Architecture/NaveCombiner type=CSGBox3D name=RearFacade (closes off the far end of the nave, opposite the entrance)
+- [x] node_set_property node_path=Architecture/NaveCombiner/RearFacade property=size value={"x":22.0,"y":20.0,"z":1.0}
+- [x] node_set_property node_path=Architecture/NaveCombiner/RearFacade property=use_collision value=true
+- [x] node_set_property node_path=Architecture/NaveCombiner/RearFacade property=position value={"x":0,"y":10.0,"z":-20.0}
+- [x] node_add parent_path=Architecture/NaveCombiner/RearFacade type=CSGCylinder3D name=RoseWindowCut (6m diameter circular window cut into the rear facade, centered 13m above the floor)
+- [x] node_set_property node_path=Architecture/NaveCombiner/RearFacade/RoseWindowCut property=operation value=2
+- [x] node_set_property node_path=Architecture/NaveCombiner/RearFacade/RoseWindowCut property=radius value=3.0
+- [x] node_set_property node_path=Architecture/NaveCombiner/RearFacade/RoseWindowCut property=sides value=24
+- [x] node_set_property node_path=Architecture/NaveCombiner/RearFacade/RoseWindowCut property=height value=2.0
+- [x] node_set_property node_path=Architecture/NaveCombiner/RearFacade/RoseWindowCut property=rotation_degrees value={"x":90,"y":0,"z":0}
+- [x] node_set_property node_path=Architecture/NaveCombiner/RearFacade/RoseWindowCut property=position value={"x":0,"y":3.0,"z":0}
+- [x] node_add parent_path=Architecture/NaveCombiner type=CSGBox3D name=Pillar_L0 (left colonnade, x=-5 marks the central-aisle boundary; 6 columns per side spaced 6m apart along Z)
+- [x] node_set_property node_path=Architecture/NaveCombiner/Pillar_L0 property=size value={"x":1.8,"y":14.0,"z":1.8}
+- [x] node_set_property node_path=Architecture/NaveCombiner/Pillar_L0 property=position value={"x":-5.0,"y":7.0,"z":15.0}
+- [x] node_add parent_path=Architecture/NaveCombiner type=CSGBox3D name=Pillar_L1
+- [x] node_set_property node_path=Architecture/NaveCombiner/Pillar_L1 property=size value={"x":1.8,"y":14.0,"z":1.8}
+- [x] node_set_property node_path=Architecture/NaveCombiner/Pillar_L1 property=position value={"x":-5.0,"y":7.0,"z":9.0}
+- [x] node_add parent_path=Architecture/NaveCombiner type=CSGBox3D name=Pillar_L2
+- [x] node_set_property node_path=Architecture/NaveCombiner/Pillar_L2 property=size value={"x":1.8,"y":14.0,"z":1.8}
+- [x] node_set_property node_path=Architecture/NaveCombiner/Pillar_L2 property=position value={"x":-5.0,"y":7.0,"z":3.0}
+- [x] node_add parent_path=Architecture/NaveCombiner type=CSGBox3D name=Pillar_L3
+- [x] node_set_property node_path=Architecture/NaveCombiner/Pillar_L3 property=size value={"x":1.8,"y":14.0,"z":1.8}
+- [x] node_set_property node_path=Architecture/NaveCombiner/Pillar_L3 property=position value={"x":-5.0,"y":7.0,"z":-3.0}
+- [x] node_add parent_path=Architecture/NaveCombiner type=CSGBox3D name=Pillar_L4
+- [x] node_set_property node_path=Architecture/NaveCombiner/Pillar_L4 property=size value={"x":1.8,"y":14.0,"z":1.8}
+- [x] node_set_property node_path=Architecture/NaveCombiner/Pillar_L4 property=position value={"x":-5.0,"y":7.0,"z":-9.0}
+- [x] node_add parent_path=Architecture/NaveCombiner type=CSGBox3D name=Pillar_L5
+- [x] node_set_property node_path=Architecture/NaveCombiner/Pillar_L5 property=size value={"x":1.8,"y":14.0,"z":1.8}
+- [x] node_set_property node_path=Architecture/NaveCombiner/Pillar_L5 property=position value={"x":-5.0,"y":7.0,"z":-15.0}
+- [x] node_add parent_path=Architecture/NaveCombiner type=CSGBox3D name=Pillar_R0 (right colonnade, x=+5)
+- [x] node_set_property node_path=Architecture/NaveCombiner/Pillar_R0 property=size value={"x":1.8,"y":14.0,"z":1.8}
+- [x] node_set_property node_path=Architecture/NaveCombiner/Pillar_R0 property=position value={"x":5.0,"y":7.0,"z":15.0}
+- [x] node_add parent_path=Architecture/NaveCombiner type=CSGBox3D name=Pillar_R1
+- [x] node_set_property node_path=Architecture/NaveCombiner/Pillar_R1 property=size value={"x":1.8,"y":14.0,"z":1.8}
+- [x] node_set_property node_path=Architecture/NaveCombiner/Pillar_R1 property=position value={"x":5.0,"y":7.0,"z":9.0}
+- [x] node_add parent_path=Architecture/NaveCombiner type=CSGBox3D name=Pillar_R2
+- [x] node_set_property node_path=Architecture/NaveCombiner/Pillar_R2 property=size value={"x":1.8,"y":14.0,"z":1.8}
+- [x] node_set_property node_path=Architecture/NaveCombiner/Pillar_R2 property=position value={"x":5.0,"y":7.0,"z":3.0}
+- [x] node_add parent_path=Architecture/NaveCombiner type=CSGBox3D name=Pillar_R3
+- [x] node_set_property node_path=Architecture/NaveCombiner/Pillar_R3 property=size value={"x":1.8,"y":14.0,"z":1.8}
+- [x] node_set_property node_path=Architecture/NaveCombiner/Pillar_R3 property=position value={"x":5.0,"y":7.0,"z":-3.0}
+- [x] node_add parent_path=Architecture/NaveCombiner type=CSGBox3D name=Pillar_R4
+- [x] node_set_property node_path=Architecture/NaveCombiner/Pillar_R4 property=size value={"x":1.8,"y":14.0,"z":1.8}
+- [x] node_set_property node_path=Architecture/NaveCombiner/Pillar_R4 property=position value={"x":5.0,"y":7.0,"z":-9.0}
+- [x] node_add parent_path=Architecture/NaveCombiner type=CSGBox3D name=Pillar_R5
+- [x] node_set_property node_path=Architecture/NaveCombiner/Pillar_R5 property=size value={"x":1.8,"y":14.0,"z":1.8}
+- [x] node_set_property node_path=Architecture/NaveCombiner/Pillar_R5 property=position value={"x":5.0,"y":7.0,"z":-15.0}
+- [x] get_scene_tree to verify the full hierarchy matches expectations (WorldEnvironment, NaveLight, Architecture/NaveCombiner with Floor, NaveVault, RearFacade+RoseWindowCut, and 12 pillars Pillar_L0-L5/Pillar_R0-R5), then scene_save

@@ -1,0 +1,19 @@
+[gd_resource type="StandardMaterial3D" load_steps=6 format=3 uid="acg_d6hqszj0"]
+
+[ext_resource type="Texture2D" uid="uid://acg_5gw3rnmy" id="Color" path="./Ground085_1K-JPG_Color.jpg"]
+[ext_resource type="Texture2D" uid="uid://acg_kw0afd49" id="AmbientOcclusion" path="./Ground085_1K-JPG_AmbientOcclusion.jpg"]
+[ext_resource type="Texture2D" uid="uid://acg_y12udhxn" id="Displacement" path="./Ground085_1K-JPG_Displacement.jpg"]
+[ext_resource type="Texture2D" uid="uid://acg_kt7jxg3p" id="Roughness" path="./Ground085_1K-JPG_Roughness.jpg"]
+[ext_resource type="Texture2D" uid="uid://acg_7osibxm4" id="NormalGL" path="./Ground085_1K-JPG_NormalGL.jpg"]
+[resource]
+albedo_texture = ExtResource("Color")
+ao_enabled = true
+ao_texture = ExtResource("AmbientOcclusion")
+ao_texture_channel = 4
+roughness_texture = ExtResource("Roughness")
+roughness_texture_channel = 4
+normal_texture = ExtResource("NormalGL")
+normal_enabled = true
+heightmap_texture = ExtResource("Displacement")
+heightmap_scale = 1.0
+heightmap_enabled = true

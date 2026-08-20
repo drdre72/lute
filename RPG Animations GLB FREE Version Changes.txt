@@ -1,0 +1,5 @@
+Update 0.1.0: Add GLB files.  Fix URL.
+
+Update 0.0.2: Add import_script.py and URL for Godot import script.
+
+Update 0.0.1: Initial release.

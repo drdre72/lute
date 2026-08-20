@@ -1,0 +1,20 @@
+[gd_scene format=3 uid="uid://test2d001"]
+
+[node name="Test2D" type="Node2D"]
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(0, 0)
+current = true
+
+[node name="BG" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-400, -300, 400, -300, 400, 300, -400, 300)
+color = Color(0.15, 0.2, 0.3, 1)
+
+[node name="RedBox" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-50, -50, 50, -50, 50, 50, -50, 50)
+color = Color(1, 0.2, 0.2, 1)
+
+[node name="GreenBox" type="Polygon2D" parent="."]
+position = Vector2(200, 0)
+polygon = PackedVector2Array(-50, -50, 50, -50, 50, 50, -50, 50)
+color = Color(0.2, 1, 0.2, 1)

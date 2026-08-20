@@ -1,0 +1,73 @@
+@tool
+extends MeshInstance3D
+
+@export_category("Terrain Configuration")
+@export var map_size: int = 128
+@export var vertex_spacing: float = 2.0
+@export var max_height: float = 35.0
+@export var noise_seed: int = 1337
+
+@export_category("Scatter")
+@export var tree_density_threshold: float = 0.45
+
+var noise: FastNoiseLite = FastNoiseLite.new()
+
+func _ready() -> void:
+	generate_terrain()
+
+func generate_terrain() -> void:
+	# Configure FastNoiseLite
+	noise.seed = noise_seed
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+	noise.frequency = 0.008
+
+	var st = SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
+	var half_size = (map_size * vertex_spacing) / 2.0
+
+	# Generate Vertices, UVs, and Normals
+	for z in range(map_size):
+		for x in range(map_size):
+			var world_x = (x * vertex_spacing) - half_size
+			var world_z = (z * vertex_spacing) - half_size
+			
+			# Compute Radial Distance Mask (0 at center, 1 at edge)
+			var nx = (float(x) / map_size) * 2.0 - 1.0
+			var nz = (float(z) / map_size) * 2.0 - 1.0
+			var dist = sqrt(nx * nx + nz * nz)
+			var island_mask = clamp(1.0 - pow(dist, 2.0), 0.0, 1.0)
+
+			# Sample Noise + Apply Mask
+			var raw_noise = (noise.get_noise_2d(world_x, world_z) + 1.0) / 2.0
+			var height = raw_noise * max_height * island_mask
+
+			st.set_uv(Vector2(float(x) / map_size, float(z) / map_size))
+			st.add_vertex(Vector3(world_x, height, world_z))
+
+	# Construct Triangles
+	for z in range(map_size - 1):
+		for x in range(map_size - 1):
+			var i = z * map_size + x
+			st.add_index(i)
+			st.add_index(i + map_size)
+			st.add_index(i + 1)
+
+			st.add_index(i + 1)
+			st.add_index(i + map_size)
+			st.add_index(i + map_size + 1)
+
+	st.generate_normals()
+	st.generate_tangents()
+	mesh = st.commit()
+
+	_generate_collisions()
+
+func _generate_collisions() -> void:
+	# Clean up previous colliders
+	for child in get_children():
+		if child is StaticBody3D:
+			child.queue_free()
+
+	create_trimesh_collision()

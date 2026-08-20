@@ -1,0 +1,10 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://ckubmuoxrbpb7"]
+
+[ext_resource type="Texture2D" uid="uid://nw5ynebes15t" path="res://textured_glass_materal_pack/materials/cube_normal.png" id="1_i6t2l"]
+
+[resource]
+albedo_color = Color(1, 1, 1, 0)
+roughness = 0.25
+normal_enabled = true
+normal_texture = ExtResource("1_i6t2l")
+refraction_enabled = true
