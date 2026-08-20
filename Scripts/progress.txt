@@ -1,0 +1,57 @@
+# Lute Terrain Generation Progress
+
+## Current State (2026-08-17)
+
+### Working
+- Full pipeline: heightmap -> biome map -> water plane -> terrain painting -> scatter
+- All 5 stages complete without crashes across multiple seeds (7, 42, 99, 123)
+- 16,807 scatter instances across 27 unique meshes at 6x density (stable)
+- Custom arctic + desert trees integrated
+
+### Terrain Painting (Bulk Weightmap Upload)
+- Replaced brush-stroke painting with bulk weightmap upload via /set_layer_weightmap
+- Uses softmax blending of Whittaker biome prototypes in temperature-moisture space
+- Histogram equalization on temp/moisture maps for balanced biome coverage
+- 4 layers: Sand (11.6%), Grass (39.2%), Dirt (33.7%), Rock (15.5%)
+- Deferred ForceLayersFullUpdate to single /flush_landscape call after all 4 layers uploaded
+- Local Z-snap from Python heightmap (no UE query needed for scatter placement)
+
+### Water Plane
+- Standalone actor with UStaticMeshComponent (Plane mesh)
+- No collision, scaled to water basin size
+- Cleaned up by /clear_world
+
+### Scatter
+- Uses /batch_place with HISM components (NoCollision to avoid crash)
+- Local Z-snap from heightmap data (snap_to_terrain_local)
+- 1s delay between batches, retry logic on connection failure
+- 5s delay after painting before scatter starts
+- 6x density, 50% noise acceptance baseline
+- 7 species: pine_tree, broadleaf_tree, arctic_tree, desert_tree, rock, bush, grass
+- Custom trees: full_arctic, arctic_tallskinny, des_oasis, des_skinny (z_offset=-50)
+- Batch size 500 for large species
+
+### Key Bug Fixes
+1. **GetOrCreateWorldBuilderActor crash**: Hardcoded SpawnParams.Name="WorldBuilder_Props" caused "Cannot generate unique name" crash after clear_world destroyed the actor. Fixed by letting UE auto-generate name, using GetActorLabel() for lookups.
+2. **WaterPlane crash**: Same hardcoded name issue for water plane spawn. Fixed by removing SpawnParams.Name.
+3. **HISM collision crash**: SetCollisionEnabled(QueryAndPhysics) on 25+ tree HISMs caused massive collision rebuild. Fixed with NoCollision.
+4. **Per-layer flush overload**: ForceLayersFullUpdate + FlushRenderingCommands on each of 4 layer uploads was too heavy. Deferred to single /flush_landscape call.
+5. **Scatter Z-snap crash**: /batch_terrain_height query after heavy weightmap upload crashed UE. Replaced with local heightmap Z-snap in Python.
+6. **Probe false negative**: /terrain/scatter probe got 400 (not 200/404) for empty mesh_path, causing false fallback. Fixed to accept 400 as "endpoint exists".
+
+### CLI Flags
+- --apply: push heightmap to UE
+- --paint: paint terrain with biome weightmaps
+- --water: spawn water plane
+- --scatter: generate and upload scatter
+- --seed N: random seed
+- --randomize-monuments: randomize monument positions
+- --no-snap: skip Z-snap (default: local heightmap snap)
+
+### Pending
+- Reduce map size to 1 sq km (1000x1000 units)
+- Increase tree scale by 100-150% (radius-based variation)
+- Re-enable /terrain/scatter endpoint (currently forced to /batch_place)
+- Consider WP cell partitioning for streaming
+- Monument/structure placement on terrain
+- Biome-specific material tuning

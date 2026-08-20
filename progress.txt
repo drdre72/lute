@@ -1,0 +1,135 @@
+# Lute — Progress Log
+# Last updated: 2026-08-19 (session 3)
+
+## Completed Milestones
+
+### Terrain Generation Pipeline (noise_terrain.py)
+- [x] Perlin noise heightmap with domain warping + ridge noise
+- [x] Radial water basin carving with smoothstep falloff
+- [x] Feathered monument site flattening (6 default sites, randomizable)
+- [x] Biome painting: Sand, Grass, Dirt, Rock layers via Edit Layers API
+- [x] PNG preview rendering (heightmap + biome colors + water + monuments)
+- [x] Bulk heightmap upload via /set_heightmap (uint16 base64, min_z/max_z mapping)
+- [x] Preset system (--save-preset / --load-preset) for reproducible terrain
+- [x] CLI flags: --preview, --apply, --paint, --seed, --resolution, --randomize-monuments
+- [x] --force-biome flag to override Whittaker model with single biome (e.g. desert)
+- [x] --monuments flag to limit number of monument sites (e.g. --monuments 1)
+- [x] Biome map weightmap computation for forced biome mode (painting fallback)
+
+### Whittaker Biome Model (noise_terrain.py)
+- [x] Temperature map: latitude gradient + noise + altitude cooling
+- [x] Moisture map: noise-based + water proximity boost
+- [x] 6 biomes: snow, tundra, plains, forest, swamp, desert
+- [x] Biome classification matrix (temp x moisture thresholds)
+- [x] Biome-aware terrain painting (each biome maps to a paint layer)
+- [x] Biome-aware scatter species filtering (each biome has allowed species)
+- [x] Biome density multipliers (forest=1.5x, plains=1.2x, desert=0.3x, etc.)
+- [x] Biome preview PNG with elevation shading
+- [x] --no-biome flag to disable and use elevation-only fallback
+- [x] Biome distribution stats printed during generation
+
+### Water System
+- [x] POST /spawn_water C++ endpoint (plane mesh at position/height/size)
+- [x] Optional water material path support
+- [x] --water CLI flag to spawn water plane after heightmap upload
+- [x] --water-material CLI flag for custom material path
+- [x] Water plane sized to water basin radius * 2.5
+
+### Scatter System (noise_terrain.py + LuteRemoteControl.cpp)
+- [x] Poisson-disk candidate generation per species
+- [x] Constraint masks: slope, height bands, water proximity, monument exclusion
+- [x] Forest gating via low-frequency noise (forest zones)
+- [x] Per-species parameters: density, slope threshold, height range, water exclusion, scale range
+- [x] Per-instance variation: random scale, yaw, mesh variant selection
+- [x] 7 species: pine_tree (5 variants), broadleaf_tree (5 variants), rock (8 variants), bush (5 variants), grass (4 variants), arctic_tree (FBX import), desert_tree (FBX import)
+- [x] Biome-filtered scatter (species only spawn in their biomes)
+- [x] z_offset per species for vertical alignment (fixes floating trees)
+- [x] Scatter density increased ~6x, density noise baseline raised to 50%
+- [x] Scatter preview PNG with overlay points
+- [x] CLI flags: --scatter, --scatter-preview, --scatter-cell-size, --no-snap
+
+### Monument & Terrain Refinement (session 3)
+- [x] Monument "Town Market" moved to world origin (0,0,0) for jigsaw sculpting
+- [x] Monument radius increased to 735 (feather 438) — ~25% bigger than previous
+- [x] Hill height reduced from 2000 to 800 for traversable terrain
+- [x] Ridge weight reduced from 0.35 to 0.15 for smoother terrain
+- [x] Berm: 2.5m tall raised ring (250 UE units) hugging monument circumference
+- [x] Berm uses Gaussian profile (peak at 0.9 * radius, width = 0.4 * feather)
+- [x] Flat crater inside berm at near sea level (safe zone)
+- [x] Road gap removed — full berm ring all around (gap can be re-enabled later)
+- [x] Monument naming convention: "monu_noise" for noise-sculpted monuments
+
+### Player Character (MagePlayer)
+- [x] Visible capsule mesh (cylinder) for scale testing in PIE
+- [x] Camera boom + follow camera (600u arm length)
+- [x] WASD movement bindings (MoveForward, MoveRight)
+- [x] Sprint (shift), Jump (space)
+- [x] Mouse look (Turn, LookUp) via controller yaw/pitch
+- [x] Character movement: orient to movement, 500u/s rotation rate, 600u/s walk speed
+- [x] GlobalDefaultPawnClass set to MagePlayer in DefaultEngine.ini
+- [x] Input mappings added to DefaultInput.ini
+
+### C++ Remote Control Plugin (LuteRemoteControl.cpp)
+- [x] HTTP server on port 6410 with JSON endpoints
+- [x] GET /state — actor count, map name, sample actors
+- [x] GET /landscape_info — landscape dimensions, world bounds, scale
+- [x] POST /set_heightmap — bulk heightmap write (uint16 mode)
+- [x] GET /get_terrain_height — single point height query (line trace + heightmap fallback)
+- [x] POST /batch_terrain_height — batch height query (heightmap direct read, no line traces)
+- [x] POST /terrain_paint — paint landscape layers via Edit Layers API
+- [x] POST /setup_landscape_material — create 4-layer landscape material
+- [x] POST /batch_place — HISM batch mesh placement (single actor, one HISM per mesh)
+- [x] POST /terrain/scatter — WP-partitioned scatter (single WorldBuilder actor, one HISM per cell+mesh)
+- [x] POST /spawn_water — water plane creation at position/height/size
+- [x] POST /clear_world — remove WorldBuilder + ScatterCell actors
+- [x] POST /spawn — single actor spawn
+- [x] POST /sculpt_terrain — brush-based terrain sculpting
+- [x] GET /screenshot — capture viewport screenshot
+- [x] POST /spawn_player — start PIE + delayed MagePlayer spawn & possess via ticker
+
+### Bug Fixes Applied
+- [x] Scatter offset fix: removed +0.5 from heightmap pixel lookup in generate_scatter
+- [x] Scatter position fix: HISM components kept at world origin (instance transforms are world-space)
+- [x] Scatter crash fix: use single WorldBuilder actor instead of spawning many ScatterCell actors
+- [x] Z-snap crash fix: /batch_terrain_height endpoint (one request for all points vs hundreds of individual queries)
+- [x] Z-snap retry logic + 50ms delay (for individual query fallback)
+- [x] Mesh path errors: use model_LOD0.uasset for imported FBX trees
+- [x] PIE API: updated FRequestPlaySessionParams for UE 5.6
+- [x] Player invisibility: manual spawn + possess of MagePlayer after PIE start (GameMode blueprint override)
+- [x] Painting fallback: biome map weightmap computation for forced biome mode
+
+### World Partition
+- [x] Landscape uses WP with streaming proxies
+- [x] Scatter instances grouped by WP grid cells (cell_size configurable, default 25600u = 256m)
+- [x] Each cell+mesh combo gets its own HISM component on the WorldBuilder actor
+
+## Current State (2026-08-19 session 3)
+- Map: 1st_Monument (1km landscape, 127x127 grid, scale 100)
+- Monument: Town Market at (0,0,0), radius 735, feather 438, berm 250u (~2.5m)
+- Terrain: hill_height 800, ridge_weight 0.15, forced desert biome, sand terrain
+- Scatter: desert trees + rocks, ~135 instances, Z-snapped
+- Player: MagePlayer with visible cylinder, WASD + sprint + mouse look, spawns at (0,0,1000)
+- PIE: /spawn_player endpoint starts session, delayed spawn & possess
+
+## Next Steps
+- [ ] Sculpt monument ground texture ("monu_noise" naming convention)
+- [ ] Re-enable road gap in berm when road system is ready
+- [ ] Road/path generation between monuments
+- [ ] Monument actor placement (buildings/structures on flattened sites)
+- [ ] Player spawn point selection improvements
+- [ ] Performance profiling with higher scatter counts
+- [ ] Server-ready map export workflow
+- [ ] Consider Voxel Plugin for destructible terrain (researched, not yet integrated)
+- [ ] Arctic tree visual verification in snow/tundra biome
+- [ ] Reduce map size further if needed for monument-focused workflow
+
+## Key Files
+- Scripts/noise_terrain.py — terrain + biome + scatter + water generation CLI
+- Source/LuteRemoteControl/LuteRemoteControl.cpp — UE HTTP remote control plugin
+- Source/Lute/Player/MagePlayer.h — player character header
+- Source/Lute/Player/MagePlayer.cpp — player character implementation
+- Config/DefaultEngine.ini — project defaults (GameMode, PawnClass)
+- Config/DefaultInput.ini — input mappings (WASD, sprint, jump, mouse look)
+- Scripts/terrain_presets.json — saved parameter presets
+- progress.txt — this file
+- Lute.uproject — UE project manifest

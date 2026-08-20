@@ -1,0 +1,56 @@
+# Unreal Engine
+Binaries/
+Build/
+DerivedDataCache/
+Intermediate/
+Saved/
+Script/
+
+# Content assets (large, track via LFS or separately)
+Content/
+
+# Novos (embedded git repo)
+Novos/
+
+# Tree import folders (large FBX/assets)
+arctic_tallskinny_tree/
+des_oasis_tree/
+des_skinny_tree/
+full_arctic_tree/
+textures/
+
+# Visual Studio
+.vs/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.pdb
+*.ilk
+*.exp
+*.lib
+
+# macOS
+.DS_Store
+*.swp
+*~
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Logs
+*.log
+
+# Large binary assets
+*.zip
+*.glb
+*.png
+
+# Temp
+temp/
+
+# Xcode user data
+*.xcuserstate
+xcuserdata/

@@ -1,0 +1,52 @@
+{
+  "good_hills": {
+    "seed": 7,
+    "resolution": 1024,
+    "ridge_weight": 0.35,
+    "octaves": 7,
+    "hill_height": 4000.0,
+    "water_depth": -2000.0,
+    "water_radius_frac": 0.15,
+    "water_x_frac": -0.3,
+    "water_y_frac": 0.0,
+    "warp_frac": 0.02,
+    "freq_features": 12.0,
+    "min_z": -3000.0,
+    "max_z": 6000.0,
+    "target_size": 204000.0
+  },
+  "rand_hills": {
+    "seed": 7,
+    "resolution": 1024,
+    "ridge_weight": 0.35,
+    "octaves": 7,
+    "hill_height": 4000.0,
+    "water_depth": -2000.0,
+    "water_radius_frac": 0.15,
+    "water_x_frac": -0.3,
+    "water_y_frac": 0.0,
+    "warp_frac": 0.02,
+    "freq_features": 12.0,
+    "min_z": -3000.0,
+    "max_z": 6000.0,
+    "target_size": null,
+    "randomize_monuments": true
+  },
+  "dev_small": {
+    "seed": 7,
+    "resolution": 1024,
+    "ridge_weight": 0.35,
+    "octaves": 7,
+    "hill_height": 1500.0,
+    "water_depth": -800.0,
+    "water_radius_frac": 0.15,
+    "water_x_frac": -0.3,
+    "water_y_frac": 0.0,
+    "warp_frac": 0.02,
+    "freq_features": 12.0,
+    "min_z": -3000.0,
+    "max_z": 6000.0,
+    "target_size": 68000.0,
+    "randomize_monuments": true
+  }
+}

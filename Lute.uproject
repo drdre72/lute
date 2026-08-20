@@ -1,0 +1,27 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "5.6",
+	"Category": "Games",
+	"Description": "Medieval building game with LLM-driven mage spells, TTS incantations, and inventory system",
+	"Modules": [
+		{
+			"Name": "Lute",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "LuteRemoteControl",
+			"Type": "Editor",
+			"LoadingPhase": "PostEngineInit"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "GeneSplicer",
+			"Enabled": true
+		}
+	],
+	"TargetPlatforms": [
+		"Mac"
+	]
+}
