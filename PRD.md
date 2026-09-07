@@ -9,7 +9,7 @@ reads it, it never writes to it.
 
 - **Project Name:** Lute
 - **Tagline:** High-Stakes Persistent Sandbox & Soul Retrieval MMORPG
-- **Engine / Tech Stack:** Godot 4.x (Headless Linux Dedicated Server), GDScript / C#, SQLite / PostgreSQL master database
+- **Engine / Tech Stack:** S&Box (Source 2), C# (.NET 10 / LangVersion 14), `Sandbox` namespace, Razor HUD components, SQLite / PostgreSQL master database
 - **Target Hosting:** Small-scale VPS ($20-$40/mo per shard, 50-100 simultaneous players)
 - **Core Philosophy:** Deep specialization, zero-RNG deterministic growth, player-driven governance, and a cross-realm soul retrieval loop connecting persistent and seasonal servers.
 
@@ -71,7 +71,7 @@ Operates identically to the attribute web, layering over character attributes:
 
 ### 3.1 Persistent Journal Snippet
 
-- A lightweight, non-intrusive UI widget that displays short text entries ("Follow the eastern river past the split oak").
+- A lightweight, non-intrusive HUD widget (Razor `HUDComponent`) that displays short text entries ("Follow the eastern river past the split oak").
 - No map markers, objective distance numbers, or compass floating arrows.
 
 ### 3.2 Archetypal NPC Directions & World Signage
@@ -99,15 +99,16 @@ A guild transforms into a Crown Entity by hitting a Majesty threshold covering b
 
 ## 5. Server Architecture & Technical Scope
 
-### 5.1 Godot 4 Server Setup
+### 5.1 S&Box Server Setup
 
-- **Execution:** Godot Headless Export running on Linux VPS (under 500 MB RAM base).
-- **Networking:** `ENetMultiplayerPeer` handling spatial hashing (interest management) to broadcast entity updates only to clients within visual range.
-- **Persistence:** SQLite for local shard state; HTTPS API to central Master DB for account authentication and cross-realm `soul_status` sync.
+- **Execution:** S&Box dedicated server running on Linux VPS via the `sbox-server` host. Server-only code lives in the same `code/` assembly and is gated with `Host.IsServer` / `[GameLayer.Server]` checks.
+- **Networking:** S&Box's built-in client/server networking model. State that must replicate is exposed via `[Sync]` properties and `Component` fields; one-off events use `[Broadcast]` RPCs. Spatial interest management is handled by the engine's networking layer (per-player visibility/culling).
+- **Authority:** Server is authoritative over world state, soul status, economy, and quest generation. Client code is limited to input, prediction, and HUD rendering.
+- **Persistence:** SQLite for local shard state; HTTPS API to central Master DB for account authentication and cross-realm `soul_status` sync. DB access runs server-side only.
 
 ### 5.2 Dynamic Quest Generation Engine
 
-- **Economic Watcher:** An asynchronous server thread monitors regional marketplace stocks and guild storage levels.
+- **Economic Watcher:** A server-side `Component` (ticked on `OnFixedUpdate` or a throttled timer) monitors regional marketplace stocks and guild storage levels.
 - **Archetype Factory:** When supply thresholds drop below set limits, relevant NPC archetypes auto-generate local supply and service quests directly linked to target skill rewards.
 
 ### 5.3 Server Wipe Lifecycle
@@ -121,8 +122,14 @@ A guild transforms into a Crown Entity by hitting a Majesty threshold covering b
 
 ## Constraints / conventions
 
-- Engine: Godot 4.7, C#/.NET (`project/assembly_name="Lute"`), Jolt Physics, Forward+ renderer.
-- Prefer `res://` paths for all scene/script/resource references.
+- Engine: S&Box (Source 2), C# .NET 10, `Sandbox` namespace, `RootNamespace=Sandbox`.
+- All gameplay code is C# in `sbox/code/`, built via `sbox/code/lute.csproj` (Razor SDK, `SANDBOX` define). Do not mix Godot/GDScript or Unreal C++ into this project.
+- Use the S&Box component model: gameplay entities are `GameObject`s with `Component` derivatives (`OnStart`, `OnUpdate`, `OnFixedUpdate`, `OnDestroy`). Prefer `[Property]`, `[RequireComponent]`, `[Sync]`, `[Broadcast]` over hand-rolled networking.
+- Movement/look uses the built-in `PlayerController`; extend behavior via a sibling `Component` (see `LutePlayer.cs`) rather than replacing it.
+- Materials are `.vmat_c`, textures `.vtex_c`, models `.vmdl_c` — Source 2 asset formats under `sbox/.sbox/cloud/` and `sbox/Assets/`. Do not reference Godot `.tres`/`.tscn`/`.import` resources.
+- HUD/UI is built with Razor `HUDComponent` / `Panel` classes (the csproj uses `Microsoft.NET.Sdk.Razor`), not Godot Control nodes.
+- Input bindings live in `sbox/ProjectSettings/Input.config`; reference actions by name via `Input.Pressed("...")` / `Input.Down("...")`.
+- Prefer `Log.Info`/`Log.Warning` for diagnostics (S&Box logging, not GDScript `print`).
 - <!-- Add naming conventions, folder structure rules, coding style, etc. -->
 
 ## Non-goals

@@ -6,6 +6,14 @@ Intermediate/
 Saved/
 Script/
 
+# S&Box / Source 2
+sbox/code/obj/
+sbox/code/bin/
+sbox/.vs/
+sbox/.sbox/transient/
+sbox/.sbox/cloud.db
+*.slnx
+
 # Content assets (large, track via LFS or separately)
 Content/
 

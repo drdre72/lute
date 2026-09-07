@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<AssemblyName>lute</AssemblyName>
+		<PackageId>lute</PackageId>
+		<LangVersion>14</LangVersion>
+		<NoWarn>1701;1702;1591;</NoWarn>
+		<WarningsAsErrors></WarningsAsErrors>
+		<TreatWarningsAsErrors>False</TreatWarningsAsErrors>
+		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+		<DefineConstants>SANDBOX</DefineConstants>
+		<AllowUnsafeBlocks>False</AllowUnsafeBlocks>
+		<OutputPath>../../../.vs/output/</OutputPath>
+		<DocumentationFile>../../../.vs/output/lute.xml</DocumentationFile>
+		<RootNamespace>Sandbox</RootNamespace>
+		<Nullable>disable</Nullable>
+		<DefaultItemExcludes>$(DefaultItemExcludes);**/editor/**;**/unittest/**</DefaultItemExcludes>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<Using Include="Sandbox.Internal.GlobalGameNamespace" Static="true" />
+		<Using Include="Microsoft.AspNetCore.Components" />
+		<Using Include="Microsoft.AspNetCore.Components.Rendering" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Analyzer Include="../../../bin/managed/Sandbox.CodeUpgrader.dll"/> 
+		<Analyzer Include="../../../bin/managed/Sandbox.Generator.dll"/> 
+		<Reference Include="../../../bin/managed/Sandbox.System.dll"/> 
+		<Reference Include="../../../bin/managed/Sandbox.Engine.dll"/> 
+		<Reference Include="../../../bin/managed/Sandbox.Filesystem.dll"/> 
+		<Reference Include="../../../bin/managed/Sandbox.Reflection.dll"/> 
+		<Reference Include="../../../bin/managed/Sandbox.Mounting.dll"/> 
+		<Reference Include="../../../bin/managed/Microsoft.AspNetCore.Components.dll"/> 
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="../../base/code/Base Library.csproj" />
+	</ItemGroup>
+
+</Project>

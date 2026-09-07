@@ -1,0 +1,20 @@
+{
+  "files.associations": {
+    "*.shader": "slang",
+    "*.hlsl": "slang"
+  },
+  "slang.additionalSearchPaths": [
+    "C:\\Users\\Shadow\\Documents\\sbox-public-clean\\game\\core\\shaders",
+    "C:\\Users\\Shadow\\Documents\\sbox-public-clean\\game\\addons\\base\\Assets\\shaders",
+    "C:\\Users\\Shadow\\Documents\\sbox-public-clean\\game\\addons\\menu\\Assets\\shaders",
+    "C:\\Users\\Shadow\\Documents\\sbox-public-clean\\game\\addons\\tools\\Assets\\shaders",
+    "C:\\Users\\Shadow\\Documents\\sbox-public-clean\\game\\editor\\ShaderGraph\\Assets\\shaders",
+    "C:\\Users\\Shadow\\Documents\\sbox-public-clean\\game\\editor\\ActionGraph\\Assets\\shaders",
+    "C:\\Users\\Shadow\\Documents\\sbox-public-clean\\game\\editor\\MovieMaker\\Assets\\shaders",
+    "C:\\Users\\Shadow\\Documents\\sbox-public-clean\\game\\editor\\Hammer\\Assets\\shaders",
+    "C:\\Users\\Shadow\\Documents\\sbox-public-clean\\game\\editor\\DooEditor\\Assets\\shaders",
+    "C:\\Users\\Shadow\\Documents\\sbox-public-clean\\game\\addons\\lute\\Assets\\shaders"
+  ],
+  "slang.predefinedMacros": [],
+  "slang.workspaceFlavor": "vfx"
+}

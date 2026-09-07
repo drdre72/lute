@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "Editor": {
+      "commandName": "Executable",
+      "executablePath": "../../../../sbox-dev.exe",
+      "commandLineArgs": "-project \u0022C:\\Users\\Shadow\\Documents\\sbox-public-clean\\game\\addons\\lute\\.sbproj\u0022"
+    }
+  }
+}
