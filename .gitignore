@@ -14,6 +14,10 @@ sbox/.sbox/transient/
 sbox/.sbox/cloud.db
 *.slnx
 
+# Verification loop output (agent/sbox_verify.ps1) — transient, regenerated every run
+scrap/verify_*.txt
+scrap/sbox_capture_*.png
+
 # Content assets (large, track via LFS or separately)
 Content/
 
