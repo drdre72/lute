@@ -1,0 +1,106 @@
+.agent-chat
+{
+    .chat-box
+    {
+        position: absolute;
+        bottom: 100px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 500px;
+        background: rgba(20, 20, 30, 0.92);
+        border: 2px solid rgba(100, 150, 255, 0.6);
+        border-radius: 8px;
+        z-index: 2000;
+        pointer-events: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 10px;
+    }
+
+    .chat-header
+    {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2px;
+    }
+
+    .chat-title
+    {
+        color: rgba(100, 180, 255, 1);
+        font-size: 13px;
+        font-family: monospace;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    .chat-close
+    {
+        background: rgba(255, 80, 80, 0.3);
+        border: 1px solid rgba(255, 80, 80, 0.5);
+        color: white;
+        font-size: 14px;
+        font-family: monospace;
+        width: 24px;
+        height: 24px;
+        border-radius: 4px;
+        cursor: pointer;
+        text-align: center;
+        line-height: 20px;
+
+        &:hover
+        {
+            background: rgba(255, 80, 80, 0.5);
+        }
+    }
+
+    .chat-input
+    {
+        width: 100%;
+        min-height: 60px;
+        max-height: 120px;
+        background: rgba(0, 0, 0, 0.6);
+        border: 1px solid rgba(100, 150, 255, 0.3);
+        border-radius: 4px;
+        color: rgba(220, 240, 255, 1);
+        font-size: 14px;
+        font-family: monospace;
+        padding: 8px;
+        outline: none;
+
+        &:focus
+        {
+            border-color: rgba(100, 180, 255, 0.7);
+            box-shadow: 0 0 4px rgba(100, 150, 255, 0.3);
+        }
+    }
+
+    .chat-send
+    {
+        background: rgba(80, 120, 200, 0.5);
+        border: 1px solid rgba(100, 150, 255, 0.5);
+        color: white;
+        font-size: 13px;
+        font-family: monospace;
+        font-weight: bold;
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        align-self: flex-end;
+
+        &:hover
+        {
+            background: rgba(100, 150, 255, 0.6);
+        }
+    }
+
+    .chat-last
+    {
+        color: rgba(120, 180, 120, 0.7);
+        font-size: 11px;
+        font-family: monospace;
+        font-style: italic;
+    }
+}

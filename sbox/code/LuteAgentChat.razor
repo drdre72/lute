@@ -1,0 +1,100 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits PanelComponent
+
+<root class="agent-chat">
+    @if ( IsOpen )
+    {
+        <div class="chat-box">
+            <div class="chat-header">
+                <span class="chat-title">Agent Chat (J)</span>
+                <button class="chat-close" onclick="@Close">X</button>
+            </div>
+            <TextEntry @ref="InputBox" class="chat-input" Placeholder="Message to agent..." onsubmit="@OnSubmit" />
+            <div class="chat-hint">Press Enter to send, J or click X to close</div>
+            @if ( !string.IsNullOrEmpty( LastSent ) )
+            {
+                <div class="chat-last">Last: @LastSent</div>
+            }
+        </div>
+    }
+</root>
+
+@code
+{
+    /// <summary>
+    /// In-game text box for talking to the agent without using the chat window.
+    /// Toggle open/closed with J. Type a message, press Enter to send.
+    /// Messages are logged to the editor console with the prefix
+    /// "Lute: [AgentChat]" so the agent can read them via read_console or
+    /// sbox-dev.log.
+    /// </summary>
+
+    bool IsOpen = false;
+    string LastSent = "";
+    TextEntry InputBox;
+    bool WantsFocus;
+
+    protected override void OnUpdate()
+    {
+        base.OnUpdate();
+
+        // Toggle open/closed with J
+        if ( Input.Pressed( "AgentChat" ) )
+        {
+            if ( IsOpen ) Close();
+            else Open();
+        }
+    }
+
+    protected override void OnPreRender()
+    {
+        base.OnPreRender();
+
+        // Focus the TextEntry after the panel renders. TextEntry.Focus()
+        // queues the focus change; it applies on the next InputFocus.Tick().
+        if ( WantsFocus && InputBox.IsValid() )
+        {
+            InputBox.Focus();
+            if ( InputBox.HasFocus )
+                WantsFocus = false;
+        }
+    }
+
+    void Open()
+    {
+        IsOpen = true;
+        WantsFocus = true;
+        Log.Info( "Lute: [AgentChat] box opened." );
+        StateHasChanged();
+    }
+
+    void Close()
+    {
+        IsOpen = false;
+        WantsFocus = false;
+        InputBox?.Blur();
+        Log.Info( "Lute: [AgentChat] box closed." );
+        StateHasChanged();
+    }
+
+    void OnSubmit()
+    {
+        if ( InputBox is null ) return;
+
+        var msg = InputBox.Text?.Trim();
+        InputBox.Text = "";
+
+        if ( string.IsNullOrEmpty( msg ) )
+        {
+            Close();
+            return;
+        }
+
+        Log.Info( $"Lute: [AgentChat] {msg}" );
+        LastSent = msg;
+        Close();
+    }
+
+    protected override int BuildHash() => System.HashCode.Combine( IsOpen, LastSent );
+}

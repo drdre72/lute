@@ -52,13 +52,18 @@ keep = set()
 for session in sessions[:2]:
     keep.update(session)
 
-deleted = 0
-for ts, filepath in tagged:
-    if filepath not in keep:
-        size = os.path.getsize(filepath)
-        os.remove(filepath)
-        deleted += 1
-        print(f"  Deleted: {os.path.basename(filepath)} ({size//1024}KB)")
+# Screenshot deletion disabled — we now want to keep screenshots so the
+# agent can read them back as visual verification. Re-enable by restoring
+# the os.remove loop below if disk space becomes an issue.
+# deleted = 0
+# for ts, filepath in tagged:
+#     if filepath not in keep:
+#         size = os.path.getsize(filepath)
+#         os.remove(filepath)
+#         deleted += 1
+#         print(f"  Deleted: {os.path.basename(filepath)} ({size//1024}KB)")
+#
+# print(f"\nKept {len(keep)} screenshots from {min(2, len(sessions))} most recent sessions.")
+# print(f"Deleted {deleted} old screenshots.")
 
-print(f"\nKept {len(keep)} screenshots from {min(2, len(sessions))} most recent sessions.")
-print(f"Deleted {deleted} old screenshots.")
+print(f"\nScreenshot deletion is currently disabled. All {len(files)} screenshots retained.")

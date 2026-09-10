@@ -25,6 +25,41 @@ reads it, it never writes to it.
   - **Retrieval Loop:** To resurrect a locked character, the player must participate in a Seasonal Realm. If their guild achieves seasonal victory (holding the Crown, max Majesty, or surviving the End-of-Days), all guild members' dead Permanent Realm souls are restored (`soul_status = 'RESTORED'`).
   - **Soul Resonance Bonus:** Completing a Seasonal Realm with an intact soul (no dead Permanent character) grants permanent cosmetic aura effects, dimensional storage, and a minor reduction in opposite-node attribute penalties (capped at 5% total).
 
+### 1.2 Monument Theme — Famous & Mythical Places in Their Prime
+
+- **Concept:** Every major monument in the world is a real-world (or mythical) famous place depicted in its **prime condition** — not as ruins, but as it looked at its peak. The Time Portal pulled these places from across history into the Lute world.
+- **Easter Egg Layer:** Players who recognize the real-world site get a reward of recognition; those who don't just see impressive architecture. No in-game text labels them — discovery is organic.
+- **Examples:**
+  - **St. Peter's Basilica** (archway — first imported asset, currently the Neutral Market monument's gate)
+  - **The Acropolis / Parthenon** (in prime condition)
+  - **Santa Maria** (shipwrecked but pristine — a ship monument)
+  - **The Sphinx** (original face, or a variant with Napoleon's head as a joke)
+  - **Library of Alexandria** (lost to history, prime condition)
+  - **Hanging Gardens of Babylon**
+  - **Colossus of Rhodes** (intact, straddling a harbor)
+  - **Tower of Babel** (under eternal construction — see §1.3)
+  - **Atlantis** (underwater or risen)
+  - **Troy** (walls intact, Trojan Horse as a landmark)
+  - **Stonehenge** (complete, not ruined)
+  - **Gobekli Tepe** (obscure but mysterious — oldest known temple)
+  - **Petra** (facade in full color, not weathered)
+- **Obscure/Mysterious Priority:** Lesser-known but mysterious sites (churches, temples, ruins) are preferred over obvious tourist landmarks — the goal is wonder and discovery, not a checklist.
+
+### 1.3 Tower of Babel Monument — "Babblespeak" Mechanic
+
+- **Concept:** The Tower of Babel monument is under eternal, never-completing construction. The NPCs working on it are stuck in an infinite loop because they cannot communicate effectively — a direct parallel to the biblical curse.
+- **Babblespeak:** NPCs at the tower speak in overly complex syntax and vocabulary — sentences that are technically correct English but nearly impossible to parse for an average reader. Not a foreign language or cipher, but *your own language made incomprehensible through excessive complexity*. May also incorporate actual other languages (or a mix of languages and complex English) — the biblical curse scattered their tongues, so the babblespeak could be a blend of excessive syntactic complexity AND foreign-language fragments.
+- **Dictionary Pages:** Collectible pages scattered around the world at other monuments, ruins, and POIs. Each page unlocks simpler synonyms or common-syntax equivalents for specific words/phrases.
+- **Progressive Translation:** Without dictionary pages, NPC dialogue options only show the words/phrases the player has already "translated" — the rest appears as garbled or overly complex text. As more pages are collected, NPC dialogue progressively becomes readable.
+- **Soft Gate, Not Hard Gate:** Players *can* brute-force through dialogue with partial understanding, but the payoff scales with comprehension:
+  - **Recruitment:** The goal is to recruit tower NPCs as workers for your guild (continuous workers you can hire).
+  - **Comprehension Multiplier:** If the player has enough dictionary pages to translate ~80% of the "highlighted ridiculous words," the NPC's starting relationship is higher and their skill growth rate over time gets a higher multiplier.
+  - **Guessing Through:** With enough pages you can probably guess through the rest, but the relationship and rates suffer.
+- **Dictionary Pages as Double-Duty Collectibles:**
+  - **Lore:** Each page contains etymology, word origins, and ties to the world's history.
+  - **Progression Gate:** Certain monuments/quests require enough vocabulary to navigate NPC dialogue.
+  - **Exploration Driver:** Pages are placed at other monuments, ruins, and POIs, encouraging world traversal.
+
 ## 2. Character Progression & Attributes
 
 ### 2.1 Polar-Opposite Attribute Web (9 Nodes / 3 Clusters)

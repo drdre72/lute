@@ -1,0 +1,62 @@
+@using Sandbox;
+@using Sandbox.UI;
+@inherits PanelComponent
+
+<root class="compass">
+    <div class="compass-window">
+        <div class="compass-strip" style="@StripStyle">
+            <div class="mark cardinal" style="left: 0px">N</div>
+            <div class="mark inter" style="left: 157px">NE</div>
+            <div class="mark cardinal" style="left: 315px">E</div>
+            <div class="mark inter" style="left: 472px">SE</div>
+            <div class="mark cardinal" style="left: 630px">S</div>
+            <div class="mark inter" style="left: 787px">SW</div>
+            <div class="mark cardinal" style="left: 945px">W</div>
+            <div class="mark inter" style="left: 1102px">NW</div>
+            <div class="mark cardinal" style="left: 1260px">N</div>
+        </div>
+        <div class="compass-needle"></div>
+    </div>
+</root>
+
+@code
+{
+    /// <summary>
+    /// A compass HUD showing cardinal/intercardinal directions.
+    /// Reads the active camera's yaw and scrolls a horizontal strip.
+    /// Positioned at the top center of the screen.
+    /// </summary>
+
+    string StripStyle = "transform: translateX(-1260px);";
+    float _lastYaw = 999f;
+
+    // 360 degrees = 1260px (3.5px per degree)
+    const float PxPerDegree = 3.5f;
+
+    protected override void OnUpdate()
+    {
+        base.OnUpdate();
+
+        var cam = Scene.Camera;
+        if ( !cam.IsValid() ) return;
+
+        float yaw = cam.WorldRotation.Angles().yaw;
+        yaw = ((yaw % 360f) + 360f) % 360f;
+
+        // Round to nearest degree to avoid rebuilding every frame
+        // for sub-degree changes
+        float rounded = MathF.Round( yaw );
+        if ( MathF.Abs( rounded - _lastYaw ) < 1f ) return;
+        _lastYaw = rounded;
+
+        // The strip starts at N (0deg = left:0px). We scroll left so
+        // the current heading is centered in the window.
+        // Center of window is at ~210px (window width ~420px / 2).
+        // Mark position = yaw * PxPerDegree.
+        // Strip offset = -(markPos - windowCenter) = -(yaw * PxPerDegree - 210)
+        float offset = -(yaw * PxPerDegree - 210f);
+        StripStyle = $"transform: translateX({offset}px);";
+    }
+
+    protected override int BuildHash() => System.HashCode.Combine( _lastYaw );
+}

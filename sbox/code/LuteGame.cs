@@ -24,6 +24,17 @@ public sealed class LuteGame : Component
 		var world = Components.GetOrCreate<LuteWorld>();
 		var sanctuary = world.Build();
 		TimePortalSpawn = sanctuary;
+
+		// Create the HUD root (ScreenPanel) + compass.
+		// ScreenPanel renders UI to the screen; PanelComponents (like the
+		// compass) only execute on the client, so this is safe on server too.
+		var hudGo = Scene.CreateObject( true );
+		hudGo.Name = "HUD";
+		hudGo.SetParent( GameObject );
+		hudGo.AddComponent<ScreenPanel>();
+		hudGo.AddComponent<LuteCompass>();
+		hudGo.AddComponent<LuteAgentChat>();
+		Log.Info( "Lute: HUD + compass + agent chat created." );
 	}
 
 	protected override void OnDestroy()

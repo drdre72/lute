@@ -1,4 +1,4 @@
-﻿{
+{
   "__guid": "aa0d578d-c729-40fe-a8f3-788c71a3e2ef",
   "GameObjects": [
     {
@@ -337,6 +337,13 @@
           "__guid": "9cd2e8dd-95b3-4c4c-82ac-87a34df1dd0e",
           "__enabled": true,
           "Flags": 0,
+          "NoclipEnabled": false,
+          "OnComponentDestroy": null,
+          "OnComponentDisabled": null,
+          "OnComponentEnabled": null,
+          "OnComponentFixedUpdate": null,
+          "OnComponentStart": null,
+          "OnComponentUpdate": null,
           "SelectedSpell": "Fire"
         }
       ],
@@ -592,4 +599,3 @@
   "__references": [],
   "__version": 3
 }
-
