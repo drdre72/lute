@@ -408,6 +408,7 @@ public sealed class LuteMonumentBuilder : Component
 	{
 		float wallThickness = 2f * M;
 		float segLen = WallOuterHalfWidth * 2f;
+		float cornerSize = 6f * M;
 
 		// 4 wall segments (one per edge)
 		for ( int side = 0; side < 4; side++ )
@@ -417,8 +418,10 @@ public sealed class LuteMonumentBuilder : Component
 
 			// Skip the center portion of each edge — the gatehouse fills that gap.
 			// Build two half-walls per edge with a gate gap in the middle.
+			// Shorten each half by cornerSize/2 so walls end at the corner's
+			// inner edge instead of its center (prevents overlap/z-fighting).
 			float gateGap = 6f * M;  // gate tunnel width
-			float halfLen = (segLen - gateGap) * 0.5f;
+			float halfLen = (segLen - gateGap - cornerSize) * 0.5f;
 
 			for ( int half = 0; half < 2; half++ )
 			{
@@ -437,7 +440,6 @@ public sealed class LuteMonumentBuilder : Component
 		}
 
 		// 4 corner blocks
-		float cornerSize = 6f * M;
 		float cornerScale = cornerSize / 50f;
 		for ( int corner = 0; corner < 4; corner++ )
 		{
@@ -666,7 +668,8 @@ public sealed class LuteMonumentBuilder : Component
 		float gap = 1.5f * M;       // gap between merlons (crenel)
 		float segLen = WallOuterHalfWidth * 2f;
 		float gateGap = 6f * M;
-		float halfLen = (segLen - gateGap) * 0.5f;
+		float cornerSize = 6f * M;
+		float halfLen = (segLen - gateGap - cornerSize) * 0.5f;
 		var stoneTint = new Color( 0.7f, 0.65f, 0.58f );
 
 		for ( int side = 0; side < 4; side++ )
