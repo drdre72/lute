@@ -15,6 +15,6 @@
     g_nScaleTexCoordUByModelScaleAxis "0"
     g_nScaleTexCoordVByModelScaleAxis "0"
     g_vTexCoordOffset "[0.000 0.000]"
-    g_vTexCoordScale "[40.000 40.000]"
+    g_vTexCoordScale "[80.000 80.000]"
     g_vTexCoordScrollSpeed "[0.000 0.000]"
 }

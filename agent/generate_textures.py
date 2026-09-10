@@ -75,9 +75,9 @@ print("Generating stone textures...")
 # Color: grey with variation, subtle block lines
 stone_color = Image.new("RGB", (SIZE, SIZE), (120, 115, 105))
 draw = ImageDraw.Draw(stone_color)
-# Add block pattern (horizontal rows of stones)
-block_h = 64  # pixels per stone row
-block_w = 96  # pixels per stone
+# Add block pattern — bricks wider than tall (horizontal courses)
+block_h = 48  # pixels per stone row (shorter = more horizontal look)
+block_w = 128  # pixels per stone (wider = horizontal bricks)
 for row in range(SIZE // block_h + 1):
     offset = (row % 2) * (block_w // 2)  # brick offset
     y0 = row * block_h

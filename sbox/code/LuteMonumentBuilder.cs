@@ -71,6 +71,7 @@ public sealed class LuteMonumentBuilder : Component
 	// --- Material constants (custom PBR textures, differentiated by surface type) ---
 
 	const string MatStoneWall   = "materials/medieval/stone_wall.vmat";   // walls, towers, corners (high tiling)
+	const string MatStoneTower  = "materials/medieval/stone_tower.vmat";  // towers (perfect brick scale)
 	const string MatStoneDetail = "materials/medieval/stone_detail.vmat"; // merlons, well rim, jambs (low tiling)
 	const string MatPlaza       = "materials/medieval/plaza.vmat";        // plaza floor, inner ring, bridges
 	const string MatWood        = "materials/medieval/wood.vmat";         // stalls, workbenches, well posts
@@ -628,7 +629,7 @@ public sealed class LuteMonumentBuilder : Component
 					"models/dev/box.vmdl",
 					towerPos, Rotation.Identity,
 					new Vector3( towerScale, towerScale, towerH / 50f ),
-					material: MatStoneWall );
+					material: MatStoneTower );
 				AddBoxCollider( tower, new Vector3( 50f, 50f, 50f ) );
 
 				// Guard torch light at tower top
