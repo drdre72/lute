@@ -480,20 +480,24 @@ public sealed class LuteMonumentBuilder : Component
 			float jambW = 0.8f * M;
 			float jambH = ceilingH;
 			float lintelH = 1f * M;
-			// Jambs sit at the outer face of the wall, flanking the gap.
-			// In the wall's local frame, the gap runs along the edge direction (Y for N/S walls).
-			// We'll place them at +/- half the gate gap along the edge.
+			// Jambs flank the gate opening along the wall length (not the
+			// tunnel depth). Use direct world-space offsets — same pattern
+			// as BuildCurtainWall — to avoid the yaw-rotation placement bug.
+			bool isNSJamb = (side == 0 || side == 2);
+			float jambAlong = gateGap * 0.5f + jambW * 0.5f;
 			var jambOffsets = new[] {
-				new Vector3( 0,  gateGap * 0.5f + jambW * 0.5f, jambH * 0.5f ),
-				new Vector3( 0, -gateGap * 0.5f - jambW * 0.5f, jambH * 0.5f ),
+				isNSJamb
+					? new Vector3(  jambAlong, 0, jambH * 0.5f )
+					: new Vector3( 0,  jambAlong, jambH * 0.5f ),
+				isNSJamb
+					? new Vector3( -jambAlong, 0, jambH * 0.5f )
+					: new Vector3( 0, -jambAlong, jambH * 0.5f ),
 			};
 			for ( int j = 0; j < 2; j++ )
 			{
-				// Rotate the local offset into world space using the wall's yaw
-				var worldOffset = rot.ToRotation() * jambOffsets[j];
 				CreatePrimitive( root, $"GateJamb_{side}_{j}",
 					"models/dev/box.vmdl",
-					pos + worldOffset, rot,
+					pos + jambOffsets[j], rot,
 					new Vector3( jambW / 50f, jambW / 50f, jambH / 50f ),
 					material: MatStone, tint: stoneTint );
 			}
