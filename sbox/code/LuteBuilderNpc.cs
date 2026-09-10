@@ -61,6 +61,14 @@ public sealed class LuteBuilderNpc : Component
 	[Property, Group( "Agent" ), Title( "Agent Teleport To" )]
 	public Vector3 AgentTeleportTo { get; set; }
 
+	/// <summary>
+	/// Look angles for the first-person camera (pitch, yaw, roll in degrees).
+	/// Set via MCP to point the "Eyes" camera at a specific direction. When
+	/// zero, the camera follows Merlyn's body facing (toward AgentTarget).
+	/// </summary>
+	[Property, Group( "Agent" ), Title( "Agent Look Angles" )]
+	public Angles AgentLookAngles { get; set; }
+
 	private float _stateTimer = 0f;
 	private Vector3 _verifyStartPos;
 	private List<GameObject> _blocks = new();
@@ -93,6 +101,25 @@ public sealed class LuteBuilderNpc : Component
 				body.AngularVelocity = Vector3.Zero;
 			}
 			Log.Info( $"Lute: [AgentTeleport] moved to {target} (now at {WorldPosition})." );
+		}
+
+		// Update the first-person "Eyes" camera orientation.
+		// When AgentLookAngles is set, the camera points that direction.
+		// Otherwise it follows the body's facing (toward AgentTarget).
+		var eyes = GameObject.Children.FirstOrDefault( c => c.Name == "Eyes" );
+		if ( eyes.IsValid() )
+		{
+			if ( AgentLookAngles != Angles.Zero )
+			{
+				eyes.WorldRotation = AgentLookAngles;
+			}
+			else
+			{
+				// Follow body facing — look toward AgentTarget
+				var toTarget = (AgentTarget - WorldPosition).WithZ( 0 );
+				if ( toTarget.Length > 1f )
+					eyes.WorldRotation = Rotation.LookAt( toTarget.Normal );
+			}
 		}
 
 		// Live agent tunnel takes priority over the autonomous test sequence.
