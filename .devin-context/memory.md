@@ -68,6 +68,26 @@
   (stone rim, water surface, 4 wooden roof posts, flat roof). Build
   verified: 0 errors, wall collision intact (trace hit Wall_0_0 at z=472).
   All new elements confirmed via `find_game_objects` at runtime.
+- [2026-09-09] **Fixed yaw-rotation placement bugs**. Merlons, portcullis
+  bars, and gate jambs were all placed using `rot.ToRotation() * localYOffset`
+  which put them perpendicular to walls instead of along them. Fixed with
+  direct world-space offsets (X for N/S, Y for E/W). Gate jambs now flank
+  the opening instead of sitting in front/behind it.
+- [2026-09-09] **Fixed wall/corner overlap**. Wall segments extended to
+  corner center, overlapping by ~3m. Shortened by cornerSize/2.
+- [2026-09-09] **Merlyn teleport**. Added `AgentTeleportTo` property to
+  `LuteBuilderNpc` — set via MCP to instantly reposition. Fires once,
+  clears to zero. Verified at north wall top and watchtower.
+- [2026-09-09] **Systematic monument inspection**. `inspect_monument2.py`
+  verifies all 8 towers, 4 gates, 4 walls, 4 corners, 4 bridges, 36
+  portcullis bars, 404 merlons, well, stalls, workbenches, houses.
+  Only remaining issue: moat has no colliders (v1 dry-moat design).
+- [2026-09-09] **Camera observation pipeline**. `sbox_camera.py` teleports
+  the PLAYER (not the camera — PlayerController overrides it every frame)
+  and captures via `camera_screenshot` MCP tool. 8-shot orbit of market
+  captured and verified (real scenes, 3434-4582 unique colors). Deleted
+  dead `cleanup_screenshots.py` (Godot-era path). Moondream2 download in
+  progress for vision sub-agent.
 
 ## File map (gameplay code — `sbox/code/`)
 
