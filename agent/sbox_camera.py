@@ -1,123 +1,79 @@
 """
-sbox_camera.py — Player-based camera observation tool for the Lute project.
+sbox_camera.py — Camera observation tool for the Lute project.
 
-Teleports the PLAYER to a vantage point (the camera follows the player)
-and captures a screenshot. This works because the PlayerController
-overrides the Main Camera position every frame, so moving the camera
-GameObject directly has no effect — we must move the player.
+Teleports the player or Merlyn to a vantage point and captures a
+screenshot. No vision model — just capture and save.
+
+Use --via player to move the Player Controller (camera follows).
+Use --via merlyn to move Merlyn and capture from his Eyes camera.
 
 Usage:
   python sbox_camera.py --look 15748,10236,0 --out south_gate
-  python sbox_camera.py --orbit 15748,15748,0 --out market
+  python sbox_camera.py --orbit 15748,15748,0 --out market --via player
   python sbox_camera.py --pos "15748,9500,100" --angles "-10,0,0" --out custom
 """
-import json, urllib.request, base64, os, sys, math, argparse, re, time
+import argparse, os, sys, time
 
-MCP = 'http://127.0.0.1:7269/mcp'
-SCRAP = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'scrap')
+from vision_lib import VisionLib, vantage, save_img, pixel_check
 
-def call(tool, **args):
-    req = json.dumps({'jsonrpc':'2.0','id':1,'method':'tools/call',
-                      'params':{'name':tool,'arguments':args}}).encode()
-    r = urllib.request.urlopen(MCP, req, timeout=20)
-    return json.loads(r.read().decode())
-
-_player_id = None
-def find_player():
-    global _player_id
-    if _player_id:
-        return _player_id
-    r = call('find_game_objects', name='Player Controller')
-    d = json.loads(r['result']['content'][0]['text'])
-    if d.get('Results'):
-        _player_id = d['Results'][0]['Id']
-        return _player_id
-    return None
-
-def move_player(pos, angles=None):
-    args = {'id': find_player(), 'position': pos}
-    if angles:
-        args['angles'] = angles
-    call('set_game_object', **args)
-
-def screenshot(width=1280, height=720):
-    r = call('camera_screenshot', width=width, height=height, includeUi=False)
-    for item in r['result'].get('content', []):
-        if item.get('type') == 'image':
-            return base64.b64decode(item['data'])
-    return None
-
-def save_screenshot(img_bytes, name):
-    os.makedirs(SCRAP, exist_ok=True)
-    path = os.path.join(SCRAP, f'{name}.png')
-    with open(path, 'wb') as f:
-        f.write(img_bytes)
-    return path
-
-def vantage(target_x, target_y, target_z, distance=1500, height=400, yaw=0):
-    """Calculate player position and angles to look at a target."""
-    rad = math.radians(yaw)
-    cam_x = target_x + distance * math.sin(rad)
-    cam_y = target_y + distance * math.cos(rad)
-    cam_z = target_z + height
-    # Pitch: look down at target
-    dx = target_x - cam_x
-    dy = target_y - cam_y
-    dz = target_z - cam_z
-    pitch = math.degrees(math.atan2(-dz, math.sqrt(dx*dx + dy*dy)))
-    # Yaw: direction from camera to target
-    yaw_deg = math.degrees(math.atan2(-dx, -dy))
-    return f'{cam_x:.0f},{cam_y:.0f},{cam_z:.0f}', f'{pitch:.1f},{yaw_deg:.1f},0'
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='S&Box camera observation via player teleport')
+def main():
+    parser = argparse.ArgumentParser(description='S&Box camera observation via teleport')
     parser.add_argument('--look', help='Target to look at "x,y,z"')
     parser.add_argument('--orbit', help='Orbit around point "x,y,z" (8 angles)')
-    parser.add_argument('--pos', help='Direct player position "x,y,z"')
-    parser.add_argument('--angles', help='Player angles "pitch,yaw,roll"')
+    parser.add_argument('--pos', help='Direct position "x,y,z"')
+    parser.add_argument('--angles', help='Look angles "pitch,yaw,roll" (player mode only)')
     parser.add_argument('--out', default='capture', help='Output filename prefix')
+    parser.add_argument('--via', default='player', choices=['merlyn', 'player'],
+                        help='Camera source: player (main camera) or merlyn (Eyes)')
     parser.add_argument('--width', type=int, default=1280)
     parser.add_argument('--height', type=int, default=720)
     parser.add_argument('--distance', type=float, default=1500)
     parser.add_argument('--height-offset', type=float, default=400)
+    parser.add_argument('--check', action='store_true',
+                        help='Run pixel sanity check on each capture')
     args = parser.parse_args()
 
-    pid = find_player()
-    if not pid:
-        print('ERROR: Player Controller not found')
-        sys.exit(1)
-    print(f'Player: {pid}')
+    vl = VisionLib()
 
     if args.orbit:
         tx, ty, tz = [float(x) for x in args.orbit.split(',')]
-        print(f'Orbiting ({tx},{ty},{tz}) — 8 angles')
+        print(f'Orbiting ({tx},{ty},{tz}) via {args.via} — 8 angles')
         for i in range(8):
             yaw = i * 45
             pos, angles = vantage(tx, ty, tz, args.distance, args.height_offset, yaw)
-            move_player(pos, angles)
-            time.sleep(1)
-            img = screenshot(args.width, args.height)
+            vl.teleport(pos, angles=angles, via=args.via)
+            time.sleep(0.5)
+            img = vl.capture(via=args.via, width=args.width, height=args.height)
             if img:
-                path = save_screenshot(img, f'{args.out}_orbit_{yaw:03d}')
-                print(f'  {yaw:3d}°: {len(img)} bytes -> {path}')
+                path = save_img(img, f'{args.out}_orbit_{yaw:03d}')
+                extra = ''
+                if args.check:
+                    ok, stats = pixel_check(img)
+                    extra = f' [{"OK" if ok else "BAD"}]' if not ok else ''
+                print(f'  {yaw:3d}d: {len(img)} bytes -> {path}{extra}')
+            else:
+                print(f'  {yaw:3d}d: CAPTURE FAILED')
     elif args.look:
         tx, ty, tz = [float(x) for x in args.look.split(',')]
         pos, angles = vantage(tx, ty, tz, args.distance, args.height_offset)
-        move_player(pos, angles)
-        time.sleep(1)
-        img = screenshot(args.width, args.height)
+        vl.teleport(pos, angles=angles, via=args.via)
+        time.sleep(0.5)
+        img = vl.capture(via=args.via, width=args.width, height=args.height)
         if img:
-            path = save_screenshot(img, args.out)
-            print(f'Captured {args.out} ({len(img)} bytes) looking at ({tx},{ty},{tz})')
+            path = save_img(img, args.out)
+            print(f'Captured {args.out} ({len(img)} bytes) looking at ({tx},{ty},{tz}) via {args.via}')
     elif args.pos:
-        move_player(args.pos, args.angles)
-        time.sleep(1)
-        img = screenshot(args.width, args.height)
+        vl.teleport(args.pos, angles=args.angles, via=args.via)
+        time.sleep(0.5)
+        img = vl.capture(via=args.via, width=args.width, height=args.height)
         if img:
-            path = save_screenshot(img, args.out)
-            print(f'Captured {args.out} ({len(img)} bytes) at {args.pos}')
+            path = save_img(img, args.out)
+            print(f'Captured {args.out} ({len(img)} bytes) at {args.pos} via {args.via}')
     else:
-        img = screenshot(args.width, args.height)
+        img = vl.capture(via=args.via, width=args.width, height=args.height)
         if img:
-            path = save_screenshot(img, args.out)
-            print(f'Captured {args.out} ({len(img)} bytes)')
+            path = save_img(img, args.out)
+            print(f'Captured {args.out} ({len(img)} bytes) via {args.via}')
+
+if __name__ == '__main__':
+    main()

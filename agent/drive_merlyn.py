@@ -1,35 +1,48 @@
-import json, urllib.request, time, re
+"""
+drive_merlyn.py — Poll Merlyn's position as he walks toward a target.
 
-def call(name, **args):
-    req = json.dumps({
-        'jsonrpc': '2.0', 'id': 1,
-        'method': 'tools/call',
-        'params': {'name': name, 'arguments': args}
-    }).encode()
-    r = urllib.request.urlopen('http://127.0.0.1:7269/mcp', req, timeout=10)
-    return json.loads(r.read().decode())
+Looks up Merlyn by name (not hardcoded GUID) via vision_lib, then polls
+every 10s until he arrives within 500 units of the target.
 
-GO_ID = '16bbe875-188b-4683-ae75-be2fe0962312'
+Usage:
+  python drive_merlyn.py                          # default target: market center (15000, 15000)
+  python drive_merlyn.py --target 15748,10236     # custom target
+  python drive_merlyn.py --interval 5 --max 20    # poll every 5s, max 20 iterations
+"""
+import argparse, time, sys
 
-# Poll every 10s until close to market
-for i in range(12):
-    time.sleep(10)
-    go = call('get_game_object', id=GO_ID)
-    text = go['result']['content'][0]['text']
-    pos = re.search(r'WorldPosition...([0-9.,-]+)', text)
-    p = pos.group(1) if pos else "?"
-    # Check distance to market center (15000, 15000)
-    parts = [float(x) for x in p.split(',')]
-    dist = ((parts[0]-15000)**2 + (parts[1]-15000)**2)**0.5
-    print(f't={i*10+10}s pos=({parts[0]:.0f},{parts[1]:.0f},{parts[2]:.0f}) dist={dist:.0f} ({dist/39.37:.0f}m)')
-    if dist < 500:
-        print('Arrived at market!')
-        break
+from vision_lib import VisionLib, call
 
-# Read recent AgentDrive logs
-console = call('read_console', since=0)
-ctext = console['result']['content'][0]['text']
-lines = ctext.split('\r\n')
-drive_lines = [l for l in lines if 'AgentDrive' in l][-3:]
-for l in drive_lines:
-    print(l)
+def main():
+    parser = argparse.ArgumentParser(description='Poll Merlyn position while walking')
+    parser.add_argument('--target', default='15000,15000', help='Target "x,y" to check distance against')
+    parser.add_argument('--interval', type=float, default=10, help='Poll interval in seconds')
+    parser.add_argument('--max', type=int, default=12, help='Max poll iterations')
+    parser.add_argument('--arrive-dist', type=float, default=500, help='Arrival distance in world units')
+    args = parser.parse_args()
+
+    tx, ty = [float(x) for x in args.target.split(',')]
+    vl = VisionLib()
+
+    for i in range(args.max):
+        time.sleep(args.interval)
+        pos = vl.get_merlyn_pos()
+        if not pos:
+            print(f't={i+1}: Merlyn not found')
+            continue
+        px, py, pz = pos
+        dist = ((px - tx) ** 2 + (py - ty) ** 2) ** 0.5
+        print(f't={i+1} pos=({px:.0f},{py:.0f},{pz:.0f}) dist={dist:.0f} ({dist/39.37:.0f}m)')
+        if dist < args.arrive_dist:
+            print(f'Arrived at target ({tx:.0f},{ty:.0f})!')
+            break
+
+    # Read recent AgentDrive logs
+    console = call('read_console', limit=10)
+    text = console['result']['content'][0]['text']
+    for line in text.split('\n'):
+        if 'AgentDrive' in line or 'AgentControlled' in line:
+            print(line)
+
+if __name__ == '__main__':
+    main()
