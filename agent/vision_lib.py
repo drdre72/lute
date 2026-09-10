@@ -219,6 +219,74 @@ class VisionLib:
                 return base64.b64decode(item['data'])
         return None
 
+    # --- Flash light (for dark scenes) ---
+
+    _flash_id = None
+
+    def flash_on(self, position=None, radius=2000, color='1.0,0.95,0.85,1.0'):
+        """Create a temporary point light to illuminate a dark scene.
+
+        Args:
+            position: "x,y,z" world position for the light. If None, uses
+                      Merlyn's current position.
+            radius: Light radius in world units (default 2000 = ~50m).
+            color: Light color as "r,g,b,a" (default warm white).
+
+        Returns the temporary GameObject's id, or None on failure.
+        """
+        if position is None:
+            pos = self.get_merlyn_pos()
+            if pos:
+                position = f'{pos[0]:.0f},{pos[1]:.0f},{pos[2]:.0f}'
+            else:
+                position = '0,0,500'
+
+        r = call('create_game_object', name='VisionFlash',
+                 position=position, components='PointLight')
+        text = r['result']['content'][0]['text']
+        match = re.search(r'"Id"\s*:\s*"([a-f0-9-]+)"', text)
+        if not match:
+            return None
+        light_go_id = match.group(1)
+
+        # Set light properties: large radius, warm white, no shadows
+        r2 = call('find_game_objects', name='VisionFlash')
+        d = json.loads(r2['result']['content'][0]['text'])
+        comp_id = None
+        if d.get('Results'):
+            go_data = call('get_game_object', id=d['Results'][0]['Id'])
+            go_text = go_data['result']['content'][0]['text']
+            comp_match = re.search(r'"Type"\s*:\s*"PointLight"\s*,\s*"Id"\s*:\s*"([a-f0-9-]+)"', go_text)
+            if comp_match:
+                comp_id = comp_match.group(1)
+
+        if comp_id:
+            call('set_component', id=comp_id, properties={
+                'Radius': str(radius),
+                'LightColor': color,
+                'Shadows': 'false',
+            })
+        else:
+            # Fallback: set by game object id + type name
+            call('set_component', id=light_go_id, type='PointLight', properties={
+                'Radius': str(radius),
+                'LightColor': color,
+                'Shadows': 'false',
+            })
+
+        self._flash_id = light_go_id
+        time.sleep(0.3)  # let the light take effect
+        return light_go_id
+
+    def flash_off(self):
+        """Remove the temporary flash light if one is active."""
+        if self._flash_id:
+            try:
+                call('delete_game_object', id=self._flash_id)
+            except Exception:
+                pass
+            self._flash_id = None
+
     # --- Unified capture ---
 
     def teleport(self, pos, angles=None, target=None, via='merlyn'):
@@ -228,12 +296,36 @@ class VisionLib:
         else:
             self.teleport_player(pos, angles=angles)
 
-    def capture(self, via='merlyn', width=1280, height=720):
-        """Capture via merlyn (Eyes camera) or player (main camera)."""
-        if via == 'merlyn':
-            return self.capture_merlyn(width, height)
-        else:
-            return self.capture_player(width, height)
+    def capture(self, via='merlyn', width=1280, height=720, flash=False,
+                flash_threshold=0.40, flash_radius=2000, flash_pos=None):
+        """Capture via merlyn (Eyes camera) or player (main camera).
+
+        If flash=True, takes a test shot first and checks brightness.
+        If dark_pct exceeds flash_threshold, creates a temporary point
+        light at flash_pos (or Merlyn's position if None), re-captures,
+        then removes the light. Returns the better-lit frame.
+        """
+        img = self.capture_merlyn(width, height) if via == 'merlyn' else self.capture_player(width, height)
+        if not img or not flash:
+            return img
+
+        ok, stats = pixel_check(img)
+        if stats['dark_pct'] <= flash_threshold:
+            return img  # scene is bright enough
+
+        # Scene is too dark — flash and re-capture
+        pos_str = None
+        if flash_pos:
+            pos_str = f'{flash_pos[0]:.0f},{flash_pos[1]:.0f},{flash_pos[2]:.0f}'
+        self.flash_on(position=pos_str, radius=flash_radius)
+        img2 = self.capture_merlyn(width, height) if via == 'merlyn' else self.capture_player(width, height)
+        self.flash_off()
+
+        if img2:
+            ok2, stats2 = pixel_check(img2)
+            if stats2['dark_pct'] < stats['dark_pct']:
+                return img2  # flash improved the shot
+        return img  # flash didn't help, return original
 
     # --- Merlyn position polling (for drive_merlyn.py) ---
 

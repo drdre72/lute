@@ -31,6 +31,12 @@ def main():
     parser.add_argument('--height-offset', type=float, default=400)
     parser.add_argument('--check', action='store_true',
                         help='Run pixel sanity check on each capture')
+    parser.add_argument('--flash', action='store_true',
+                        help='Auto-add a temporary light if scene is too dark (>40%% dark pixels)')
+    parser.add_argument('--flash-threshold', type=float, default=0.40,
+                        help='Dark pixel ratio that triggers flash (default 0.40)')
+    parser.add_argument('--flash-radius', type=float, default=2000,
+                        help='Flash light radius in world units (default 2000 = ~50m)')
     args = parser.parse_args()
 
     vl = VisionLib()
@@ -43,7 +49,9 @@ def main():
             pos, angles = vantage(tx, ty, tz, args.distance, args.height_offset, yaw)
             vl.teleport(pos, angles=angles, via=args.via)
             time.sleep(0.5)
-            img = vl.capture(via=args.via, width=args.width, height=args.height)
+            img = vl.capture(via=args.via, width=args.width, height=args.height,
+                             flash=args.flash, flash_threshold=args.flash_threshold,
+                             flash_radius=args.flash_radius, flash_pos=(tx, ty, tz))
             if img:
                 path = save_img(img, f'{args.out}_orbit_{yaw:03d}')
                 extra = ''
@@ -58,7 +66,9 @@ def main():
         pos, angles = vantage(tx, ty, tz, args.distance, args.height_offset)
         vl.teleport(pos, angles=angles, via=args.via)
         time.sleep(0.5)
-        img = vl.capture(via=args.via, width=args.width, height=args.height)
+        img = vl.capture(via=args.via, width=args.width, height=args.height,
+                         flash=args.flash, flash_threshold=args.flash_threshold,
+                         flash_radius=args.flash_radius, flash_pos=(tx, ty, tz))
         if img:
             path = save_img(img, args.out)
             print(f'Captured {args.out} ({len(img)} bytes) looking at ({tx},{ty},{tz}) via {args.via}')
