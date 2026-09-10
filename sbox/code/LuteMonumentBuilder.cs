@@ -510,12 +510,15 @@ public sealed class LuteMonumentBuilder : Component
 			int numVerticals = 6;
 			int numHorizontals = 3;
 			var metalTint = new Color( 0.4f, 0.4f, 0.42f );
+			bool isNSGate = (side == 0 || side == 2);  // N/S gates: opening runs along X; E/W gates: along Y
 
 			for ( int v = 0; v < numVerticals; v++ )
 			{
-				float y = -gateGap * 0.45f + v * (gateGap * 0.9f / (numVerticals - 1));
-				var localOff = new Vector3( 0, y, grillZ );
-				var worldOff = rot.ToRotation() * localOff;
+				float offset = -gateGap * 0.45f + v * (gateGap * 0.9f / (numVerticals - 1));
+				// Space vertical bars across the gate opening (along the wall direction)
+				var worldOff = isNSGate
+					? new Vector3( offset, 0, grillZ )
+					: new Vector3( 0, offset, grillZ );
 				CreatePrimitive( root, $"PortcullisV_{side}_{v}",
 					"models/dev/box.vmdl",
 					pos + worldOff, rot,
@@ -525,12 +528,14 @@ public sealed class LuteMonumentBuilder : Component
 			for ( int h = 0; h < numHorizontals; h++ )
 			{
 				float z = ceilingH * 0.55f + h * (grillH * 0.4f / (numHorizontals - 1));
-				var localOff = new Vector3( 0, 0, z );
-				var worldOff = rot.ToRotation() * localOff;
+				// Horizontal bars span across the gate opening
+				var hScale = isNSGate
+					? new Vector3( gateGap * 0.9f / 50f, barSc, barSc )
+					: new Vector3( barSc, gateGap * 0.9f / 50f, barSc );
 				CreatePrimitive( root, $"PortcullisH_{side}_{h}",
 					"models/dev/box.vmdl",
-					pos + worldOff, rot,
-					new Vector3( barSc, gateGap * 0.9f / 50f, barSc ),
+					pos + new Vector3( 0, 0, z ), rot,
+					hScale,
 					material: MatMetal, tint: metalTint );
 			}
 		}
@@ -668,6 +673,7 @@ public sealed class LuteMonumentBuilder : Component
 		{
 			var edgeMid = EdgeCenter( WallOuterHalfWidth, side ) + new Vector3( 0, 0, WallHeight + merlonH * 0.5f );
 			var rot = new Angles( 0, EdgeYaw( side ), 0 );
+			bool isNS = (side == 0 || side == 2);  // N/S walls run along X; E/W walls run along Y
 
 			// Two half-walls per edge (matching BuildCurtainWall's gate gap)
 			for ( int half = 0; half < 2; half++ )
@@ -679,15 +685,24 @@ public sealed class LuteMonumentBuilder : Component
 				float cursor = alongStart;
 				while ( (half == 0 && cursor > alongEnd) || (half == 1 && cursor < alongEnd) )
 				{
-					// Merlon center
+					// Merlon center along the wall edge direction
 					float merlonCenter = cursor + (half == 0 ? -merlonW * 0.5f : merlonW * 0.5f);
-					var localOff = new Vector3( 0, merlonCenter, 0 );
-					var worldOff = rot.ToRotation() * localOff;
+					// Direct world-space offset (same pattern as BuildCurtainWall)
+					var worldOff = isNS
+						? new Vector3( merlonCenter, 0, 0 )
+						: new Vector3( 0, merlonCenter, 0 );
+
+					// Merlon scale: depth (across wall thickness) × width (along wall) × height
+					// For N/S walls: X=along wall (merlonW), Y=depth (merlonD)
+					// For E/W walls: X=depth (merlonD), Y=along wall (merlonW)
+					var merlonScale = isNS
+						? new Vector3( merlonW / 50f, merlonD / 50f, merlonH / 50f )
+						: new Vector3( merlonD / 50f, merlonW / 50f, merlonH / 50f );
 
 					CreatePrimitive( root, $"Merlon_{side}_{half}_{(int)(cursor * 10)}",
 						"models/dev/box.vmdl",
 						edgeMid + worldOff, rot,
-						new Vector3( merlonD / 50f, merlonW / 50f, merlonH / 50f ),
+						merlonScale,
 						material: MatStone, tint: stoneTint );
 
 					cursor += (half == 0 ? -1f : 1f) * (merlonW + gap);

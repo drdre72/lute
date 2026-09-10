@@ -309,7 +309,7 @@ public sealed class LuteWorld : Component
 		const float M = 39.37f;
 
 		var go = Scene.CreateObject( true );
-		go.Name = "BuilderNpc";
+		go.Name = "Merlyn";
 		go.SetParent( parent );
 
 		// Place 20m east of the temple center, on the ground.
