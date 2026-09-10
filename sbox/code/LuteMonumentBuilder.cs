@@ -62,19 +62,22 @@ public sealed class LuteMonumentBuilder : Component
 		BuildWatchtowers( root );
 		BuildTowerBattlements( root );
 		BuildLighting( root );
+		BuildVisualDetails( root );
 
 		Log.Info( "Lute: Neutral Market monument built (detailed whitebox)." );
 		return root;
 	}
 
-	// --- Material constants (dev materials, differentiated by surface type) ---
+	// --- Material constants (custom PBR textures, differentiated by surface type) ---
 
-	const string MatStone   = "materials/dev/dev_nonmetal_rough70.vmat"; // walls, towers, well
-	const string MatStoneLt = "materials/dev/dev_nonmetal_rough50.vmat"; // plaza, bridges (lighter stone)
-	const string MatWood    = "materials/dev/dev_nonmetal_rough90.vmat"; // stalls, workbenches, housing
-	const string MatMetal    = "materials/dev/dev_metal_rough40.vmat";   // gate bars, anvil
-	const string MatWater    = "materials/dev/black_cheap.vmat";          // moat floor (dry for v1)
-	const string MatRoof    = "materials/dev/dev_nonmetal_rough80.vmat"; // awnings, well roof
+	const string MatStoneWall   = "materials/medieval/stone_wall.vmat";   // walls, towers, corners (high tiling)
+	const string MatStoneDetail = "materials/medieval/stone_detail.vmat"; // merlons, well rim, jambs (low tiling)
+	const string MatPlaza       = "materials/medieval/plaza.vmat";        // plaza floor, inner ring, bridges
+	const string MatWood        = "materials/medieval/wood.vmat";         // stalls, workbenches, well posts
+	const string MatWoodHouse   = "materials/medieval/wood_house.vmat";   // houses (higher tiling)
+	const string MatMetal       = "materials/medieval/metal.vmat";        // portcullis bars
+	const string MatRoof        = "materials/medieval/roof.vmat";         // awnings, well roof
+	const string MatWater       = "materials/water/water_dark.vmat";      // moat (real water shader)
 
 	// --- Geometry helpers ---
 
@@ -158,7 +161,7 @@ public sealed class LuteMonumentBuilder : Component
 		float s = (PlazaHalfWidth * 2f) / 100000f;
 		var floor = CreatePrimitive( root, "PlazaFloor", "models/dev/plane_large.vmdl",
 			Vector3.Zero, Rotation.Identity, new Vector3( s, s, 1f ),
-			material: MatStoneLt );
+			material: MatPlaza );
 		AddBoxCollider( floor, new Vector3( 100000f, 100000f, 1f ) );
 	}
 
@@ -175,15 +178,14 @@ public sealed class LuteMonumentBuilder : Component
 		CreatePrimitive( root, "WellRim", "models/dev/sphere.vmdl",
 			new Vector3( 0, 0, rimH * 0.5f ), Rotation.Identity,
 			new Vector3( rimSc, rimSc, rimH / 64f ),
-			material: MatStone,
-			tint: new Color( 0.6f, 0.55f, 0.5f ) );
+			material: MatStoneDetail );
 
 		// Water surface (dark disc at rim top)
 		float waterSc = (wellRadius - rimThick) / 32f;
 		CreatePrimitive( root, "WellWater", "models/dev/sphere.vmdl",
 			new Vector3( 0, 0, rimH * 0.9f ), Rotation.Identity,
 			new Vector3( waterSc, waterSc, 0.02f ),
-			tint: new Color( 0.15f, 0.25f, 0.4f ) );
+			material: MatWater );
 
 		// 4 wooden roof posts at cardinal points around the rim
 		float postH = 4f * M;
@@ -202,8 +204,7 @@ public sealed class LuteMonumentBuilder : Component
 				"models/dev/box.vmdl",
 				postPositions[i], Rotation.Identity,
 				new Vector3( postSc, postSc, postH / 50f ),
-				material: MatWood,
-				tint: new Color( 0.4f, 0.3f, 0.2f ) );
+				material: MatWood );
 		}
 
 		// Roof — flat square covering the well, resting on posts
@@ -213,8 +214,7 @@ public sealed class LuteMonumentBuilder : Component
 			"models/dev/box.vmdl",
 			new Vector3( 0, 0, postH + roofT * 0.5f ), Rotation.Identity,
 			new Vector3( roofW / 50f, roofW / 50f, roofT / 50f ),
-			material: MatRoof,
-			tint: new Color( 0.35f, 0.25f, 0.15f ) );
+			material: MatRoof );
 	}
 
 	/// <summary> 3.1: Market stalls arranged in 4 quadrants with color-coded tilted awnings. </summary>
@@ -235,8 +235,6 @@ public sealed class LuteMonumentBuilder : Component
 		float postH = 2.8f * M;
 		float postW = 0.15f * M;
 		float awningTilt = 12f; // degrees of pitch for rain runoff
-		var woodTint = new Color( 0.45f, 0.32f, 0.2f );
-
 		for ( int quad = 0; quad < 4; quad++ )
 		{
 			// Quadrant offset signs
@@ -255,7 +253,7 @@ public sealed class LuteMonumentBuilder : Component
 					"models/dev/box.vmdl",
 					new Vector3( x, y, stallH * 0.5f ), Rotation.Identity,
 					new Vector3( stallW / 50f, stallD / 50f, stallH / 50f ),
-					material: MatWood, tint: woodTint );
+					material: MatWood );
 				AddBoxCollider( counter, new Vector3( 50f, 50f, 50f ) );
 
 				// 2 vertical support posts at front corners
@@ -271,7 +269,7 @@ public sealed class LuteMonumentBuilder : Component
 						"models/dev/box.vmdl",
 						postPositions[p], Rotation.Identity,
 						new Vector3( postSc, postSc, postH / 50f ),
-						material: MatWood, tint: woodTint );
+						material: MatWood );
 				}
 
 				// Tilted awning — pitched toward the back (away from customer)
@@ -302,7 +300,7 @@ public sealed class LuteMonumentBuilder : Component
 			var seg = CreatePrimitive( root, $"InnerRingFloor_{side}",
 				"models/dev/box.vmdl",
 				pos, rot, new Vector3( segScale, ringScale, 0.02f ),
-				material: MatStoneLt );
+				material: MatPlaza );
 			AddBoxCollider( seg, new Vector3( 50f, 50f, 50f ) );
 		}
 	}
@@ -342,7 +340,7 @@ public sealed class LuteMonumentBuilder : Component
 					benchPos + new Vector3( 0, 0, benchH ),
 					Rotation.Identity,
 					new Vector3( benchW / 50f, benchD / 50f, 0.3f / 50f * 50f ),
-					material: MatWood, tint: new Color( 0.45f, 0.32f, 0.2f ) );
+					material: MatWood );
 				AddBoxCollider( bench, new Vector3( 50f, 50f, 50f ) );
 
 				// 4 legs (simplified — just 4 thin boxes)
@@ -362,7 +360,7 @@ public sealed class LuteMonumentBuilder : Component
 						benchPos + legOffsets[leg] + new Vector3( 0, 0, legZ ),
 						Rotation.Identity,
 						new Vector3( legScale, legScale, legH / 50f ),
-						material: MatWood, tint: new Color( 0.4f, 0.28f, 0.18f ) );
+						material: MatWood );
 				}
 				idx++;
 			}
@@ -396,7 +394,7 @@ public sealed class LuteMonumentBuilder : Component
 					edgeMid + offsetVec + new Vector3( 0, 0, houseH * 0.5f ),
 					Rotation.Identity,
 					new Vector3( houseScale, houseScale, houseH / 50f ),
-					material: MatWood, tint: new Color( 0.5f, 0.35f, 0.22f ) );
+					material: MatWoodHouse );
 				AddBoxCollider( house, new Vector3( 50f, 50f, 50f ) );
 				idx++;
 			}
@@ -434,7 +432,7 @@ public sealed class LuteMonumentBuilder : Component
 					"models/dev/box.vmdl",
 					pos + offsetVec, rot,
 					new Vector3( halfLen / 50f, wallThickness / 50f, WallHeight / 50f ),
-					material: MatStone, tint: new Color( 0.7f, 0.65f, 0.58f ) );
+					material: MatStoneWall );
 				AddBoxCollider( wall, new Vector3( 50f, 50f, 50f ) );
 			}
 		}
@@ -448,7 +446,7 @@ public sealed class LuteMonumentBuilder : Component
 				"models/dev/box.vmdl",
 				pos, Rotation.Identity,
 				new Vector3( cornerScale, cornerScale, WallHeight / 50f ),
-				material: MatStone, tint: new Color( 0.7f, 0.65f, 0.58f ) );
+				material: MatStoneWall );
 			AddBoxCollider( cornerGo, new Vector3( 50f, 50f, 50f ) );
 		}
 	}
@@ -461,7 +459,6 @@ public sealed class LuteMonumentBuilder : Component
 		float gateHouseDepth = wallThickness * 2f;  // deeper than the wall
 		float ceilingH = WallHeight;
 		float ceilingThickness = 1f * M;
-		var stoneTint = new Color( 0.7f, 0.65f, 0.58f );
 
 		for ( int side = 0; side < 4; side++ )
 		{
@@ -474,7 +471,7 @@ public sealed class LuteMonumentBuilder : Component
 				pos + new Vector3( 0, 0, ceilingH + ceilingThickness * 0.5f ),
 				rot,
 				new Vector3( gateGap / 50f, gateHouseDepth / 50f, ceilingThickness / 50f ),
-				material: MatStone, tint: stoneTint );
+				material: MatStoneWall );
 
 			// Gate frame — 2 vertical jambs + a lintel across the top of the opening
 			float jambW = 0.8f * M;
@@ -499,14 +496,14 @@ public sealed class LuteMonumentBuilder : Component
 					"models/dev/box.vmdl",
 					pos + jambOffsets[j], rot,
 					new Vector3( jambW / 50f, jambW / 50f, jambH / 50f ),
-					material: MatStone, tint: stoneTint );
+					material: MatStoneWall );
 			}
 			// Lintel
 			CreatePrimitive( root, $"GateLintel_{side}",
 				"models/dev/box.vmdl",
 				pos + new Vector3( 0, 0, ceilingH + lintelH * 0.5f ), rot,
 				new Vector3( (gateGap + jambW * 2f) / 50f, jambW / 50f, lintelH / 50f ),
-				material: MatStone, tint: stoneTint );
+				material: MatStoneWall );
 
 			// Portcullis — a grid of vertical and horizontal metal bars filling the upper half of the gate
 			float barW = 0.2f * M;
@@ -564,7 +561,7 @@ public sealed class LuteMonumentBuilder : Component
 				"models/dev/box.vmdl",
 				pos, rot,
 				new Vector3( bridgeLen / 50f, bridgeW / 50f, bridgeThick / 50f ),
-				material: MatStoneLt, tint: new Color( 0.65f, 0.6f, 0.55f ) );
+				material: MatPlaza );
 			AddBoxCollider( bridge, new Vector3( 50f, 50f, 50f ) );
 		}
 	}
@@ -631,7 +628,7 @@ public sealed class LuteMonumentBuilder : Component
 					"models/dev/box.vmdl",
 					towerPos, Rotation.Identity,
 					new Vector3( towerScale, towerScale, towerH / 50f ),
-					material: MatStone, tint: new Color( 0.7f, 0.65f, 0.58f ) );
+					material: MatStoneWall );
 				AddBoxCollider( tower, new Vector3( 50f, 50f, 50f ) );
 
 				// Guard torch light at tower top
@@ -642,14 +639,15 @@ public sealed class LuteMonumentBuilder : Component
 		}
 	}
 
-	/// <summary> Market lighting — warm lanterns in the plaza quadrants. </summary>
+	/// <summary> Market lighting — warm lanterns in the plaza, torches at gates and well. </summary>
 	void BuildLighting( GameObject root )
 	{
-		var warmLight = new Color( 0.9f, 0.6f, 0.3f );
+		var warmLight = new Color( 1.0f, 0.7f, 0.35f );
+		var torchLight = new Color( 1.0f, 0.55f, 0.2f );
 		float lightHeight = 5f * M;
 		float lightOffset = 30f * M;
 
-		// 4 lanterns, one per plaza quadrant
+		// 4 lanterns, one per plaza quadrant — with shadows for atmosphere
 		var positions = new[] {
 			new Vector3( -lightOffset, lightOffset, lightHeight ),   // NW
 			new Vector3( lightOffset, lightOffset, lightHeight ),    // NE
@@ -659,7 +657,20 @@ public sealed class LuteMonumentBuilder : Component
 
 		for ( int i = 0; i < 4; i++ )
 		{
-			AddPointLight( root, $"PlazaLight_{i}", positions[i], warmLight, 600f );
+			AddPointLight( root, $"PlazaLight_{i}", positions[i], warmLight, 800f, shadows: true );
+		}
+
+		// Central well light — warm glow from the well area
+		AddPointLight( root, "WellLight",
+			new Vector3( 0, 0, 3f * M ), torchLight, 500f );
+
+		// Gate torches — warm light at each gate entrance
+		for ( int side = 0; side < 4; side++ )
+		{
+			var gatePos = EdgeCenter( WallOuterHalfWidth, side );
+			AddPointLight( root, $"GateTorch_{side}",
+				gatePos + new Vector3( 0, 0, WallHeight * 0.7f ),
+				torchLight, 600f, shadows: true );
 		}
 	}
 
@@ -710,7 +721,7 @@ public sealed class LuteMonumentBuilder : Component
 						"models/dev/box.vmdl",
 						edgeMid + worldOff, rot,
 						merlonScale,
-						material: MatStone, tint: stoneTint );
+						material: MatStoneDetail );
 
 					cursor += (half == 0 ? -1f : 1f) * (merlonW + gap);
 				}
@@ -726,7 +737,7 @@ public sealed class LuteMonumentBuilder : Component
 				"models/dev/box.vmdl",
 				pos, Rotation.Identity,
 				new Vector3( cornerMerlonW / 50f, cornerMerlonW / 50f, merlonH / 50f ),
-				material: MatStone, tint: stoneTint );
+				material: MatStoneDetail );
 		}
 	}
 
@@ -773,8 +784,157 @@ public sealed class LuteMonumentBuilder : Component
 						"models/dev/box.vmdl",
 						towerPos + merlonOffsets[m], Rotation.Identity,
 						merlonScales[m],
-						material: MatStone, tint: stoneTint );
+						material: MatStoneDetail );
 				}
+			}
+		}
+	}
+
+	/// <summary> Visual details — tower banners, market goods, house doors. </summary>
+	void BuildVisualDetails( GameObject root )
+	{
+		BuildTowerBanners( root );
+		BuildMarketGoods( root );
+		BuildHouseDoors( root );
+	}
+
+	/// <summary> Colored banners on poles atop each watchtower. </summary>
+	void BuildTowerBanners( GameObject root )
+	{
+		var bannerColors = new[] {
+			new Color( 0.8f, 0.15f, 0.15f ),  // N: red
+			new Color( 0.15f, 0.3f, 0.8f ),   // E: blue
+			new Color( 0.15f, 0.7f, 0.2f ),   // S: green
+			new Color( 0.85f, 0.7f, 0.1f ),   // W: gold
+		};
+
+		float towerH = 18f * M;
+		float towerOffset = 10f * M;
+		float merlonH = 1.5f * M;
+
+		for ( int side = 0; side < 4; side++ )
+		{
+			var gatePos = EdgeCenter( WallOuterHalfWidth, side );
+
+			for ( int t = 0; t < 2; t++ )
+			{
+				float along = (t == 0 ? -1f : 1f) * towerOffset;
+				var offsetVec = side == 0 || side == 2
+					? new Vector3( along, 0, 0 )
+					: new Vector3( 0, along, 0 );
+
+				var towerTop = gatePos + offsetVec + new Vector3( 0, 0, towerH + merlonH );
+
+				// Banner pole
+				float poleH = 3f * M;
+				float poleW = 0.15f * M;
+				CreatePrimitive( root, $"BannerPole_{side}_{t}",
+					"models/dev/box.vmdl",
+					towerTop + new Vector3( 0, 0, poleH * 0.5f ), Rotation.Identity,
+					new Vector3( poleW / 50f, poleW / 50f, poleH / 50f ),
+					material: MatMetal );
+
+				// Banner cloth — flat rectangle hanging from pole top
+				float bannerW = 2f * M;
+				float bannerH = 1.5f * M;
+				CreatePrimitive( root, $"Banner_{side}_{t}",
+					"models/dev/box.vmdl",
+					towerTop + new Vector3( 0, 0, poleH - bannerH * 0.5f ),
+					Rotation.Identity,
+					new Vector3( 0.05f / 50f * 50f, bannerW / 50f, bannerH / 50f ),
+					material: MatRoof, tint: bannerColors[side] );
+			}
+		}
+	}
+
+	/// <summary> Colored goods boxes on stall counters. </summary>
+	void BuildMarketGoods( GameObject root )
+	{
+		var goodsColors = new[] {
+			new Color( 0.7f, 0.5f, 0.2f ),   // amber goods
+			new Color( 0.5f, 0.3f, 0.1f ),   // dark leather
+			new Color( 0.8f, 0.7f, 0.5f ),   // wheat/grain
+			new Color( 0.3f, 0.5f, 0.3f ),   // produce
+		};
+
+		float stallSpacing = 12f * M;
+		float stallW = 3f * M;
+		float stallH = 1.2f * M;
+		float goodsW = 0.8f * M;
+		float goodsH = 0.4f * M;
+
+		for ( int quad = 0; quad < 4; quad++ )
+		{
+			float sx = (quad == 0 || quad == 3) ? -1f : 1f;
+			float sy = (quad == 0 || quad == 1) ? 1f : -1f;
+
+			for ( int i = 0; i < 4; i++ )
+			{
+				int row = i / 2;
+				int col = i % 2;
+				float x = sx * (15f * M + col * stallSpacing);
+				float y = sy * (15f * M + row * stallSpacing);
+
+				// 2 goods boxes per stall counter
+				for ( int g = 0; g < 2; g++ )
+				{
+					float gx = x + (g == 0 ? -stallW * 0.2f : stallW * 0.2f);
+					float gy = y;
+					float gz = stallH + goodsH * 0.5f;
+
+					CreatePrimitive( root, $"Goods_{quad}_{i}_{g}",
+						"models/dev/box.vmdl",
+						new Vector3( gx, gy, gz ), Rotation.Identity,
+						new Vector3( goodsW / 50f, goodsW / 50f, goodsH / 50f ),
+						material: MatWood, tint: goodsColors[(quad + i + g) % goodsColors.Length] );
+				}
+			}
+		}
+	}
+
+	/// <summary> Dark door openings on each house. </summary>
+	void BuildHouseDoors( GameObject root )
+	{
+		float midRadius = (PlazaHalfWidth + InnerRingOuter) * 0.5f;
+		float houseW = 6f * M;
+		float doorW = 1.2f * M;
+		float doorH = 2.2f * M;
+
+		float[] offsets = { -InnerRingOuter / 2f, 0f };
+
+		int idx = 0;
+		for ( int side = 0; side < 4; side++ )
+		{
+			var edgeMid = EdgeCenter( midRadius, side );
+
+			foreach ( float offset in offsets )
+			{
+				var offsetVec = side == 0 || side == 2
+					? new Vector3( offset, 0, 0 )
+					: new Vector3( 0, offset, 0 );
+
+				var housePos = edgeMid + offsetVec;
+
+				// Door faces inward (toward plaza center)
+				var inwardDir = side switch
+				{
+					0 => new Vector3( 0, -1, 0 ),  // N faces south
+					1 => new Vector3( -1, 0, 0 ),  // E faces west
+					2 => new Vector3( 0, 1, 0 ),   // S faces north
+					_ => new Vector3( 1, 0, 0 ),   // W faces east
+				};
+
+				// Place door slightly inset from house center, facing plaza
+				var doorPos = housePos + inwardDir * (houseW * 0.5f) + new Vector3( 0, 0, doorH * 0.5f );
+
+				CreatePrimitive( root, $"Door_{idx}",
+					"models/dev/box.vmdl",
+					doorPos, Rotation.Identity,
+					new Vector3( doorW / 50f, 0.1f / 50f * 50f, doorH / 50f ),
+					material: "materials/dev/black_cheap.vmat",
+					tint: new Color( 0.15f, 0.1f, 0.08f ) );
+
+				idx++;
 			}
 		}
 	}
