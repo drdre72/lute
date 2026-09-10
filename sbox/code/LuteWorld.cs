@@ -358,8 +358,11 @@ public sealed class LuteWorld : Component
 		var camGo = Scene.CreateObject( true );
 		camGo.Name = "Eyes";
 		camGo.SetParent( go );
-		// Forward (-Y in local space for citizen model) + up to clear head mesh.
-		camGo.LocalPosition = new Vector3( 0, -24f, 72f );
+		// Third-person camera nested as a child. Positioned 1.5 feet (18
+		// units) from the back of the head at a 35° angle — behind and
+		// above for an over-the-shoulder view. Forward for the citizen
+		// model is -Y, so "behind" is +Y.
+		camGo.LocalPosition = new Vector3( 0, 15f, 74f );
 		camGo.LocalRotation = Rotation.Identity;
 		var cam = camGo.AddComponent<CameraComponent>();
 		cam.IsMainCamera = false;
