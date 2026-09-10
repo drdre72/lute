@@ -59,6 +59,15 @@
   threshold, gitignored tally_*.txt), hooks.v1.json wires SessionStart +
   PostCompaction (full), UserPromptSubmit (compact), PostToolUse (tracker).
   All scripts tested with sample stdin, emit valid JSON, exit 0.
+- [2026-09-09] **Neutral Market whitebox detail pass**. Enhanced
+  `LuteMonumentBuilder.cs` with: material differentiation (stone for walls/
+  towers, wood for stalls/benches/housing, metal for portcullis bars),
+  battlements/merlons on curtain wall (404 merlons) + tower tops (32
+  merlons), gatehouse detail (jambs, lintels, portcullis bar grids — 36
+  bars across 4 gates), tilted awnings with support posts, well detail
+  (stone rim, water surface, 4 wooden roof posts, flat roof). Build
+  verified: 0 errors, wall collision intact (trace hit Wall_0_0 at z=472).
+  All new elements confirmed via `find_game_objects` at runtime.
 
 ## File map (gameplay code — `sbox/code/`)
 

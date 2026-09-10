@@ -55,15 +55,26 @@ public sealed class LuteMonumentBuilder : Component
 		BuildCraftingStations( root );
 		BuildNPCHousing( root );
 		BuildCurtainWall( root );
+		BuildBattlements( root );
 		BuildGatehouses( root );
 		BuildBridges( root );
 		BuildMoat( root );
 		BuildWatchtowers( root );
+		BuildTowerBattlements( root );
 		BuildLighting( root );
 
-		Log.Info( "Lute: Neutral Market monument built (square whitebox)." );
+		Log.Info( "Lute: Neutral Market monument built (detailed whitebox)." );
 		return root;
 	}
+
+	// --- Material constants (dev materials, differentiated by surface type) ---
+
+	const string MatStone   = "materials/dev/dev_nonmetal_rough70.vmat"; // walls, towers, well
+	const string MatStoneLt = "materials/dev/dev_nonmetal_rough50.vmat"; // plaza, bridges (lighter stone)
+	const string MatWood    = "materials/dev/dev_nonmetal_rough90.vmat"; // stalls, workbenches, housing
+	const string MatMetal    = "materials/dev/dev_metal_rough40.vmat";   // gate bars, anvil
+	const string MatWater    = "materials/dev/black_cheap.vmat";          // moat floor (dry for v1)
+	const string MatRoof    = "materials/dev/dev_nonmetal_rough80.vmat"; // awnings, well roof
 
 	// --- Geometry helpers ---
 
@@ -147,23 +158,66 @@ public sealed class LuteMonumentBuilder : Component
 		float s = (PlazaHalfWidth * 2f) / 100000f;
 		var floor = CreatePrimitive( root, "PlazaFloor", "models/dev/plane_large.vmdl",
 			Vector3.Zero, Rotation.Identity, new Vector3( s, s, 1f ),
-			material: "materials/dev/gray_75.vmat" );
+			material: MatStoneLt );
 		AddBoxCollider( floor, new Vector3( 100000f, 100000f, 1f ) );
 	}
 
-	/// <summary> 3.1: Central well/fountain — visual anchor at dead center. </summary>
+	/// <summary> 3.1: Central well/fountain — stone rim, water surface, wooden roof posts. </summary>
 	void BuildCentralWell( GameObject root )
 	{
-		// sphere.vmdl base = 64 diameter. Scale to ~4m radius (~8m diameter).
 		float wellRadius = 4f * M;
-		float sc = wellRadius / 32f;
-		CreatePrimitive( root, "CentralWell", "models/dev/sphere.vmdl",
-			new Vector3( 0, 0, wellRadius * 0.3f ), Rotation.Identity,
-			new Vector3( sc, sc, sc * 0.4f ),
-			tint: new Color( 0.2f, 0.4f, 0.8f ) );
+		float rimH = 1.2f * M;
+		float rimThick = 0.6f * M;
+
+		// Stone rim — outer ring (hollow cylinder approximated as a short, wide box ring)
+		// Use a slightly squashed sphere for the rim base, then a water disc inside.
+		float rimSc = wellRadius / 32f;
+		CreatePrimitive( root, "WellRim", "models/dev/sphere.vmdl",
+			new Vector3( 0, 0, rimH * 0.5f ), Rotation.Identity,
+			new Vector3( rimSc, rimSc, rimH / 64f ),
+			material: MatStone,
+			tint: new Color( 0.6f, 0.55f, 0.5f ) );
+
+		// Water surface (dark disc at rim top)
+		float waterSc = (wellRadius - rimThick) / 32f;
+		CreatePrimitive( root, "WellWater", "models/dev/sphere.vmdl",
+			new Vector3( 0, 0, rimH * 0.9f ), Rotation.Identity,
+			new Vector3( waterSc, waterSc, 0.02f ),
+			tint: new Color( 0.15f, 0.25f, 0.4f ) );
+
+		// 4 wooden roof posts at cardinal points around the rim
+		float postH = 4f * M;
+		float postW = 0.3f * M;
+		float postSc = postW / 50f;
+		float postOffset = wellRadius + rimThick * 0.5f;
+		var postPositions = new[] {
+			new Vector3(  postOffset, 0, postH * 0.5f ),
+			new Vector3( -postOffset, 0, postH * 0.5f ),
+			new Vector3( 0,  postOffset, postH * 0.5f ),
+			new Vector3( 0, -postOffset, postH * 0.5f ),
+		};
+		for ( int i = 0; i < 4; i++ )
+		{
+			CreatePrimitive( root, $"WellPost_{i}",
+				"models/dev/box.vmdl",
+				postPositions[i], Rotation.Identity,
+				new Vector3( postSc, postSc, postH / 50f ),
+				material: MatWood,
+				tint: new Color( 0.4f, 0.3f, 0.2f ) );
+		}
+
+		// Roof — flat square covering the well, resting on posts
+		float roofW = (wellRadius + rimThick) * 2.2f;
+		float roofT = 0.4f * M;
+		CreatePrimitive( root, "WellRoof",
+			"models/dev/box.vmdl",
+			new Vector3( 0, 0, postH + roofT * 0.5f ), Rotation.Identity,
+			new Vector3( roofW / 50f, roofW / 50f, roofT / 50f ),
+			material: MatRoof,
+			tint: new Color( 0.35f, 0.25f, 0.15f ) );
 	}
 
-	/// <summary> 3.1: Market stalls arranged in 4 quadrants with color-coded awnings. </summary>
+	/// <summary> 3.1: Market stalls arranged in 4 quadrants with color-coded tilted awnings. </summary>
 	void BuildMarketStalls( GameObject root )
 	{
 		var awningColors = new[] {
@@ -173,11 +227,15 @@ public sealed class LuteMonumentBuilder : Component
 			new Color( 0.9f, 0.9f, 0.9f ),  // SW: white (exotic/rare)
 		};
 
-		// 4 stalls per quadrant = 16 total. Each = counter + awning.
+		// 4 stalls per quadrant = 16 total. Each = counter + 2 posts + tilted awning.
 		float stallSpacing = 12f * M;
 		float stallW = 3f * M;
 		float stallD = 1.5f * M;
 		float stallH = 1.2f * M;
+		float postH = 2.8f * M;
+		float postW = 0.15f * M;
+		float awningTilt = 12f; // degrees of pitch for rain runoff
+		var woodTint = new Color( 0.45f, 0.32f, 0.2f );
 
 		for ( int quad = 0; quad < 4; quad++ )
 		{
@@ -192,22 +250,38 @@ public sealed class LuteMonumentBuilder : Component
 				float x = sx * (15f * M + col * stallSpacing);
 				float y = sy * (15f * M + row * stallSpacing);
 
-				// Counter
-				float counterScale = new Vector3( stallW / 50f, stallD / 50f, stallH / 50f ).Length;
+				// Counter (wood)
 				var counter = CreatePrimitive( root, $"Stall_{quad}_{i}_Counter",
 					"models/dev/box.vmdl",
 					new Vector3( x, y, stallH * 0.5f ), Rotation.Identity,
 					new Vector3( stallW / 50f, stallD / 50f, stallH / 50f ),
-					material: "materials/dev/gray_50.vmat" );
+					material: MatWood, tint: woodTint );
 				AddBoxCollider( counter, new Vector3( 50f, 50f, 50f ) );
 
-				// Awning (thin tilted box above counter)
-				float awningH = 2.8f * M;
-				var awning = CreatePrimitive( root, $"Stall_{quad}_{i}_Awning",
+				// 2 vertical support posts at front corners
+				float postSc = postW / 50f;
+				float postFwd = stallD * 0.45f;
+				var postPositions = new[] {
+					new Vector3( x + stallW * 0.4f, y + postFwd, postH * 0.5f ),
+					new Vector3( x - stallW * 0.4f, y + postFwd, postH * 0.5f ),
+				};
+				for ( int p = 0; p < 2; p++ )
+				{
+					CreatePrimitive( root, $"Stall_{quad}_{i}_Post{p}",
+						"models/dev/box.vmdl",
+						postPositions[p], Rotation.Identity,
+						new Vector3( postSc, postSc, postH / 50f ),
+						material: MatWood, tint: woodTint );
+				}
+
+				// Tilted awning — pitched toward the back (away from customer)
+				// Tilt around the X axis so the front is higher than the back.
+				var awningRot = new Angles( awningTilt, 0, 0 );
+				CreatePrimitive( root, $"Stall_{quad}_{i}_Awning",
 					"models/dev/box.vmdl",
-					new Vector3( x, y, awningH ), Rotation.Identity,
-					new Vector3( stallW / 50f, stallD / 50f, 0.15f ),
-					tint: awningColors[quad] );
+					new Vector3( x, y, postH ), awningRot,
+					new Vector3( stallW / 50f, stallD / 50f, 0.1f ),
+					material: MatRoof, tint: awningColors[quad] );
 			}
 		}
 	}
@@ -228,7 +302,7 @@ public sealed class LuteMonumentBuilder : Component
 			var seg = CreatePrimitive( root, $"InnerRingFloor_{side}",
 				"models/dev/box.vmdl",
 				pos, rot, new Vector3( segScale, ringScale, 0.02f ),
-				material: "materials/dev/gray_50.vmat" );
+				material: MatStoneLt );
 			AddBoxCollider( seg, new Vector3( 50f, 50f, 50f ) );
 		}
 	}
@@ -262,13 +336,13 @@ public sealed class LuteMonumentBuilder : Component
 
 				var benchPos = edgeMid + offsetVec;
 
-				// Bench top
+				// Bench top (wood)
 				var bench = CreatePrimitive( root, $"Workbench_{idx}",
 					"models/dev/box.vmdl",
 					benchPos + new Vector3( 0, 0, benchH ),
 					Rotation.Identity,
 					new Vector3( benchW / 50f, benchD / 50f, 0.3f / 50f * 50f ),
-					material: "materials/dev/gray_50.vmat" );
+					material: MatWood, tint: new Color( 0.45f, 0.32f, 0.2f ) );
 				AddBoxCollider( bench, new Vector3( 50f, 50f, 50f ) );
 
 				// 4 legs (simplified — just 4 thin boxes)
@@ -288,7 +362,7 @@ public sealed class LuteMonumentBuilder : Component
 						benchPos + legOffsets[leg] + new Vector3( 0, 0, legZ ),
 						Rotation.Identity,
 						new Vector3( legScale, legScale, legH / 50f ),
-						material: "materials/dev/gray_25.vmat" );
+						material: MatWood, tint: new Color( 0.4f, 0.28f, 0.18f ) );
 				}
 				idx++;
 			}
@@ -322,7 +396,7 @@ public sealed class LuteMonumentBuilder : Component
 					edgeMid + offsetVec + new Vector3( 0, 0, houseH * 0.5f ),
 					Rotation.Identity,
 					new Vector3( houseScale, houseScale, houseH / 50f ),
-					material: "materials/dev/gray_25.vmat" );
+					material: MatWood, tint: new Color( 0.5f, 0.35f, 0.22f ) );
 				AddBoxCollider( house, new Vector3( 50f, 50f, 50f ) );
 				idx++;
 			}
@@ -357,7 +431,7 @@ public sealed class LuteMonumentBuilder : Component
 					"models/dev/box.vmdl",
 					pos + offsetVec, rot,
 					new Vector3( halfLen / 50f, wallThickness / 50f, WallHeight / 50f ),
-					material: "materials/dev/gray_50.vmat" );
+					material: MatStone, tint: new Color( 0.7f, 0.65f, 0.58f ) );
 				AddBoxCollider( wall, new Vector3( 50f, 50f, 50f ) );
 			}
 		}
@@ -372,12 +446,12 @@ public sealed class LuteMonumentBuilder : Component
 				"models/dev/box.vmdl",
 				pos, Rotation.Identity,
 				new Vector3( cornerScale, cornerScale, WallHeight / 50f ),
-				material: "materials/dev/gray_50.vmat" );
+				material: MatStone, tint: new Color( 0.7f, 0.65f, 0.58f ) );
 			AddBoxCollider( cornerGo, new Vector3( 50f, 50f, 50f ) );
 		}
 	}
 
-	/// <summary> 3.5: Gatehouses — 4 gate tunnels with flanking boxes and ceiling. </summary>
+	/// <summary> 3.5: Gatehouses — 4 gate tunnels with ceiling, side walls, portcullis bars, and gate frame. </summary>
 	void BuildGatehouses( GameObject root )
 	{
 		float wallThickness = 2f * M;
@@ -385,6 +459,7 @@ public sealed class LuteMonumentBuilder : Component
 		float gateHouseDepth = wallThickness * 2f;  // deeper than the wall
 		float ceilingH = WallHeight;
 		float ceilingThickness = 1f * M;
+		var stoneTint = new Color( 0.7f, 0.65f, 0.58f );
 
 		for ( int side = 0; side < 4; side++ )
 		{
@@ -397,7 +472,67 @@ public sealed class LuteMonumentBuilder : Component
 				pos + new Vector3( 0, 0, ceilingH + ceilingThickness * 0.5f ),
 				rot,
 				new Vector3( gateGap / 50f, gateHouseDepth / 50f, ceilingThickness / 50f ),
-				material: "materials/dev/gray_25.vmat" );
+				material: MatStone, tint: stoneTint );
+
+			// Gate frame — 2 vertical jambs + a lintel across the top of the opening
+			float jambW = 0.8f * M;
+			float jambH = ceilingH;
+			float lintelH = 1f * M;
+			// Jambs sit at the outer face of the wall, flanking the gap.
+			// In the wall's local frame, the gap runs along the edge direction (Y for N/S walls).
+			// We'll place them at +/- half the gate gap along the edge.
+			var jambOffsets = new[] {
+				new Vector3( 0,  gateGap * 0.5f + jambW * 0.5f, jambH * 0.5f ),
+				new Vector3( 0, -gateGap * 0.5f - jambW * 0.5f, jambH * 0.5f ),
+			};
+			for ( int j = 0; j < 2; j++ )
+			{
+				// Rotate the local offset into world space using the wall's yaw
+				var worldOffset = rot.ToRotation() * jambOffsets[j];
+				CreatePrimitive( root, $"GateJamb_{side}_{j}",
+					"models/dev/box.vmdl",
+					pos + worldOffset, rot,
+					new Vector3( jambW / 50f, jambW / 50f, jambH / 50f ),
+					material: MatStone, tint: stoneTint );
+			}
+			// Lintel
+			CreatePrimitive( root, $"GateLintel_{side}",
+				"models/dev/box.vmdl",
+				pos + new Vector3( 0, 0, ceilingH + lintelH * 0.5f ), rot,
+				new Vector3( (gateGap + jambW * 2f) / 50f, jambW / 50f, lintelH / 50f ),
+				material: MatStone, tint: stoneTint );
+
+			// Portcullis — a grid of vertical and horizontal metal bars filling the upper half of the gate
+			float barW = 0.2f * M;
+			float barSc = barW / 50f;
+			float grillH = ceilingH * 0.5f;
+			float grillZ = ceilingH * 0.75f;
+			int numVerticals = 6;
+			int numHorizontals = 3;
+			var metalTint = new Color( 0.4f, 0.4f, 0.42f );
+
+			for ( int v = 0; v < numVerticals; v++ )
+			{
+				float y = -gateGap * 0.45f + v * (gateGap * 0.9f / (numVerticals - 1));
+				var localOff = new Vector3( 0, y, grillZ );
+				var worldOff = rot.ToRotation() * localOff;
+				CreatePrimitive( root, $"PortcullisV_{side}_{v}",
+					"models/dev/box.vmdl",
+					pos + worldOff, rot,
+					new Vector3( barSc, barSc, grillH / 50f ),
+					material: MatMetal, tint: metalTint );
+			}
+			for ( int h = 0; h < numHorizontals; h++ )
+			{
+				float z = ceilingH * 0.55f + h * (grillH * 0.4f / (numHorizontals - 1));
+				var localOff = new Vector3( 0, 0, z );
+				var worldOff = rot.ToRotation() * localOff;
+				CreatePrimitive( root, $"PortcullisH_{side}_{h}",
+					"models/dev/box.vmdl",
+					pos + worldOff, rot,
+					new Vector3( barSc, gateGap * 0.9f / 50f, barSc ),
+					material: MatMetal, tint: metalTint );
+			}
 		}
 	}
 
@@ -418,7 +553,7 @@ public sealed class LuteMonumentBuilder : Component
 				"models/dev/box.vmdl",
 				pos, rot,
 				new Vector3( bridgeLen / 50f, bridgeW / 50f, bridgeThick / 50f ),
-				material: "materials/dev/gray_75.vmat" );
+				material: MatStoneLt, tint: new Color( 0.65f, 0.6f, 0.55f ) );
 			AddBoxCollider( bridge, new Vector3( 50f, 50f, 50f ) );
 		}
 	}
@@ -440,7 +575,7 @@ public sealed class LuteMonumentBuilder : Component
 				"models/dev/box.vmdl",
 				pos, rot,
 				new Vector3( segLen / 50f, moatWidth / 50f, MoatDepth / 50f ),
-				material: "materials/dev/black_cheap.vmat" );
+				material: MatWater );
 		}
 
 		// 4 corners
@@ -453,7 +588,7 @@ public sealed class LuteMonumentBuilder : Component
 				"models/dev/box.vmdl",
 				pos, Rotation.Identity,
 				new Vector3( cornerScale, cornerScale, MoatDepth / 50f ),
-				material: "materials/dev/black_cheap.vmat" );
+				material: MatWater );
 		}
 	}
 
@@ -485,7 +620,7 @@ public sealed class LuteMonumentBuilder : Component
 					"models/dev/box.vmdl",
 					towerPos, Rotation.Identity,
 					new Vector3( towerScale, towerScale, towerH / 50f ),
-					material: "materials/dev/gray_25.vmat" );
+					material: MatStone, tint: new Color( 0.7f, 0.65f, 0.58f ) );
 				AddBoxCollider( tower, new Vector3( 50f, 50f, 50f ) );
 
 				// Guard torch light at tower top
@@ -514,6 +649,111 @@ public sealed class LuteMonumentBuilder : Component
 		for ( int i = 0; i < 4; i++ )
 		{
 			AddPointLight( root, $"PlazaLight_{i}", positions[i], warmLight, 600f );
+		}
+	}
+
+	/// <summary> Crenellations (merlons) along the top of the curtain wall — alternating solid blocks and gaps. </summary>
+	void BuildBattlements( GameObject root )
+	{
+		float merlonW = 1.5f * M;   // width of each solid block (along the wall edge)
+		float merlonH = 1.5f * M;   // height above the wall top
+		float merlonD = 2f * M;     // depth (wall thickness)
+		float gap = 1.5f * M;       // gap between merlons (crenel)
+		float segLen = WallOuterHalfWidth * 2f;
+		float gateGap = 6f * M;
+		float halfLen = (segLen - gateGap) * 0.5f;
+		var stoneTint = new Color( 0.7f, 0.65f, 0.58f );
+
+		for ( int side = 0; side < 4; side++ )
+		{
+			var edgeMid = EdgeCenter( WallOuterHalfWidth, side ) + new Vector3( 0, 0, WallHeight + merlonH * 0.5f );
+			var rot = new Angles( 0, EdgeYaw( side ), 0 );
+
+			// Two half-walls per edge (matching BuildCurtainWall's gate gap)
+			for ( int half = 0; half < 2; half++ )
+			{
+				float alongStart = (half == 0 ? -1f : 1f) * (gateGap * 0.5f);
+				float alongEnd = alongStart + (half == 0 ? -1f : 1f) * halfLen;
+
+				// Walk along the half-wall placing merlons + gaps
+				float cursor = alongStart;
+				while ( (half == 0 && cursor > alongEnd) || (half == 1 && cursor < alongEnd) )
+				{
+					// Merlon center
+					float merlonCenter = cursor + (half == 0 ? -merlonW * 0.5f : merlonW * 0.5f);
+					var localOff = new Vector3( 0, merlonCenter, 0 );
+					var worldOff = rot.ToRotation() * localOff;
+
+					CreatePrimitive( root, $"Merlon_{side}_{half}_{(int)(cursor * 10)}",
+						"models/dev/box.vmdl",
+						edgeMid + worldOff, rot,
+						new Vector3( merlonD / 50f, merlonW / 50f, merlonH / 50f ),
+						material: MatStone, tint: stoneTint );
+
+					cursor += (half == 0 ? -1f : 1f) * (merlonW + gap);
+				}
+			}
+		}
+
+		// Corner merlons (4 corners, slightly larger)
+		float cornerMerlonW = 2f * M;
+		for ( int corner = 0; corner < 4; corner++ )
+		{
+			var pos = CornerPos( WallOuterHalfWidth, corner ) + new Vector3( 0, 0, WallHeight + merlonH * 0.5f );
+			CreatePrimitive( root, $"CornerMerlon_{corner}",
+				"models/dev/box.vmdl",
+				pos, Rotation.Identity,
+				new Vector3( cornerMerlonW / 50f, cornerMerlonW / 50f, merlonH / 50f ),
+				material: MatStone, tint: stoneTint );
+		}
+	}
+
+	/// <summary> Crenellations on top of the 8 watchtowers — smaller merlons on each tower top. </summary>
+	void BuildTowerBattlements( GameObject root )
+	{
+		float towerSize = 6f * M;
+		float towerH = 18f * M;
+		float towerOffset = 10f * M;
+		float merlonH = 1.5f * M;
+		float merlonW = 1f * M;
+		var stoneTint = new Color( 0.7f, 0.65f, 0.58f );
+
+		for ( int side = 0; side < 4; side++ )
+		{
+			var gatePos = EdgeCenter( WallOuterHalfWidth, side );
+
+			for ( int t = 0; t < 2; t++ )
+			{
+				float along = (t == 0 ? -1f : 1f) * towerOffset;
+				var offsetVec = side == 0 || side == 2
+					? new Vector3( along, 0, 0 )
+					: new Vector3( 0, along, 0 );
+
+				var towerPos = gatePos + offsetVec + new Vector3( 0, 0, towerH + merlonH * 0.5f );
+
+				// 4 merlons, one per side of the tower top
+				var merlonOffsets = new[] {
+					new Vector3( 0,  towerSize * 0.5f, 0 ),
+					new Vector3( 0, -towerSize * 0.5f, 0 ),
+					new Vector3(  towerSize * 0.5f, 0, 0 ),
+					new Vector3( -towerSize * 0.5f, 0, 0 ),
+				};
+				var merlonScales = new[] {
+					new Vector3( towerSize / 50f, merlonW / 50f, merlonH / 50f ),
+					new Vector3( towerSize / 50f, merlonW / 50f, merlonH / 50f ),
+					new Vector3( merlonW / 50f, towerSize / 50f, merlonH / 50f ),
+					new Vector3( merlonW / 50f, towerSize / 50f, merlonH / 50f ),
+				};
+
+				for ( int m = 0; m < 4; m++ )
+				{
+					CreatePrimitive( root, $"TowerMerlon_{side}_{t}_{m}",
+						"models/dev/box.vmdl",
+						towerPos + merlonOffsets[m], Rotation.Identity,
+						merlonScales[m],
+						material: MatStone, tint: stoneTint );
+				}
+			}
 		}
 	}
 }
