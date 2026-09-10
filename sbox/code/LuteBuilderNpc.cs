@@ -50,6 +50,17 @@ public sealed class LuteBuilderNpc : Component
 	[Property, Group( "Agent" ), Title( "Agent Stop Radius" )]
 	public float AgentStopRadius { get; set; } = 60f;
 
+	/// <summary>
+	/// Set this to a non-zero world position to instantly teleport the NPC
+	/// there. The teleport fires once in OnUpdate, then the field is reset
+	/// to zero. This lets the agent "see" any spot in the world by
+	/// repositioning Merlyn via MCP (set_component on AgentTeleportTo)
+	/// without walking him there. Useful for inspecting remote geometry,
+	/// gates, towers, etc.
+	/// </summary>
+	[Property, Group( "Agent" ), Title( "Agent Teleport To" )]
+	public Vector3 AgentTeleportTo { get; set; }
+
 	private float _stateTimer = 0f;
 	private Vector3 _verifyStartPos;
 	private List<GameObject> _blocks = new();
@@ -69,6 +80,21 @@ public sealed class LuteBuilderNpc : Component
 
 	protected override void OnUpdate()
 	{
+		// Teleport takes priority over everything — fires once, then clears.
+		if ( AgentTeleportTo != Vector3.Zero )
+		{
+			var target = AgentTeleportTo;
+			AgentTeleportTo = Vector3.Zero;
+			WorldPosition = target;
+			var body = Controller?.GetComponent<Rigidbody>();
+			if ( body.IsValid() )
+			{
+				body.Velocity = Vector3.Zero;
+				body.AngularVelocity = Vector3.Zero;
+			}
+			Log.Info( $"Lute: [AgentTeleport] moved to {target} (now at {WorldPosition})." );
+		}
+
 		// Live agent tunnel takes priority over the autonomous test sequence.
 		if ( AgentControlled )
 		{
