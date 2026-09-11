@@ -86,6 +86,13 @@ namespace Lute.Building
 		public VillageBuildTask CurrentTask { get; private set; }
 
 		/// <summary>
+		/// Director-side id of the task currently being built, or null.
+		/// Set when the builder claims a task from the
+		/// <see cref="ConstructionDirector"/>. Mirrors <see cref="CurrentTask"/>.
+		/// </summary>
+		public string CurrentDirectedTaskId { get; private set; }
+
+		/// <summary>
 		/// Index into <see cref="Tasks"/> of the current task, or -1 if none.
 		/// Used by the controller for index-based (not name-based) task tracking.
 		/// </summary>
@@ -162,7 +169,61 @@ namespace Lute.Building
 			if ( TotalBuilders > 1 )
 				PartitionTasks();
 
+			// Register this builder and its tasks with the
+			// ConstructionDirector so scheduling, reservations, and
+			// dependency tracking go through one authoritative system.
+			// Only builder 0 registers the shared task list (all builders
+			// share the same Tasks reference), to avoid duplicate
+			// registration. Each builder registers itself.
+			RegisterWithDirector();
+
 			_ = BuildLoop( _cts.Token );
+		}
+
+		/// <summary>
+		/// Register this builder (and, for builder 0, the shared task
+		/// list) with the <see cref="ConstructionDirector"/>. After this,
+		/// <see cref="BuildLoop"/> asks the Director for the next task
+		/// instead of iterating the shared list directly.
+		///
+		/// The NPC name used for the Director and SpatialBlackboard
+		/// claims matches the name the spawner assigns to the
+		/// controller (e.g. "VillageBuilderNPC_0") so claims and
+		/// position updates use the same identity.
+		/// </summary>
+		void RegisterWithDirector()
+		{
+			var npcName = DirectorNpcName();
+			ConstructionDirector.RegisterBuilder( BuilderId, npcName );
+
+			// Only builder 0 registers the shared task list (all builders
+			// share the same Tasks reference). Other builders would just
+			// re-register the same tasks under new ids.
+			if ( BuilderId == 0 )
+			{
+				foreach ( var t in Tasks )
+					ConstructionDirector.RegisterTask( t );
+
+				ConstructionDirector.AssignTasks();
+				Log.Info( $"Lute: VillageBuilder[{BuilderId}/{TotalBuilders}] registered {Tasks.Count} tasks with ConstructionDirector." );
+			}
+		}
+
+		/// <summary>
+		/// Derive the NPC name the same way the spawner does, so the
+		/// Director and SpatialBlackboard use the same identity as the
+		/// VillageBuilderController. The spawner uses
+		/// "VillageBuilderNPC" (or "VillageBuilderNPC_{i}" in
+		/// multi-builder mode) as the controller's NpcName.
+		/// </summary>
+		string DirectorNpcName()
+		{
+			// Match NPCSpawner.SpawnVillageBuilder naming:
+			//   count > 1 -> "{name}_{i}"  where name = "VillageBuilderNPC"
+			//   count = 1 -> "VillageBuilderNPC"
+			return TotalBuilders > 1
+				? $"VillageBuilderNPC_{BuilderId}"
+				: "VillageBuilderNPC";
 		}
 
 		protected override void OnDestroy()
@@ -249,35 +310,77 @@ namespace Lute.Building
 		{
 			try
 			{
-				for ( int idx = 0; idx < Tasks.Count; idx++ )
+				// Director-driven loop: ask the ConstructionDirector for
+				// the next task assigned to this builder. Falls back to
+				// the legacy index iteration if the Director has no
+				// registered tasks (e.g. single-builder mode without
+				// registration, or all tasks already claimed).
+				bool usedDirector = false;
+
+				while ( true )
 				{
-					var task = Tasks[idx];
 					token.ThrowIfCancellationRequested();
 
-					// Multi-builder partitioning: in single-builder mode (TotalBuilders=1)
-					// this builder processes every task. In multi-builder mode, each
-					// task has a BuilderAssignment set by PartitionTasks (balanced deal
-					// by estimated piece count). Skip tasks not assigned to us.
-					if ( TotalBuilders > 1 && task.BuilderAssignment != BuilderId )
+					DirectedTask directed = null;
+					var npcName = DirectorNpcName();
+
+					// Try the Director first (only if it has tasks).
+					if ( ConstructionDirector.AllTasks().Count > 0 )
+					{
+						directed = ConstructionDirector.ClaimNextTask( BuilderId, npcName );
+					}
+
+					if ( directed != null )
+					{
+						usedDirector = true;
+						var task = directed.BuildTask;
+						// Find the index in our shared list (for CurrentTaskIndex).
+						int idx = Tasks.IndexOf( task );
+						CurrentTask = task;
+						CurrentTaskIndex = idx;
+						CurrentDirectedTaskId = directed.Id;
+						task.Status = 1; // in progress
+
+						Log.Info( $"Lute: VillageBuilder[{BuilderId}] (director) starting task '{task.Name}' ({task.TaskType}) at {task.Position}." );
+
+						await BuildTask( task, token );
+
+						task.Status = 2; // complete
+						ConstructionDirector.CompleteTask( directed.Id );
+						CurrentDirectedTaskId = null;
+						int done = Tasks.Count( t => t.Status == 2 );
+						Log.Info( $"Lute: VillageBuilder[{BuilderId}] completed '{task.Name}' — {done}/{Tasks.Count} tasks done ({done * 100 / Tasks.Count}%)." );
+						DoSave();
 						continue;
+					}
 
-					if ( task.Status == 2 )
-						continue; // already complete — skip
+					// Director had nothing for us. If we never used the
+					// director (no tasks registered), fall back to the
+					// legacy index-based loop so single-builder mode and
+					// any path that didn't register still works.
+					if ( !usedDirector )
+					{
+						break; // fall through to legacy loop below
+					}
 
-					CurrentTask = task;
-					CurrentTaskIndex = idx;
-					task.Status = 1; // in progress
+					// We used the director and it has no more tasks for us.
+					// Check if anything is still pending globally; if so,
+					// wait briefly and retry (work-stealing may free up a
+					// task). If nothing is pending, we're done.
+					int pendingGlobal = ConstructionDirector.AllTasks()
+						.Count( t => t.Status == TaskStatus.Pending || t.Status == TaskStatus.Blocked );
+					if ( pendingGlobal == 0 )
+						break;
 
-					Log.Info( $"Lute: VillageBuilder starting task '{task.Name}' ({task.TaskType}) at {task.Position}." );
+					await GameTask.DelaySeconds( 1.0f );
+				}
 
-					await BuildTask( task, token );
-
-					task.Status = 2; // complete
-					int done = Tasks.Count( t => t.Status == 2 );
-					Log.Info( $"Lute: VillageBuilder completed '{task.Name}' — {done}/{Tasks.Count} tasks done ({done * 100 / Tasks.Count}%)." );
-
-					// Save after each task completion
-					DoSave();
+				// Legacy index-based loop (fallback when the Director was
+				// not used). This preserves the original single-builder and
+				// pre-Director multi-builder behavior exactly.
+				if ( !usedDirector )
+				{
+					await LegacyBuildLoop( token );
 				}
 
 				CurrentTask = null;
@@ -294,6 +397,46 @@ namespace Lute.Building
 			{
 				Log.Info( $"Lute: VillageBuilder cancelled — {Tasks.Count( t => t.Status == 2 )}/{Tasks.Count} tasks complete." );
 				DoSave(); // save progress on cancel
+			}
+		}
+
+		/// <summary>
+		/// Legacy index-based build loop. Used as a fallback when the
+		/// ConstructionDirector has no registered tasks. This is the
+		/// original <see cref="BuildLoop"/> behavior, extracted so the
+		/// new director-driven path can coexist.
+		/// </summary>
+		async Task LegacyBuildLoop( CancellationToken token )
+		{
+			for ( int idx = 0; idx < Tasks.Count; idx++ )
+			{
+				var task = Tasks[idx];
+				token.ThrowIfCancellationRequested();
+
+				// Multi-builder partitioning: in single-builder mode (TotalBuilders=1)
+				// this builder processes every task. In multi-builder mode, each
+				// task has a BuilderAssignment set by PartitionTasks (balanced deal
+				// by estimated piece count). Skip tasks not assigned to us.
+				if ( TotalBuilders > 1 && task.BuilderAssignment != BuilderId )
+					continue;
+
+				if ( task.Status == 2 )
+					continue; // already complete — skip
+
+				CurrentTask = task;
+				CurrentTaskIndex = idx;
+				task.Status = 1; // in progress
+
+				Log.Info( $"Lute: VillageBuilder (legacy) starting task '{task.Name}' ({task.TaskType}) at {task.Position}." );
+
+				await BuildTask( task, token );
+
+				task.Status = 2; // complete
+				int done = Tasks.Count( t => t.Status == 2 );
+				Log.Info( $"Lute: VillageBuilder completed '{task.Name}' — {done}/{Tasks.Count} tasks done ({done * 100 / Tasks.Count}%)." );
+
+				// Save after each task completion
+				DoSave();
 			}
 		}
 
