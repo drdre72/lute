@@ -73,25 +73,25 @@
 
 ## 3A: Spell Effects (SpellType.cs already defines 8 schools)
 
-- [ ] Implement Fire (Ignis!) — fireball projectile + burn DoT
-- [ ] Implement Ice (Glacies!) — frost bolt + slow debuff
-- [ ] Implement Earth (Terra!) — rock wall barrier
-- [ ] Implement Wind (Ventus!) — knockback gust
-- [ ] Implement Lightning (Fulmen!) — chain lightning
-- [ ] Implement Arcane (Aedifico!) — temporary structure
-- [ ] Implement Shadow (Umbra!) — stealth/invisibility
-- [ ] Implement Heal (Sancto!) — self heal + HoT
-- [ ] Add spell cooldowns and mana costs
-- [ ] Add spell impact VFX (particles via SceneSystem.Particles)
-- [ ] Add spell impact SFX
+- [-] Implement Fire (Ignis!) — fireball projectile + burn DoT
+- [-] Implement Ice (Glacies!) — frost bolt + slow debuff
+- [-] Implement Earth (Terra!) — rock wall barrier
+- [-] Implement Wind (Ventus!) — knockback gust
+- [-] Implement Lightning (Fulmen!) — chain lightning
+- [-] Implement Arcane (Aedifico!) — temporary structure
+- [-] Implement Shadow (Umbra!) — stealth/invisibility
+- [-] Implement Heal (Sancto!) — self heal + HoT
+- [-] Add spell cooldowns and mana costs
+- [-] Add spell impact VFX (particles via SceneSystem.Particles)
+- [-] Add spell impact SFX
 
 ## 3B: Player Stats & Progression
 
-- [ ] Create PlayerStats component — HP, MP, attributes, skills
-- [ ] Implement deterministic progression (zero-RNG, opposing attribute web)
-- [ ] Implement soul retrieval mechanic (death = lose progress, retrieve at body)
-- [ ] Add XP/level thresholds
-- [ ] Add attribute allocation on level up
+- [x] Create PlayerStats component — HP, MP, attributes, skills
+- [x] Implement deterministic progression (zero-RNG, opposing attribute web)
+- [x] Implement soul retrieval mechanic (death = lose progress, retrieve at body)
+- [x] Add XP/level thresholds
+- [x] Add attribute allocation on level up
 
 ## 3C: NPC Foundation
 

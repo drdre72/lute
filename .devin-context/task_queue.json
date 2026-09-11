@@ -433,176 +433,176 @@
       "id": 40,
       "description": "Implement Fire (Ignis!) — fireball projectile + burn DoT",
       "priority": "normal",
-      "state": "pending",
+      "state": "skipped",
       "depends": [],
       "notes": "[3A: Spell Effects (SpellType.cs already defines 8 schools)]",
       "created": "2026-09-10T22:52:46",
-      "updated": null,
-      "block_reason": null
+      "updated": "2026-09-10T22:55:40",
+      "block_reason": "Back burner — gameplay loop deferred"
     },
     {
       "id": 41,
       "description": "Implement Ice (Glacies!) — frost bolt + slow debuff",
       "priority": "normal",
-      "state": "pending",
+      "state": "skipped",
       "depends": [],
       "notes": "[3A: Spell Effects (SpellType.cs already defines 8 schools)]",
       "created": "2026-09-10T22:52:46",
-      "updated": null,
-      "block_reason": null
+      "updated": "2026-09-10T22:55:43",
+      "block_reason": "Back burner - gameplay loop deferred"
     },
     {
       "id": 42,
       "description": "Implement Earth (Terra!) — rock wall barrier",
       "priority": "normal",
-      "state": "pending",
+      "state": "skipped",
       "depends": [],
       "notes": "[3A: Spell Effects (SpellType.cs already defines 8 schools)]",
       "created": "2026-09-10T22:52:46",
-      "updated": null,
-      "block_reason": null
+      "updated": "2026-09-10T22:55:43",
+      "block_reason": "Back burner - gameplay loop deferred"
     },
     {
       "id": 43,
       "description": "Implement Wind (Ventus!) — knockback gust",
       "priority": "normal",
-      "state": "pending",
+      "state": "skipped",
       "depends": [],
       "notes": "[3A: Spell Effects (SpellType.cs already defines 8 schools)]",
       "created": "2026-09-10T22:52:46",
-      "updated": null,
-      "block_reason": null
+      "updated": "2026-09-10T22:55:43",
+      "block_reason": "Back burner - gameplay loop deferred"
     },
     {
       "id": 44,
       "description": "Implement Lightning (Fulmen!) — chain lightning",
       "priority": "normal",
-      "state": "pending",
+      "state": "skipped",
       "depends": [],
       "notes": "[3A: Spell Effects (SpellType.cs already defines 8 schools)]",
       "created": "2026-09-10T22:52:46",
-      "updated": null,
-      "block_reason": null
+      "updated": "2026-09-10T22:55:43",
+      "block_reason": "Back burner - gameplay loop deferred"
     },
     {
       "id": 45,
       "description": "Implement Arcane (Aedifico!) — temporary structure",
       "priority": "normal",
-      "state": "pending",
+      "state": "skipped",
       "depends": [],
       "notes": "[3A: Spell Effects (SpellType.cs already defines 8 schools)]",
       "created": "2026-09-10T22:52:46",
-      "updated": null,
-      "block_reason": null
+      "updated": "2026-09-10T22:55:43",
+      "block_reason": "Back burner - gameplay loop deferred"
     },
     {
       "id": 46,
       "description": "Implement Shadow (Umbra!) — stealth/invisibility",
       "priority": "normal",
-      "state": "pending",
+      "state": "skipped",
       "depends": [],
       "notes": "[3A: Spell Effects (SpellType.cs already defines 8 schools)]",
       "created": "2026-09-10T22:52:46",
-      "updated": null,
-      "block_reason": null
+      "updated": "2026-09-10T22:55:43",
+      "block_reason": "Back burner - gameplay loop deferred"
     },
     {
       "id": 47,
       "description": "Implement Heal (Sancto!) — self heal + HoT",
       "priority": "normal",
-      "state": "pending",
+      "state": "skipped",
       "depends": [],
       "notes": "[3A: Spell Effects (SpellType.cs already defines 8 schools)]",
       "created": "2026-09-10T22:52:46",
-      "updated": null,
-      "block_reason": null
+      "updated": "2026-09-10T22:55:43",
+      "block_reason": "Back burner - gameplay loop deferred"
     },
     {
       "id": 48,
       "description": "Add spell cooldowns and mana costs",
       "priority": "normal",
-      "state": "pending",
+      "state": "skipped",
       "depends": [],
       "notes": "[3A: Spell Effects (SpellType.cs already defines 8 schools)]",
       "created": "2026-09-10T22:52:46",
-      "updated": null,
-      "block_reason": null
+      "updated": "2026-09-10T22:55:43",
+      "block_reason": "Back burner - gameplay loop deferred"
     },
     {
       "id": 49,
       "description": "Add spell impact VFX (particles via SceneSystem.Particles)",
       "priority": "normal",
-      "state": "pending",
+      "state": "skipped",
       "depends": [],
       "notes": "[3A: Spell Effects (SpellType.cs already defines 8 schools)]",
       "created": "2026-09-10T22:52:46",
-      "updated": null,
-      "block_reason": null
+      "updated": "2026-09-10T22:55:43",
+      "block_reason": "Back burner - gameplay loop deferred"
     },
     {
       "id": 50,
       "description": "Add spell impact SFX",
       "priority": "normal",
-      "state": "pending",
+      "state": "skipped",
       "depends": [],
       "notes": "[3A: Spell Effects (SpellType.cs already defines 8 schools)]",
       "created": "2026-09-10T22:52:46",
-      "updated": null,
-      "block_reason": null
+      "updated": "2026-09-10T22:55:43",
+      "block_reason": "Back burner - gameplay loop deferred"
     },
     {
       "id": 51,
       "description": "Create PlayerStats component — HP, MP, attributes, skills",
       "priority": "normal",
-      "state": "pending",
+      "state": "completed",
       "depends": [],
       "notes": "[3B: Player Stats & Progression]",
       "created": "2026-09-10T22:52:46",
-      "updated": null,
+      "updated": "2026-09-10T22:58:08",
       "block_reason": null
     },
     {
       "id": 52,
       "description": "Implement deterministic progression (zero-RNG, opposing attribute web)",
       "priority": "normal",
-      "state": "pending",
+      "state": "completed",
       "depends": [],
       "notes": "[3B: Player Stats & Progression]",
       "created": "2026-09-10T22:52:46",
-      "updated": null,
+      "updated": "2026-09-10T22:58:08",
       "block_reason": null
     },
     {
       "id": 53,
       "description": "Implement soul retrieval mechanic (death = lose progress, retrieve at body)",
       "priority": "normal",
-      "state": "pending",
+      "state": "completed",
       "depends": [],
       "notes": "[3B: Player Stats & Progression]",
       "created": "2026-09-10T22:52:46",
-      "updated": null,
+      "updated": "2026-09-10T22:58:08",
       "block_reason": null
     },
     {
       "id": 54,
       "description": "Add XP/level thresholds",
       "priority": "normal",
-      "state": "pending",
+      "state": "completed",
       "depends": [],
       "notes": "[3B: Player Stats & Progression]",
       "created": "2026-09-10T22:52:46",
-      "updated": null,
+      "updated": "2026-09-10T22:58:08",
       "block_reason": null
     },
     {
       "id": 55,
       "description": "Add attribute allocation on level up",
       "priority": "normal",
-      "state": "pending",
+      "state": "completed",
       "depends": [],
       "notes": "[3B: Player Stats & Progression]",
       "created": "2026-09-10T22:52:46",
-      "updated": null,
+      "updated": "2026-09-10T22:58:08",
       "block_reason": null
     },
     {

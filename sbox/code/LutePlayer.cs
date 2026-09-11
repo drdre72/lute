@@ -6,6 +6,7 @@
 public sealed class LutePlayer : Component
 {
 	[RequireComponent] public PlayerController Controller { get; set; }
+	[RequireComponent] public LutePlayerStats Stats { get; set; }
 
 	/// <summary> Currently selected spell school. </summary>
 	[Property] public SpellType SelectedSpell { get; set; } = SpellType.Fire;
