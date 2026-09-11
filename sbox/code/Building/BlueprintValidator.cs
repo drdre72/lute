@@ -78,6 +78,13 @@ namespace Lute.Building
 		const float OverlapTolerance = 1f;
 
 		/// <summary>
+		/// Maximum number of overlap warnings to report before stopping.
+		/// Prevents console flooding when many pieces share a position
+		/// (e.g. a deserialization bug that resets all positions to 0,0,0).
+		/// </summary>
+		const int MaxOverlapWarnings = 10;
+
+		/// <summary>
 		/// Validate a blueprint. Returns a result with issues listed.
 		/// Does not modify the blueprint.
 		/// </summary>
@@ -183,6 +190,7 @@ namespace Lute.Building
 				bucket.Add( i );
 			}
 
+			int overlapWarnings = 0;
 			foreach ( var kvp in seen )
 			{
 				if ( kvp.Value.Count <= 1 )
@@ -193,6 +201,12 @@ namespace Lute.Building
 				{
 					for ( int b = a + 1; b < kvp.Value.Count; b++ )
 					{
+						if ( overlapWarnings >= MaxOverlapWarnings )
+						{
+							result.AddWarning( $"... ({MaxOverlapWarnings} overlap warnings shown, more may exist)." );
+							return;
+						}
+
 						var pa = bp.Pieces[kvp.Value[a]];
 						var pb = bp.Pieces[kvp.Value[b]];
 
@@ -202,6 +216,7 @@ namespace Lute.Building
 							if ( dist < OverlapTolerance )
 							{
 								result.AddWarning( $"Pieces #{kvp.Value[a]} and #{kvp.Value[b]} ({pa.PieceType}) overlap at {pa.Position} (dist={dist:F2})." );
+								overlapWarnings++;
 							}
 						}
 					}

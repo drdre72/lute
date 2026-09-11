@@ -12,19 +12,19 @@ namespace Lute.Building
 	public struct BlueprintPiece
 	{
 		/// <summary> Position relative to the structure's origin (inches). </summary>
-		public Vector3 Position;
+		public Vector3 Position { get; set; }
 
 		/// <summary> Piece type: "WALL", "DOOR", "FLOOR", "ROOF", "COLUMN", "ARCH". </summary>
-		public string PieceType;
+		public string PieceType { get; set; }
 
 		/// <summary> Material path (e.g. "materials/medieval/stone_wall.vmat"). </summary>
-		public string Material;
+		public string Material { get; set; }
 
 		/// <summary> Yaw rotation in degrees. </summary>
-		public float Rotation;
+		public float Rotation { get; set; }
 
 		/// <summary> Size override (if zero, executor uses default for PieceType). </summary>
-		public Vector3 Size;
+		public Vector3 Size { get; set; }
 	}
 
 	/// <summary>
@@ -122,5 +122,94 @@ namespace Lute.Building
 
 		/// <summary> Total piece count. </summary>
 		public int PieceCount => Pieces.Count;
+
+		// ── Serialization ──
+
+		/// <summary>
+		/// Export this blueprint to a JSON file in FileSystem.Data.
+		/// The file can be inspected, hand-edited, and re-imported with
+		/// <see cref="LoadFromFile"/>. Useful for debugging producer
+		/// output and for hand-authoring structures.
+		/// </summary>
+		/// <param name="filename">Filename within FileSystem.Data (e.g. "blueprints/chapel.json").</param>
+		/// <returns>True if written successfully.</returns>
+		public bool SaveToFile( string filename )
+		{
+			try
+			{
+				FileSystem.Data.WriteJson( filename, this );
+				Log.Info( $"Lute: Blueprint '{Name}' exported to {filename} ({Pieces.Count} pieces)." );
+				return true;
+			}
+			catch ( System.Exception e )
+			{
+				Log.Warning( $"Lute: Blueprint export failed: {e.Message}" );
+				return false;
+			}
+		}
+
+		/// <summary>
+		/// Load a blueprint from a JSON file in FileSystem.Data.
+		/// The file should have been created by <see cref="SaveToFile"/>
+		/// or hand-authored in the same format.
+		/// </summary>
+		/// <param name="filename">Filename within FileSystem.Data.</param>
+		/// <returns>The loaded blueprint, or null on failure.</returns>
+		public static Blueprint LoadFromFile( string filename )
+		{
+			try
+			{
+				if ( !FileSystem.Data.FileExists( filename ) )
+				{
+					Log.Warning( $"Lute: Blueprint file not found: {filename}" );
+					return null;
+				}
+
+				var bp = FileSystem.Data.ReadJson<Blueprint>( filename );
+				Log.Info( $"Lute: Blueprint loaded from {filename} — '{bp.Name}' ({bp.Pieces.Count} pieces)." );
+				return bp;
+			}
+			catch ( System.Exception e )
+			{
+				Log.Warning( $"Lute: Blueprint load failed: {e.Message}" );
+				return null;
+			}
+		}
+
+		/// <summary>
+		/// Export this blueprint to a JSON string (for console output,
+		/// MCP inspection, or clipboard transfer). The string can be
+		/// parsed back with <see cref="FromJsonString"/>.
+		/// </summary>
+		public string ToJsonString()
+		{
+			try
+			{
+				return System.Text.Json.JsonSerializer.Serialize( this,
+					new System.Text.Json.JsonSerializerOptions { WriteIndented = true } );
+			}
+			catch ( System.Exception e )
+			{
+				Log.Warning( $"Lute: Blueprint JSON export failed: {e.Message}" );
+				return "{}";
+			}
+		}
+
+		/// <summary>
+		/// Parse a blueprint from a JSON string (the format produced by
+		/// <see cref="ToJsonString"/>).
+		/// </summary>
+		public static Blueprint FromJsonString( string json )
+		{
+			try
+			{
+				return System.Text.Json.JsonSerializer.Deserialize<Blueprint>( json );
+			}
+			catch ( System.Exception e )
+			{
+				Log.Warning( $"Lute: Blueprint JSON parse failed: {e.Message}" );
+				return null;
+			}
+		}
 	}
 }

@@ -384,5 +384,96 @@ Respond strictly with valid JSON matching this schema (no other text):
 			SpatialBlackboard.PostMessage( fromNpc, toNpc, "manual", message );
 			Log.Info( $"[village_say] {fromNpc} -> {toNpc}: {message}" );
 		}
+
+		/// <summary>
+		/// Console command to export a village task's blueprint to JSON.
+		/// Generates the blueprint (via StyleGrammar or BuildingGrammar),
+		/// validates it, and saves to FileSystem.Data.
+		/// Usage: blueprint_export "Chapel"     (by task name)
+		/// Usage: blueprint_export "#5"         (by task index)
+		/// </summary>
+		[ConCmd( "blueprint_export" )]
+		public static void BlueprintExportCommand( string taskIdentifier )
+		{
+			var builder = Game.ActiveScene.GetAllComponents<VillageBuilder>().FirstOrDefault();
+			if ( builder == null )
+			{
+				Log.Warning( "[blueprint_export] No VillageBuilder found in scene." );
+				return;
+			}
+
+			// Find the task by name or index
+			VillageBuildTask task = null;
+			if ( taskIdentifier.StartsWith( "#" ) && int.TryParse( taskIdentifier.Substring( 1 ), out int idx ) )
+			{
+				if ( idx >= 0 && idx < builder.Tasks.Count )
+					task = builder.Tasks[idx];
+			}
+			else
+			{
+				task = builder.Tasks.FirstOrDefault( t => t.Name.Equals( taskIdentifier, StringComparison.OrdinalIgnoreCase ) );
+			}
+
+			if ( task == null )
+			{
+				Log.Warning( $"[blueprint_export] Task '{taskIdentifier}' not found." );
+				return;
+			}
+
+			// Generate the blueprint
+			var rng = task.LayoutSeed > 0 ? new Random( task.LayoutSeed ) : new Random();
+			Blueprint bp;
+			if ( task.Style is not null )
+			{
+				var styleGrammar = new StyleGrammar( task.Style, rng );
+				bp = styleGrammar.Generate( task.Position, task.Rotation,
+					task.BaseWidth, task.BaseHeight, task.WealthFactor,
+					builder.CellSize, builder.WallHeight, builder.FloorThickness );
+			}
+			else
+			{
+				var grammar = new BuildingGrammar( rng );
+				var layout = grammar.GenerateLayout( task.BaseWidth, task.BaseHeight, task.WealthFactor );
+				bp = Blueprint.FromGridLayout( layout, task.Position, task.Rotation,
+					builder.CellSize, builder.WallHeight, builder.FloorThickness,
+					builder.BuildingWallMaterial, builder.BuildingFloorMaterial );
+			}
+
+			bp.Name = task.Name;
+
+			// Validate
+			BlueprintValidator.ValidateAndLog( bp, task.Name );
+
+			// Save to file
+			string filename = $"blueprints/{task.Name}.json";
+			bp.SaveToFile( filename );
+
+			// Also log a summary
+			Log.Info( $"[blueprint_export] Task: {task.Name} ({task.TaskType}), style: {task.Style?.Name ?? "none"}, pieces: {bp.PieceCount}" );
+			Log.Info( $"[blueprint_export] Saved to {filename}. Use blueprint_import to load and inspect." );
+		}
+
+		/// <summary>
+		/// Console command to import a blueprint from JSON and log its contents.
+		/// Usage: blueprint_import "blueprints/Chapel.json"
+		/// </summary>
+		[ConCmd( "blueprint_import" )]
+		public static void BlueprintImportCommand( string filename )
+		{
+			var bp = Blueprint.LoadFromFile( filename );
+			if ( bp == null )
+				return;
+
+			Log.Info( $"[blueprint_import] Loaded: {bp.Name}, origin: {bp.Origin}, rotation: {bp.Rotation}" );
+			Log.Info( $"[blueprint_import] Pieces: {bp.PieceCount}, cellSize: {bp.CellSize}, wallHeight: {bp.WallHeight}" );
+
+			// Log piece type distribution
+			var byType = bp.Pieces.GroupBy( p => p.PieceType ).OrderByDescending( g => g.Count() );
+			foreach ( var g in byType )
+				Log.Info( $"  {g.Key}: {g.Count()} pieces" );
+
+			// Validate the imported blueprint
+			BlueprintValidator.ValidateAndLog( bp, "imported" );
+		}
 	}
 }
