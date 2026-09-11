@@ -525,5 +525,58 @@ Respond strictly with valid JSON matching this schema (no other text):
 			}
 			Log.Info( $"[monument_export] Saved to {filename}." );
 		}
+
+		/// <summary>
+		/// Console command to generate a monument via the architectural
+		/// grammar path (massing -> element tree -> detail -> Blueprint)
+		/// and export it. This is the Phase 4 path: instead of jumping
+		/// straight from volumes to pieces, decompose into bays,
+		/// columns, arches, windows, drum/rings/lantern first.
+		/// Usage: monument_grammar "StPetersBasilica"
+		/// </summary>
+		[ConCmd( "monument_grammar" )]
+		public static void MonumentGrammarCommand( string monumentName )
+		{
+			MonumentMassing massing = null;
+
+			switch ( monumentName.ToLowerInvariant() )
+			{
+				case "stpeters" or "stpetersbasilica":
+					massing = MonumentBlueprintProducer.StPetersBasilica( Vector3.Zero );
+					break;
+				default:
+					Log.Warning( $"[monument_grammar] Unknown monument '{monumentName}'. Available: StPetersBasilica" );
+					return;
+			}
+
+			// Decompose into architectural element tree
+			var trees = MonumentGrammar.Decompose( massing );
+			int totalElements = 0;
+			foreach ( var tree in trees )
+				totalElements += CountElements( tree );
+
+			Log.Info( $"[monument_grammar] {massing.Name}: {trees.Count} volume(s), {totalElements} architectural elements." );
+			foreach ( var tree in trees )
+				Log.Info( $"  - {tree.Name} ({tree.Kind}): {tree.Children.Count} children" );
+
+			// Generate the blueprint from the grammar path
+			var bp = MonumentBlueprintProducer.GenerateFromGrammar( massing );
+
+			// Validate
+			BlueprintValidator.ValidateAndLog( bp, massing.Name );
+
+			// Save
+			string filename = $"blueprints/monument_{massing.Name}_grammar.json";
+			bp.SaveToFile( filename );
+			Log.Info( $"[monument_grammar] Pieces: {bp.PieceCount}, hash: {bp.Hash[..8]}, saved to {filename}." );
+		}
+
+		static int CountElements( ArchitecturalElement el )
+		{
+			int n = 1;
+			foreach ( var c in el.Children )
+				n += CountElements( c );
+			return n;
+		}
 	}
 }

@@ -139,11 +139,15 @@ namespace Lute.Building
 	/// StyleGrammar produce, so the same validator, serializer, and
 	/// executor pipeline works for monuments.
 	///
-	/// Massing approach: rather than modeling every column and window,
-	/// the producer generates the major volumes (nave, dome, towers,
-	/// façade) as block-level floor/wall/roof pieces. This gives a
-	/// verifiable geometric footprint that a vision-less agent can
-	/// inspect through bounds, piece counts, and volume distribution.
+	/// Two generation paths:
+	/// - <see cref="Generate"/>: direct massing-to-pieces (the original
+	///   path; kept for back-compat and for cases where the architectural
+	///   grammar is not needed).
+	/// - <see cref="GenerateFromGrammar"/>: massing -> architectural
+	///   grammar (element tree) -> detail grammar (pieces). This is the
+	///   Phase 4 path the professor recommended: instead of jumping
+	///   straight from volumes to 14k pieces, decompose into bays,
+	///   columns, arches, windows, drum/rings/lantern first, then emit.
 	/// </summary>
 	public static class MonumentBlueprintProducer
 	{
@@ -171,6 +175,230 @@ namespace Lute.Building
 				GenerateVolume( bp, massing, vol );
 
 			return bp;
+		}
+
+		/// <summary>
+		/// Generate a Blueprint by first decomposing the massing into an
+		/// architectural element tree (<see cref="MonumentGrammar"/>),
+		/// then emitting pieces from that tree (the detail grammar). This
+		/// is the Phase 4 path: Massing -> ArchitecturalGrammar ->
+		/// DetailGrammar -> Blueprint.
+		///
+		/// The resulting blueprint carries provenance noting the grammar
+		/// path, and is registered with <see cref="BlueprintRegistry"/>.
+		/// </summary>
+		public static Blueprint GenerateFromGrammar( MonumentMassing massing )
+		{
+			var bp = new Blueprint
+			{
+				Id = $"{massing.Name}_grammar",
+				Name = massing.Name,
+				Origin = massing.Origin,
+				Rotation = massing.Rotation,
+				CellSize = massing.CellSize,
+				WallHeight = massing.StoryHeight,
+				FloorThickness = massing.FloorThickness,
+				WallMaterial = massing.WallMaterial,
+				FloorMaterial = massing.FloorMaterial,
+				RoofMaterial = massing.RoofMaterial,
+				ColumnMaterial = massing.ColumnMaterial,
+				Provenance = new BlueprintProvenance
+				{
+					Producer = "MonumentBlueprintProducer.GenerateFromGrammar",
+					Preset = massing.Name,
+					Parameters = new Dictionary<string, string>
+					{
+						["path"] = "massing->grammar->detail",
+						["volumes"] = massing.Volumes.Count.ToString(),
+					},
+				},
+			};
+
+			var trees = MonumentGrammar.Decompose( massing );
+			foreach ( var tree in trees )
+				EmitElement( bp, massing, tree, volOffset: tree.Offset );
+
+			bp.ComputeHash();
+			BlueprintRegistry.Register( bp );
+			return bp;
+		}
+
+		/// <summary>
+		/// Recursively emit pieces for an <see cref="ArchitecturalElement"/>
+		/// and its children. This is the detail grammar: it translates the
+		/// architectural element tree into concrete BlueprintPieces.
+		/// </summary>
+		static void EmitElement( Blueprint bp, MonumentMassing m, ArchitecturalElement el, Vector3 volOffset )
+		{
+			float cs = m.CellSize;
+
+			switch ( el.Kind )
+			{
+				case ArchitecturalElementKind.Floor:
+					EmitSlab( bp, m, el, volOffset, "FLOOR", m.FloorMaterial );
+					break;
+
+				case ArchitecturalElementKind.Wall:
+					bp.Pieces.Add( new BlueprintPiece
+					{
+						Position = volOffset + el.Offset,
+						PieceType = "WALL",
+						Material = string.IsNullOrEmpty( el.MaterialOverride ) ? m.WallMaterial : el.MaterialOverride,
+						Rotation = el.Rotation,
+					} );
+					break;
+
+				case ArchitecturalElementKind.Column:
+					bp.Pieces.Add( new BlueprintPiece
+					{
+						Position = volOffset + el.Offset,
+						PieceType = "COLUMN",
+						Material = m.ColumnMaterial,
+						Rotation = el.Rotation,
+					} );
+					break;
+
+				case ArchitecturalElementKind.Arch:
+				case ArchitecturalElementKind.Architrave:
+					bp.Pieces.Add( new BlueprintPiece
+					{
+						Position = volOffset + el.Offset,
+						PieceType = "ARCH",
+						Material = string.IsNullOrEmpty( el.MaterialOverride ) ? m.WallMaterial : el.MaterialOverride,
+						Rotation = el.Rotation,
+					} );
+					break;
+
+				case ArchitecturalElementKind.Window:
+					bp.Pieces.Add( new BlueprintPiece
+					{
+						Position = volOffset + el.Offset,
+						PieceType = "WINDOW",
+						Material = string.IsNullOrEmpty( el.MaterialOverride ) ? m.WallMaterial : el.MaterialOverride,
+						Rotation = el.Rotation,
+					} );
+					break;
+
+				case ArchitecturalElementKind.Door:
+					bp.Pieces.Add( new BlueprintPiece
+					{
+						Position = volOffset + el.Offset,
+						PieceType = "DOOR",
+						Material = string.IsNullOrEmpty( el.MaterialOverride ) ? m.WallMaterial : el.MaterialOverride,
+						Rotation = el.Rotation,
+					} );
+					break;
+
+				case ArchitecturalElementKind.Roof:
+				case ArchitecturalElementKind.Merlon:
+				case ArchitecturalElementKind.Pediment:
+				case ArchitecturalElementKind.Cornice:
+					bp.Pieces.Add( new BlueprintPiece
+					{
+						Position = volOffset + el.Offset,
+						PieceType = "ROOF",
+						Material = string.IsNullOrEmpty( el.MaterialOverride ) ? m.RoofMaterial : el.MaterialOverride,
+						Rotation = el.Rotation,
+					} );
+					break;
+
+				case ArchitecturalElementKind.Drum:
+					// Drum = ring of wall pieces around the circumference
+					EmitDrum( bp, m, el, volOffset );
+					break;
+
+				case ArchitecturalElementKind.Rib:
+					// Dome ring = ring of roof pieces
+					EmitRing( bp, m, el, volOffset );
+					break;
+
+				case ArchitecturalElementKind.Lantern:
+					// Lantern = small box on top
+					bp.Pieces.Add( new BlueprintPiece
+					{
+						Position = volOffset + el.Offset,
+						PieceType = "COLUMN",
+						Material = m.ColumnMaterial,
+						Rotation = 0,
+					} );
+					bp.Pieces.Add( new BlueprintPiece
+					{
+						Position = volOffset + el.Offset + new Vector3( 0, 0, el.Height ),
+						PieceType = "ROOF",
+						Material = m.RoofMaterial,
+						Rotation = 0,
+					} );
+					break;
+
+				case ArchitecturalElementKind.Bay:
+				case ArchitecturalElementKind.Volume:
+				case ArchitecturalElementKind.Statue:
+					// Container/decorative — no direct piece, recurse into children
+					break;
+			}
+
+			// Recurse into children
+			foreach ( var child in el.Children )
+				EmitElement( bp, m, child, volOffset );
+		}
+
+		static void EmitSlab( Blueprint bp, MonumentMassing m, ArchitecturalElement el, Vector3 volOffset, string type, string mat )
+		{
+			float cs = m.CellSize;
+			int wCells = Math.Max( 1, (int)( el.Width / cs + 0.5f ) );
+			int dCells = Math.Max( 1, (int)( el.Depth / cs + 0.5f ) );
+			for ( int x = 0; x < wCells; x++ )
+				for ( int y = 0; y < dCells; y++ )
+					bp.Pieces.Add( new BlueprintPiece
+					{
+						Position = volOffset + el.Offset + new Vector3( x * cs, y * cs, 0 ),
+						PieceType = type,
+						Material = mat,
+						Rotation = 0,
+					} );
+		}
+
+		static void EmitDrum( Blueprint bp, MonumentMassing m, ArchitecturalElement el, Vector3 volOffset )
+		{
+			float cs = m.CellSize;
+			int r = Math.Max( 1, (int)( el.Width / ( 2 * cs ) + 0.5f ) );
+			int stories = Math.Max( 1, (int)( el.Height / m.StoryHeight + 0.5f ) );
+			for ( int s = 0; s < stories; s++ )
+			{
+				float z = s * m.StoryHeight;
+				for ( int x = -r; x <= r; x++ )
+					for ( int y = -r; y <= r; y++ )
+					{
+						int d2 = x * x + y * y;
+						if ( d2 <= r * r && d2 > ( r - 1 ) * ( r - 1 ) )
+							bp.Pieces.Add( new BlueprintPiece
+							{
+								Position = volOffset + el.Offset + new Vector3( x * cs, y * cs, z ),
+								PieceType = "WALL",
+								Material = m.WallMaterial,
+								Rotation = 0,
+							} );
+					}
+			}
+		}
+
+		static void EmitRing( Blueprint bp, MonumentMassing m, ArchitecturalElement el, Vector3 volOffset )
+		{
+			float cs = m.CellSize;
+			int r = Math.Max( 1, (int)( el.Width / ( 2 * cs ) + 0.5f ) );
+			for ( int x = -r; x <= r; x++ )
+				for ( int y = -r; y <= r; y++ )
+				{
+					int d2 = x * x + y * y;
+					if ( d2 <= r * r && d2 > ( r - 1 ) * ( r - 1 ) )
+						bp.Pieces.Add( new BlueprintPiece
+						{
+							Position = volOffset + el.Offset + new Vector3( x * cs, y * cs, 0 ),
+							PieceType = "ROOF",
+							Material = m.RoofMaterial,
+							Rotation = 0,
+						} );
+				}
 		}
 
 		static void GenerateVolume( Blueprint bp, MonumentMassing massing, MonumentVolume vol )
