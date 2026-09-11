@@ -166,9 +166,11 @@ namespace Lute.Building
 
 			Controller.EyeAngles = new Angles( 0, toTarget.EulerAngles.yaw, 0 );
 
-			var body = Controller?.GetComponent<Rigidbody>();
-			if ( body.IsValid() )
-				body.Velocity = toTarget.Normal * WalkSpeed;
+			// Use WishVelocity (not Rigidbody.Velocity) so PlayerController
+			// owns the movement, runs its physics step, and populates
+			// GroundObject. Direct Rigidbody.Velocity overrides cancel
+			// vertical physics and keep the body floating above the floor.
+			Controller.WishVelocity = toTarget.Normal * WalkSpeed;
 
 			if ( _logTimer > 1f )
 			{
@@ -186,9 +188,9 @@ namespace Lute.Building
 
 		void Stop()
 		{
-			var body = Controller?.GetComponent<Rigidbody>();
-			if ( body.IsValid() )
-				body.Velocity = Vector3.Zero;
+			// Zero WishVelocity lets PlayerController apply its brakes and
+			// settle on the ground, keeping GroundObject valid.
+			Controller.WishVelocity = Vector3.Zero;
 		}
 
 		/// <summary>

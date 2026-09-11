@@ -1,4 +1,5 @@
 using Lute.Building;
+using Lute.Npc;
 
 /// <summary>
 /// Builds the Lute Sanctuary Realm — the Temple of Time.
@@ -50,7 +51,11 @@ public sealed class LuteWorld : Component
 		BuildWatchtower( root );
 		BuildTestStructure( root );
 
-		Log.Info( "Lute: Sanctuary built (world ground + monument + portal + temple floor + hex chamber + builder NPC + watchtower + test structure)." );
+		// Spawn NPCs from all SpawnMarkers (both editor-placed and code-spawned
+		// by BuildTestStructure above). Each marker is consumed after spawning.
+		NPCSpawner.SpawnAll( Scene, root );
+
+		Log.Info( "Lute: Sanctuary built (world ground + monument + portal + temple floor + hex chamber + builder NPC + watchtower + test structure + NPC markers)." );
 		return root;
 	}
 
@@ -315,8 +320,10 @@ public sealed class LuteWorld : Component
 		go.Name = "Merlyn";
 		go.SetParent( parent );
 
-		// Place 20m east of the temple center, on the ground.
-		go.WorldPosition = new Vector3( 20f * M, 0f, 64f );
+		// Place 20m east of the temple center, on the ground. Spawn close to
+		// the floor (z=4) so the PlayerController's short ground trace reaches
+		// it — spawning at z=64 leaves the body floating and grounding fails.
+		go.WorldPosition = new Vector3( 20f * M, 0f, 4f );
 		go.WorldRotation = Rotation.Identity;
 
 		// Body — citizen model (same as the player).
@@ -378,10 +385,16 @@ public sealed class LuteWorld : Component
 	}
 
 	/// <summary>
-	/// Spawns a test NPCBuilder near the sanctuary to verify the room-
-	/// subdivided building grammar end-to-end. Three structures side by
-	/// side at WealthFactor 1.0, 2.0, 3.0 so the agent can compare the
-	/// room-subdivision tiers via logs/MCP.
+	/// Spawns code-spawned <see cref="SpawnMarker"/>s for three test builder
+	/// NPCs near the sanctuary to verify the room-subdivided building grammar
+	/// end-to-end. Three structures side by side at WealthFactor 1.0, 2.0, 3.0
+	/// so the agent can compare the room-subdivision tiers via logs/MCP.
+	///
+	/// Markers are consumed by <see cref="NPCSpawner.SpawnAll"/> after this
+	/// returns — the spawner reads each marker's config and spawns the
+	/// structure + citizen body + NPCBuilderController. This keeps the
+	/// marker system general-purpose: editor-placed markers in the .scene
+	/// file would work the same way.
 	/// </summary>
 	void BuildTestStructure( GameObject parent )
 	{
@@ -390,89 +403,24 @@ public sealed class LuteWorld : Component
 		float[] wealthTiers = { 1.0f, 2.0f, 3.0f };
 		for ( int i = 0; i < wealthTiers.Length; i++ )
 		{
-			var go = Scene.CreateObject( true );
-			go.Name = $"TestStructure_W{wealthTiers[i]:F1}";
-			go.SetParent( parent );
+			var markerGo = Scene.CreateObject( true );
+			markerGo.Name = $"TestMarker_W{wealthTiers[i]:F1}";
+			markerGo.SetParent( parent );
 
 			// Place 40m south of the temple center, spaced 15m apart along X.
-			go.WorldPosition = new Vector3( (i - 1) * 15f * M, -40f * M, 0f );
-			go.WorldRotation = Rotation.Identity;
+			markerGo.WorldPosition = new Vector3( (i - 1) * 15f * M, -40f * M, 0f );
+			markerGo.WorldRotation = Rotation.Identity;
 
-			var builder = go.AddComponent<NPCBuilder>();
-			builder.WealthFactor = wealthTiers[i];
-			builder.BaseWidth = 4;
-			builder.BaseHeight = 4;
-			builder.CellSize = 100f;       // ~2.54m cells
-			builder.WallHeight = 200f;     // ~5.08m walls
-			builder.FloorThickness = 10f;  // ~0.25m floors
-			builder.BuildInterval = 0.2f;  // fast for testing
-			builder.WallMaterial = "materials/dev/gray_75.vmat";
-			builder.FloorMaterial = "materials/dev/gray_50.vmat";
-			builder.LayoutSeed = 1000 + i; // deterministic per tier
+			var marker = markerGo.AddComponent<SpawnMarker>();
+			marker.NpcType = "Builder";
+			marker.NpcName = $"BuilderNPC_W{wealthTiers[i]:F1}";
+			marker.WealthFactor = wealthTiers[i];
+			marker.BaseWidth = 4;
+			marker.BaseHeight = 4;
+			marker.LayoutSeed = 1000 + i;
 
-			// Spawn a citizen body + controller as a sibling GameObject so the
-			// builder has an actual NPC standing beside the construction site.
-			// This is NOT Merlyn — separate body, separate controller, no LLM.
-			SpawnBuilderBody( parent, $"BuilderNPC_W{wealthTiers[i]:F1}", go.WorldPosition, builder );
-
-			Log.Info( $"Lute: TestStructure {i} (wealth={wealthTiers[i]:F1}) spawned at {go.WorldPosition}." );
+			Log.Info( $"Lute: TestMarker {i} (wealth={wealthTiers[i]:F1}) placed at {markerGo.WorldPosition}." );
 		}
-	}
-
-	/// <summary>
-	/// Spawns a citizen body with a <see cref="NPCBuilderController"/> for an
-	/// <see cref="NPCBuilder"/>. Mirrors the Merlyn body setup (citizen model
-	/// + capsule/box colliders + Rigidbody + PlayerController with input
-	/// disabled) but uses <see cref="NPCBuilderController"/> instead of
-	/// <see cref="LuteBuilderNpc"/>. The body starts a few meters in front
-	/// of the build site so the controller has to walk to it.
-	/// </summary>
-	void SpawnBuilderBody( GameObject parent, string name, Vector3 sitePos, NPCBuilder builder )
-	{
-		var go = Scene.CreateObject( true );
-		go.Name = name;
-		go.SetParent( parent );
-
-		// Start 5m north of the site, on the ground.
-		go.WorldPosition = sitePos + new Vector3( 0f, 5f * 39.37f, 64f );
-		go.WorldRotation = Rotation.Identity;
-
-		// Body — citizen model (same as the player and Merlyn).
-		var bodyGo = Scene.CreateObject( true );
-		bodyGo.Name = "Body";
-		bodyGo.SetParent( go );
-		bodyGo.WorldPosition = Vector3.Zero;
-		bodyGo.WorldRotation = Rotation.Identity;
-		var bodyRenderer = bodyGo.AddComponent<SkinnedModelRenderer>();
-		bodyRenderer.Model = Model.Load( "models/citizen/citizen.vmdl" );
-
-		// Colliders — same setup as Merlyn (capsule + box).
-		var collidersGo = Scene.CreateObject( true );
-		collidersGo.Name = "Colliders";
-		collidersGo.SetParent( go );
-		var capsule = collidersGo.AddComponent<CapsuleCollider>();
-		capsule.Radius = 16f;
-		capsule.Start = new Vector3( 0, 0, 0 );
-		capsule.End = new Vector3( 0, 0, 72f );
-		var box = collidersGo.AddComponent<BoxCollider>();
-		box.Scale = new Vector3( 32f, 32f, 72f );
-
-		// Rigidbody for physics.
-		var rb = go.AddComponent<Rigidbody>();
-		rb.Gravity = true;
-
-		// PlayerController — input disabled, NPC moves via code.
-		var controller = go.AddComponent<PlayerController>();
-		controller.UseInputControls = false;
-		controller.UseCameraControls = false;
-		controller.UseAnimatorControls = true;
-		controller.Renderer = bodyRenderer;
-
-		// The controller — wires itself to the sibling builder if not set.
-		var npc = go.AddComponent<NPCBuilderController>();
-		npc.Builder = builder;
-
-		Log.Info( $"Lute: BuilderNPC '{name}' spawned at {go.WorldPosition} (site={sitePos})." );
 	}
 
 	/// <summary> Creates a GameObject with a ModelRenderer using a primitive model. </summary>

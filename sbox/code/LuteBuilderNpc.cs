@@ -167,14 +167,13 @@ public sealed class LuteBuilderNpc : Component
 				if ( _stateTimer < 0.5f )
 					_verifyStartPos = pos;
 
-				// Move toward the platform via Rigidbody velocity
+				// Move toward the platform via WishVelocity so PlayerController
+				// owns the movement and populates GroundObject. Direct
+				// Rigidbody.Velocity cancels vertical physics and keeps the
+				// body floating, so GroundObject never becomes valid.
 				var toPlatform = (_platformCenter - pos).WithZ( 0 );
-				if ( toPlatform.Length > 1f )
-				{
-					var body = Controller?.GetComponent<Rigidbody>();
-					if ( body.IsValid() )
-						body.Velocity = toPlatform.Normal * 300f;
-				}
+			if ( toPlatform.Length > 1f )
+				Controller.WishVelocity = toPlatform.Normal * 300f;
 
 				// Log once per second
 				if ( MathF.Floor( _stateTimer ) > MathF.Floor( _stateTimer - Time.Delta ) )
@@ -186,8 +185,7 @@ public sealed class LuteBuilderNpc : Component
 				{
 					State = NpcState.Verifying;
 					_stateTimer = 0f;
-					var body = Controller?.GetComponent<Rigidbody>();
-					if ( body.IsValid() ) body.Velocity = Vector3.Zero;
+					Controller.WishVelocity = Vector3.Zero;
 				}
 				break;
 			}
@@ -430,10 +428,6 @@ public sealed class LuteBuilderNpc : Component
 	/// </summary>
 	void StopWalking()
 	{
-		var body = Controller?.GetComponent<Rigidbody>();
-		if ( body.IsValid() )
-		{
-			body.Velocity = Vector3.Zero;
-		}
+		Controller.WishVelocity = Vector3.Zero;
 	}
 }
