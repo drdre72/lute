@@ -105,6 +105,7 @@
 - [x] Fix PlayerController grounding — WishVelocity + spawn at z=4 (commit d760714)
 - [x] Implement NPC pathfinding — NavMeshAgent + NavMesh.Generate in LuteGame (commit pending)
 - [x] Implement NPC interaction — Interactable + PlayerInteractor + Talk/Trade/Quest modes (commit pending)
+- [x] Add flood-fill reachability check + auto-repair to BuildingGrammar (commit pending)
 
 ---
 

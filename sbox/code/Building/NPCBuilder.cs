@@ -81,6 +81,12 @@ namespace Lute.Building
 			var grammar = new BuildingGrammar( rng );
 			var layout = grammar.GenerateLayout( BaseWidth, BaseHeight, WealthFactor );
 
+			// Log if the flood-fill reachability check repaired any rooms.
+			if ( grammar.LastRepairCount > 0 )
+			{
+				Log.Warning( $"Lute: NPCBuilder '{GameObject.Name}' layout had {grammar.LastRepairCount} unreachable room(s) — auto-repaired by carving doorways." );
+			}
+
 			// Compute the build-site center from the layout's cell extents so
 			// the controller can steer toward the middle of the footprint
 			// before the first piece exists.
