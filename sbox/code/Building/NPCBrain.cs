@@ -655,6 +655,31 @@ Respond strictly with valid JSON matching this schema (no other text):
 		}
 
 		/// <summary>
+		/// Evaluate an NPC's goals and show the next action it would take.
+		/// Usage: nlp_think "BuilderNPC_0"
+		/// </summary>
+		[ConCmd( "nlp_think" )]
+		public static void NlpThinkCommand( string npcName )
+		{
+			var action = ConversationManager.EvaluateGoals( npcName );
+			Log.Info( $"[nlp_think] {npcName}: {action.Summary}" );
+
+			// If the action involves speaking, execute it
+			if ( action.Type == NpcActionType.Speak || action.Type == NpcActionType.SpeakAndAct )
+			{
+				if ( action.SpeakIntent != null )
+				{
+					var text = SpeechGenerator.Generate( action.SpeakIntent );
+					Log.Info( $"[nlp_think] {npcName} would say: \"{text}\"" );
+					if ( !string.IsNullOrEmpty( action.SpeakIntent.Target ) )
+						ConversationManager.Send( npcName, action.SpeakIntent.Target, text );
+					else
+						ConversationManager.Broadcast( npcName, text );
+				}
+			}
+		}
+
+		/// <summary>
 		/// Broadcast a message from one NPC to all others.
 		/// Usage: nlp_broadcast "BuilderNPC_0" "I claim the north_site"
 		/// </summary>

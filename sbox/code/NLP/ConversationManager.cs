@@ -48,6 +48,7 @@ namespace Lute.NLP
 			{
 				Name = npcName,
 				Beliefs = beliefs,
+				State = new NpcState(),
 				Role = role,
 			};
 			beliefs.Role = role;
@@ -67,6 +68,27 @@ namespace Lute.NLP
 		public static BeliefModel GetBeliefs( string npcName )
 		{
 			return _npcs.TryGetValue( npcName, out var e ) ? e.Beliefs : null;
+		}
+
+		/// <summary> Get an NPC's runtime state (or null). </summary>
+		public static NpcState GetState( string npcName )
+		{
+			return _npcs.TryGetValue( npcName, out var e ) ? e.State : null;
+		}
+
+		/// <summary>
+		/// Evaluate an NPC's goals and produce the next action. Called
+		/// by the NPC's update loop when it's not processing messages.
+		/// </summary>
+		public static NpcAction EvaluateGoals( string npcName )
+		{
+			if ( !_npcs.TryGetValue( npcName, out var entry ) )
+				return NpcAction.Idle( "NPC not registered" );
+
+			// Make sure the evaluator knows about all NPCs
+			GoalActionEvaluator.SetNpcNames( _npcs.Keys.ToList() );
+
+			return GoalActionEvaluator.Evaluate( entry.Beliefs, entry.State );
 		}
 
 		/// <summary>
@@ -224,6 +246,7 @@ namespace Lute.NLP
 		{
 			public string Name { get; set; }
 			public BeliefModel Beliefs { get; set; }
+			public NpcState State { get; set; }
 			public string Role { get; set; }
 			public int TurnCount { get; set; }
 			/// <summary> Highest MessageId this NPC has processed (exactly-once consumption). </summary>
