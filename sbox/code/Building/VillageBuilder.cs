@@ -141,8 +141,9 @@ namespace Lute.Building
 					// re-place all pieces for tasks already marked complete.
 					if ( completed > 0 )
 					{
-						ReconstructCompletedTasks();
-						Log.Info( $"Lute: VillageBuilder reconstructed geometry for {completed} completed tasks." );
+						bool didReconstruct = ReconstructCompletedTasks();
+						if ( didReconstruct )
+							Log.Info( $"Lute: VillageBuilder reconstructed geometry for {completed} completed tasks." );
 					}
 				}
 			}
@@ -252,12 +253,12 @@ namespace Lute.Building
 		/// Called after loading a save — runtime-spawned objects don't survive
 		/// scene reload, so we must re-place all pieces for tasks marked complete.
 		/// </summary>
-		void ReconstructCompletedTasks()
+		bool ReconstructCompletedTasks()
 		{
 			// In multi-builder mode, only builder 0 reconstructs geometry.
 			// Other builders skip this to avoid re-placing the same pieces.
 			if ( TotalBuilders > 1 && BuilderId != 0 )
-				return;
+				return false;
 
 			_reconstructMode = true;
 			var dummyToken = CancellationToken.None;
@@ -279,6 +280,7 @@ namespace Lute.Building
 			}
 			CurrentTask = null;
 			_reconstructMode = false;
+			return true;
 		}
 
 		async Task BuildTask( VillageBuildTask task, CancellationToken token )

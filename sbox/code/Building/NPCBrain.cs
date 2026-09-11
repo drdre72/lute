@@ -317,6 +317,17 @@ Respond strictly with valid JSON matching this schema (no other text):
 
 			Log.Info( $"[village_status] {done}/{builder.Tasks.Count} complete, {inProgress} in progress, {pending} pending. Current: {current?.Name ?? "none"}. Elapsed: {builder.ElapsedTime/60:F1} min." );
 
+			// Multi-builder summary: show each builder's current task.
+			var allBuilders = Game.ActiveScene.GetAllComponents<VillageBuilder>().ToList();
+			if ( allBuilders.Count > 1 )
+			{
+				foreach ( var b in allBuilders )
+				{
+					var ct = b.CurrentTask;
+					Log.Info( $"  [builder {b.BuilderId}/{b.TotalBuilders}] {ct?.Name ?? "idle"} ({ct?.TaskType ?? "-"}) at {ct?.Position}" );
+				}
+			}
+
 			var nextPending = builder.Tasks.Where( t => t.Status == 0 ).Take( 5 );
 			Log.Info( "[village_status] Next pending tasks:" );
 			foreach ( var t in nextPending )
