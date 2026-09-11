@@ -17,6 +17,10 @@ public sealed class LuteMonumentBuilder : Component
 {
 	const float M = 39.37f; // S&Box units per meter (Source engine convention)
 
+	// Seeded random for procedural variation — deterministic so the monument
+	// looks the same every build (no RNG between sessions).
+ readonly System.Random _rng = new( 1337 );
+
 	/// <summary> World-space center of the monument. </summary>
 	[Property] public Vector3 Center { get; set; } = new Vector3( 15000, 15000, 0 );
 
@@ -70,7 +74,7 @@ public sealed class LuteMonumentBuilder : Component
 
 	// --- Material constants (custom PBR textures, differentiated by surface type) ---
 
-	const string MatStoneWall   = "materials/medieval/stone_wall.vmat";   // walls, towers, corners (high tiling)
+	const string MatStoneWall   = "materials/medieval/stone_wall.vmat";   // walls, corners, gatehouse (high tiling)
 	const string MatStoneTower  = "materials/medieval/stone_tower.vmat";  // towers (perfect brick scale)
 	const string MatStoneDetail = "materials/medieval/stone_detail.vmat"; // merlons, well rim, jambs (low tiling)
 	const string MatPlaza       = "materials/medieval/plaza.vmat";        // plaza floor, inner ring, bridges
@@ -81,6 +85,18 @@ public sealed class LuteMonumentBuilder : Component
 	const string MatWater       = "materials/water/water_dark.vmat";      // moat (real water shader)
 
 	// --- Geometry helpers ---
+
+	/// <summary> Returns a slightly jittered copy of a color for per-instance variation. </summary>
+	Color TintJitter( Color baseColor, float amount = 0.08f )
+	{
+		float r = MathX.Clamp( baseColor.r + (float)(_rng.NextDouble() - 0.5) * amount, 0, 1 );
+		float g = MathX.Clamp( baseColor.g + (float)(_rng.NextDouble() - 0.5) * amount, 0, 1 );
+		float b = MathX.Clamp( baseColor.b + (float)(_rng.NextDouble() - 0.5) * amount, 0, 1 );
+		return new Color( r, g, b );
+	}
+
+	/// <summary> Returns a small random offset in the range [-amount, +amount]. </summary>
+	float Jitter( float amount = 1f ) => (float)(_rng.NextDouble() - 0.5) * 2f * amount;
 
 	/// <summary> World position at the center of one edge of a square ring. </summary>
 	Vector3 EdgeCenter( float halfWidth, int side )
@@ -242,6 +258,8 @@ public sealed class LuteMonumentBuilder : Component
 			float sx = (quad == 0 || quad == 3) ? -1f : 1f;  // west/east
 			float sy = (quad == 0 || quad == 1) ? 1f : -1f;  // north/south
 
+			var quadColor = awningColors[quad];
+
 			for ( int i = 0; i < 4; i++ )
 			{
 				int row = i / 2;
@@ -249,12 +267,16 @@ public sealed class LuteMonumentBuilder : Component
 				float x = sx * (15f * M + col * stallSpacing);
 				float y = sy * (15f * M + row * stallSpacing);
 
+				// Per-stall variation: counter height jitter and awning color variation
+				float thisStallH = stallH + Jitter( 0.1f * M );
+				var thisAwningColor = TintJitter( quadColor, 0.12f );
+
 				// Counter (wood)
 				var counter = CreatePrimitive( root, $"Stall_{quad}_{i}_Counter",
 					"models/dev/box.vmdl",
-					new Vector3( x, y, stallH * 0.5f ), Rotation.Identity,
-					new Vector3( stallW / 50f, stallD / 50f, stallH / 50f ),
-					material: MatWood );
+					new Vector3( x, y, thisStallH * 0.5f ), Rotation.Identity,
+					new Vector3( stallW / 50f, stallD / 50f, thisStallH / 50f ),
+					material: MatWood, tint: TintJitter( new Color( 0.7f, 0.5f, 0.3f ), 0.05f ) );
 				AddBoxCollider( counter, new Vector3( 50f, 50f, 50f ) );
 
 				// 2 vertical support posts at front corners
@@ -280,7 +302,7 @@ public sealed class LuteMonumentBuilder : Component
 					"models/dev/box.vmdl",
 					new Vector3( x, y, postH ), awningRot,
 					new Vector3( stallW / 50f, stallD / 50f, 0.1f ),
-					material: MatRoof, tint: awningColors[quad] );
+					material: MatRoof, tint: thisAwningColor );
 			}
 		}
 	}
@@ -429,25 +451,30 @@ public sealed class LuteMonumentBuilder : Component
 					? new Vector3( along, 0, 0 )
 					: new Vector3( 0, along, 0 );
 
+				// Per-segment variation: slight height jitter and tint
+				float wallH = WallHeight + Jitter( 0.3f * M );
+				var wallTint = TintJitter( new Color( 0.85f, 0.82f, 0.75f ), 0.06f );
+
 				var wall = CreatePrimitive( root, $"Wall_{side}_{half}",
 					"models/dev/box.vmdl",
-					pos + offsetVec, rot,
-					new Vector3( halfLen / 50f, wallThickness / 50f, WallHeight / 50f ),
-					material: MatStoneWall );
+					pos + offsetVec + new Vector3( 0, 0, (wallH - WallHeight) * 0.5f ), rot,
+					new Vector3( halfLen / 50f, wallThickness / 50f, wallH / 50f ),
+					material: MatStoneWall, tint: wallTint );
 				AddBoxCollider( wall, new Vector3( 50f, 50f, 50f ) );
 			}
 		}
 
-		// 4 corner blocks
+		// 4 corner blocks — slightly taller than walls, with tint variation
 		float cornerScale = cornerSize / 50f;
 		for ( int corner = 0; corner < 4; corner++ )
 		{
-			var pos = CornerPos( WallOuterHalfWidth, corner ) + new Vector3( 0, 0, WallHeight * 0.5f );
+			float cornerH = WallHeight + Jitter( 0.5f * M );
+			var pos = CornerPos( WallOuterHalfWidth, corner ) + new Vector3( 0, 0, cornerH * 0.5f );
 			var cornerGo = CreatePrimitive( root, $"WallCorner_{corner}",
 				"models/dev/box.vmdl",
 				pos, Rotation.Identity,
-				new Vector3( cornerScale, cornerScale, WallHeight / 50f ),
-				material: MatStoneWall );
+				new Vector3( cornerScale, cornerScale, cornerH / 50f ),
+				material: MatStoneWall, tint: TintJitter( new Color( 0.8f, 0.77f, 0.7f ), 0.06f ) );
 			AddBoxCollider( cornerGo, new Vector3( 50f, 50f, 50f ) );
 		}
 	}
@@ -623,18 +650,20 @@ public sealed class LuteMonumentBuilder : Component
 					? new Vector3( along, 0, 0 )
 					: new Vector3( 0, along, 0 );
 
-				var towerPos = gatePos + offsetVec + new Vector3( 0, 0, towerH * 0.5f );
+				// Per-tower variation: height jitter (±1m) and tint
+				float thisTowerH = towerH + Jitter( 1f * M );
+				var towerPos = gatePos + offsetVec + new Vector3( 0, 0, thisTowerH * 0.5f );
 
 				var tower = CreatePrimitive( root, $"Tower_{side}_{t}",
 					"models/dev/box.vmdl",
 					towerPos, Rotation.Identity,
-					new Vector3( towerScale, towerScale, towerH / 50f ),
-					material: MatStoneTower );
+					new Vector3( towerScale, towerScale, thisTowerH / 50f ),
+					material: MatStoneTower, tint: TintJitter( new Color( 0.82f, 0.78f, 0.7f ), 0.07f ) );
 				AddBoxCollider( tower, new Vector3( 50f, 50f, 50f ) );
 
 				// Guard torch light at tower top
 				AddPointLight( root, $"TowerLight_{side}_{t}",
-					towerPos + new Vector3( 0, 0, towerH * 0.5f ),
+					towerPos + new Vector3( 0, 0, thisTowerH * 0.5f ),
 					warmLight, 400f );
 			}
 		}
@@ -722,7 +751,7 @@ public sealed class LuteMonumentBuilder : Component
 						"models/dev/box.vmdl",
 						edgeMid + worldOff, rot,
 						merlonScale,
-						material: MatStoneDetail );
+						material: MatStoneDetail, tint: stoneTint );
 
 					cursor += (half == 0 ? -1f : 1f) * (merlonW + gap);
 				}
@@ -738,7 +767,7 @@ public sealed class LuteMonumentBuilder : Component
 				"models/dev/box.vmdl",
 				pos, Rotation.Identity,
 				new Vector3( cornerMerlonW / 50f, cornerMerlonW / 50f, merlonH / 50f ),
-				material: MatStoneDetail );
+				material: MatStoneDetail, tint: stoneTint );
 		}
 	}
 
@@ -785,7 +814,7 @@ public sealed class LuteMonumentBuilder : Component
 						"models/dev/box.vmdl",
 						towerPos + merlonOffsets[m], Rotation.Identity,
 						merlonScales[m],
-						material: MatStoneDetail );
+						material: MatStoneDetail, tint: stoneTint );
 				}
 			}
 		}
@@ -809,6 +838,7 @@ public sealed class LuteMonumentBuilder : Component
 			new Color( 0.85f, 0.7f, 0.1f ),   // W: gold
 		};
 
+		float towerSize = 6f * M;
 		float towerH = 18f * M;
 		float towerOffset = 10f * M;
 		float merlonH = 1.5f * M;
@@ -898,6 +928,7 @@ public sealed class LuteMonumentBuilder : Component
 	{
 		float midRadius = (PlazaHalfWidth + InnerRingOuter) * 0.5f;
 		float houseW = 6f * M;
+		float houseH = 4f * M;
 		float doorW = 1.2f * M;
 		float doorH = 2.2f * M;
 
