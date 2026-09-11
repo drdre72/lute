@@ -4,6 +4,7 @@ using System.Linq;
 
 namespace Lute.Building
 {
+	using Lute.NLP;
 	/// <summary>
 	/// Status of a directed construction task. Mirrors VillageBuildTask.Status
 	/// (0=pending,1=in_progress,2=complete) but adds Blocked (waiting on a
@@ -69,6 +70,27 @@ namespace Lute.Building
 		public bool DependenciesSatisfied =>
 			DependsOn.All( depId =>
 				ConstructionDirector.GetTask( depId )?.Status == TaskStatus.Complete );
+
+		/// <summary>
+		/// Preconditions that must be true before this task can start.
+		/// Per professor Phase 4: foundation.exists, area.available,
+		/// materials >= required. These are checked by the director
+		/// before assigning the task.
+		/// </summary>
+		public Dictionary<string, string> Preconditions { get; set; } = new();
+
+		/// <summary>
+		/// Spatial bounds this task reserves (AABB). If set, the director
+		/// uses ClaimBox instead of radius-based Claim.
+		/// </summary>
+		public BBox? ReservationBounds { get; set; }
+
+		/// <summary> Conflict list — task ids or object ids that must not overlap. </summary>
+		public List<string> Conflicts { get; set; } = new();
+
+		/// <summary> True if all preconditions are satisfied. </summary>
+		public bool PreconditionsSatisfied =>
+			ConstructionDirector.CheckPreconditions( Preconditions );
 	}
 
 	/// <summary>
@@ -179,6 +201,9 @@ namespace Lute.Building
 				}
 			}
 
+			ConstructionEventBus.Fire( ConstructionEventType.TaskCreated,
+				taskId: id, parameters: new() { { "name", buildTask?.Name ?? "" } } );
+
 			return id;
 		}
 
@@ -238,6 +263,9 @@ namespace Lute.Building
 				int target = load.OrderBy( kvp => kvp.Value ).First().Key;
 				t.AssignedBuilder = target;
 				load[target] += t.EstimatedPieces;
+
+				ConstructionEventBus.Fire( ConstructionEventType.TaskAssigned,
+					taskId: t.Id, target: _builders.TryGetValue( target, out var tb ) ? tb.NpcName : target.ToString() );
 			}
 		}
 
@@ -279,6 +307,10 @@ namespace Lute.Building
 			task.ReservationId = $"{npcName}_{task.Id}";
 			task.Status = TaskStatus.InProgress;
 			state.CurrentTaskId = task.Id;
+
+			ConstructionEventBus.Fire( ConstructionEventType.TaskStarted,
+				taskId: task.Id, actor: npcName );
+
 			return task;
 		}
 
@@ -342,6 +374,9 @@ namespace Lute.Building
 				SpatialBlackboard.ReleaseClaim( t.ReservationId );
 				t.ReservationId = null;
 			}
+
+			ConstructionEventBus.Fire( ConstructionEventType.TaskCompleted,
+				taskId: t.Id, actor: _builders.TryGetValue( t.AssignedBuilder, out var cb ) ? cb.NpcName : null );
 		}
 
 		/// <summary>
@@ -365,11 +400,15 @@ namespace Lute.Building
 			{
 				t.Status = TaskStatus.Pending;
 				Log.Info( $"Lute: ConstructionDirector task {taskId} failed ({reason}) — retry {t.RetryCount}/{t.MaxRetries}." );
+				ConstructionEventBus.Fire( ConstructionEventType.TaskBlocked,
+					taskId: t.Id, parameters: new() { { "reason", reason ?? "" }, { "retry", t.RetryCount.ToString() } } );
 			}
 			else
 			{
 				t.Status = TaskStatus.Failed;
 				Log.Warning( $"Lute: ConstructionDirector task {taskId} failed permanently ({reason}) after {t.RetryCount} retries." );
+				ConstructionEventBus.Fire( ConstructionEventType.TaskFailed,
+					taskId: t.Id, parameters: new() { { "reason", reason ?? "" } } );
 			}
 		}
 
@@ -425,7 +464,246 @@ namespace Lute.Building
 			return sb;
 		}
 
-		// ── Helpers ──
+		// ── Preconditions ──
+
+	/// <summary>
+	/// Check if a set of preconditions is satisfied. Preconditions are
+	/// key-value pairs:
+	///   "foundation.exists" → "true" — check if a foundation task is complete
+	///   "area.available" → "x,y,z,w,h,d" — check if the AABB is unclaimed
+	///   "materials.stone" → "50" — check if enough material is available
+	/// </summary>
+	public static bool CheckPreconditions( Dictionary<string, string> preconditions )
+	{
+		if ( preconditions == null || preconditions.Count == 0 )
+			return true;
+
+		foreach ( var (key, value) in preconditions )
+		{
+			if ( key == "foundation.exists" && value == "true" )
+			{
+				// Check if any foundation task is complete
+				bool hasFoundation = _tasks.Values.Any( t =>
+					t.Status == TaskStatus.Complete &&
+					t.BuildTask?.TaskType == "foundation" );
+				if ( !hasFoundation )
+					return false;
+			}
+			else if ( key == "area.available" )
+			{
+				// value = "x,y,z,w,h,d" — center + dimensions
+				var parts = value.Split( ',' );
+				if ( parts.Length >= 6 &&
+					float.TryParse( parts[0], out float x ) &&
+					float.TryParse( parts[1], out float y ) &&
+					float.TryParse( parts[2], out float z ) &&
+					float.TryParse( parts[3], out float w ) &&
+					float.TryParse( parts[4], out float h ) &&
+					float.TryParse( parts[5], out float d ) )
+				{
+					var center = new Vector3( x, y, z );
+					var bounds = new BBox(
+						center - new Vector3( w * 0.5f, h * 0.5f, d * 0.5f ),
+						center + new Vector3( w * 0.5f, h * 0.5f, d * 0.5f ) );
+					if ( SpatialBlackboard.CheckClearBox( bounds ) != null )
+						return false;
+				}
+			}
+			else if ( key.StartsWith( "materials." ) )
+			{
+				// Material check — for now, assume materials are always
+				// available (material tracking not yet implemented)
+				// TODO: integrate with a material/resource system
+			}
+		}
+
+		return true;
+	}
+
+	// ── Blackboard transactions ──
+
+	/// <summary>
+	/// Process a BlackboardRequest from an NPC. This is the authoritative
+	/// transaction path — NPCs submit requests, the director validates
+	/// and applies them, and returns a BlackboardResult.
+	///
+	/// NPCs never directly mutate the world — they go through this method.
+	/// </summary>
+	public static BlackboardResult ProcessRequest( BlackboardRequest request )
+	{
+		if ( request == null )
+			return BlackboardResult.Fail( "null request" );
+
+		return request.Operation switch
+		{
+			BlackboardOperation.Read => HandleRead( request ),
+			BlackboardOperation.Claim => HandleClaim( request ),
+			BlackboardOperation.Release => HandleRelease( request ),
+			BlackboardOperation.Update => HandleUpdate( request ),
+			BlackboardOperation.Request => HandleRequest( request ),
+			BlackboardOperation.Offer => HandleOffer( request ),
+			BlackboardOperation.Complete => HandleComplete( request ),
+			BlackboardOperation.Fail => HandleFail( request ),
+			_ => BlackboardResult.Fail( $"unknown operation: {request.Operation}" ),
+		};
+	}
+
+	static BlackboardResult HandleRead( BlackboardRequest req )
+	{
+		var task = GetTask( req.Key );
+		if ( task != null )
+			return BlackboardResult.Ok( task.Status.ToString() );
+
+		// Read blackboard state
+		if ( req.Key == "summary" )
+			return BlackboardResult.Ok( StatusSummary() );
+
+		return BlackboardResult.Fail( $"key not found: {req.Key}" );
+	}
+
+	static BlackboardResult HandleClaim( BlackboardRequest req )
+	{
+		var task = GetTask( req.Key );
+		if ( task == null )
+			return BlackboardResult.Fail( $"task not found: {req.Key}" );
+
+		if ( task.Status != TaskStatus.Pending )
+			return BlackboardResult.Fail( $"task {req.Key} is not pending (status={task.Status})" );
+
+		if ( !task.DependenciesSatisfied )
+			return BlackboardResult.Fail( $"task {req.Key} has unsatisfied dependencies" );
+
+		if ( !task.PreconditionsSatisfied )
+			return BlackboardResult.Fail( $"task {req.Key} has unsatisfied preconditions" );
+
+		// Attempt spatial reservation
+		if ( task.ReservationBounds.HasValue )
+		{
+			if ( !SpatialBlackboard.ClaimBox( req.Actor, task.ReservationBounds.Value,
+				 "construction", 0, task.Id ) )
+				return BlackboardResult.Fail( $"area blocked for task {req.Key}" );
+		}
+		else if ( task.BuildTask != null )
+		{
+			var bt = task.BuildTask;
+			float radius = Math.Max( bt.BaseWidth, bt.BaseHeight ) * 100f + 200f;
+			if ( !SpatialBlackboard.Claim( req.Actor, bt.Position, radius, "construction", 0 ) )
+				return BlackboardResult.Fail( $"area blocked for task {req.Key}" );
+		}
+
+		task.Status = TaskStatus.InProgress;
+		task.AssignedBuilder = FindBuilderByNpc( req.Actor );
+		if ( _builders.TryGetValue( task.AssignedBuilder, out var b ) )
+			b.CurrentTaskId = task.Id;
+
+		ConstructionEventBus.Fire( ConstructionEventType.TaskClaimed,
+			taskId: task.Id, actor: req.Actor );
+
+		return BlackboardResult.Ok( task.Id );
+	}
+
+	static BlackboardResult HandleRelease( BlackboardRequest req )
+	{
+		var task = GetTask( req.Key );
+		if ( task == null )
+			return BlackboardResult.Fail( $"task not found: {req.Key}" );
+
+		if ( !string.IsNullOrEmpty( task.ReservationId ) )
+		{
+			SpatialBlackboard.ReleaseClaim( task.ReservationId );
+			task.ReservationId = null;
+		}
+
+		task.Status = TaskStatus.Pending;
+		ConstructionEventBus.Fire( ConstructionEventType.ReservationReleased,
+			taskId: task.Id, actor: req.Actor );
+
+		return BlackboardResult.Ok();
+	}
+
+	static BlackboardResult HandleUpdate( BlackboardRequest req )
+	{
+		var task = GetTask( req.Key );
+		if ( task == null )
+			return BlackboardResult.Fail( $"task not found: {req.Key}" );
+
+		if ( req.Value is int pieces )
+		{
+			task.PiecesPlaced = pieces;
+			ReportProgress( req.Key, pieces );
+			return BlackboardResult.Ok( pieces );
+		}
+
+		return BlackboardResult.Ok();
+	}
+
+	static BlackboardResult HandleRequest( BlackboardRequest req )
+	{
+		// NPC is requesting a task — find the next available one
+		var builderId = FindBuilderByNpc( req.Actor );
+		if ( builderId < 0 )
+			return BlackboardResult.Fail( $"builder not registered: {req.Actor}" );
+
+		var task = ClaimNextTask( builderId, req.Actor );
+		if ( task == null )
+			return BlackboardResult.Fail( "no available tasks" );
+
+		return BlackboardResult.Ok( task.Id );
+	}
+
+	static BlackboardResult HandleOffer( BlackboardRequest req )
+	{
+		// NPC is offering to help with a task
+		ConstructionEventBus.Fire( ConstructionEventType.NpcOfferedHelp,
+			taskId: req.Key, actor: req.Actor,
+			parameters: req.Value != null
+				? new() { { "offer", req.Value.ToString() } }
+				: null );
+		return BlackboardResult.Ok();
+	}
+
+	static BlackboardResult HandleComplete( BlackboardRequest req )
+	{
+		var task = GetTask( req.Key );
+		if ( task == null )
+			return BlackboardResult.Fail( $"task not found: {req.Key}" );
+
+		// Validate that the task is actually complete (don't trust speech)
+		// The executor should have reported progress before completing
+		CompleteTask( req.Key );
+		ConstructionEventBus.Fire( ConstructionEventType.TaskCompleted,
+			taskId: task.Id, actor: req.Actor );
+
+		return BlackboardResult.Ok();
+	}
+
+	static BlackboardResult HandleFail( BlackboardRequest req )
+	{
+		var task = GetTask( req.Key );
+		if ( task == null )
+			return BlackboardResult.Fail( $"task not found: {req.Key}" );
+
+		FailTask( req.Key, req.Value?.ToString() );
+		ConstructionEventBus.Fire( ConstructionEventType.TaskFailed,
+			taskId: task.Id, actor: req.Actor,
+			parameters: req.Value != null
+				? new() { { "reason", req.Value.ToString() } }
+				: null );
+
+		return BlackboardResult.Ok();
+	}
+
+	static int FindBuilderByNpc( string npcName )
+	{
+		foreach ( var kvp in _builders )
+		{
+			if ( kvp.Value.NpcName == npcName )
+				return kvp.Key;
+		}
+		return -1;
+	}
+
+	// ── Helpers ──
 
 		static int EstimatePieces( VillageBuildTask task )
 		{

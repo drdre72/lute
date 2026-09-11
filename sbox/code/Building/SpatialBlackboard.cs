@@ -32,6 +32,12 @@ namespace Lute.Building
 
 		/// <summary> How long the claim is valid (seconds). 0 = permanent. </summary>
 		public float Expiry;
+
+		/// <summary> Optional AABB bounds (if set, used instead of radius). </summary>
+		public BBox? Bounds;
+
+		/// <summary> The task this claim is for (if any). </summary>
+		public string TaskId;
 	}
 
 	/// <summary>
@@ -204,6 +210,118 @@ namespace Lute.Building
 			_claims.Remove( claimId );
 		}
 
+		/// <summary>
+		/// Claim an axis-aligned bounding box region. This is the
+		/// professor's recommended reservation style:
+		///   X=100..300, Y=200..400, Z=0..200
+		///
+		/// Returns true if the claim was successful, false if another
+		/// NPC already has an overlapping claim. Fires a
+		/// ReservationConflict event on failure.
+		/// </summary>
+		public static bool ClaimBox( string npcName, BBox bounds,
+			string activity = "construction", float expiry = 0,
+			string taskId = null )
+		{
+			// Check for overlapping claims from other NPCs
+			foreach ( var kvp in _claims )
+			{
+				if ( kvp.Value.Owner == npcName )
+					continue;
+
+				var other = kvp.Value;
+				bool overlap;
+
+				if ( other.Bounds.HasValue )
+				{
+					// AABB vs AABB
+					overlap = AabbIntersects( bounds, other.Bounds.Value );
+				}
+				else
+				{
+					// AABB vs sphere — approximate by checking if the
+					// sphere center is within (bounds + radius) on each axis
+					var center = other.Position;
+					var r = other.Radius;
+					overlap = center.x + r > bounds.Mins.x &&
+					          center.x - r < bounds.Maxs.x &&
+					          center.y + r > bounds.Mins.y &&
+					          center.y - r < bounds.Maxs.y &&
+					          center.z + r > bounds.Mins.z &&
+					          center.z - r < bounds.Maxs.z;
+				}
+
+				if ( overlap )
+				{
+					ConstructionEventBus.Fire( ConstructionEventType.ReservationConflict,
+						taskId: taskId, actor: npcName,
+						parameters: new() { { "blocked_by", other.Owner } } );
+					return false;
+				}
+			}
+
+			// No overlap — register the claim
+			var claimId = $"{npcName}_{_claimSeq++}";
+			_claims[claimId] = new SpatialClaim
+			{
+				Id = claimId,
+				Owner = npcName,
+				Position = (bounds.Mins + bounds.Maxs) * 0.5f,
+				Radius = 0, // using Bounds instead
+				Activity = activity,
+				Timestamp = CurrentTime,
+				Expiry = expiry,
+				Bounds = bounds,
+				TaskId = taskId,
+			};
+
+			ConstructionEventBus.Fire( ConstructionEventType.ReservationCreated,
+				taskId: taskId, actor: npcName,
+				parameters: new()
+				{
+					{ "mins", $"{bounds.Mins}" },
+					{ "maxs", $"{bounds.Maxs}" },
+				} );
+
+			return true;
+		}
+
+		/// <summary>
+		/// Check if a bounding box is clear of claims from other NPCs.
+		/// Returns the blocking claim's owner, or null if clear.
+		/// </summary>
+		public static string CheckClearBox( BBox bounds, string excludeNpc = null )
+		{
+			foreach ( var kvp in _claims )
+			{
+				if ( excludeNpc != null && kvp.Value.Owner == excludeNpc )
+					continue;
+
+				var other = kvp.Value;
+				bool overlap;
+
+				if ( other.Bounds.HasValue )
+				{
+					overlap = AabbIntersects( bounds, other.Bounds.Value );
+				}
+				else
+				{
+					var center = other.Position;
+					var r = other.Radius;
+					overlap = center.x + r > bounds.Mins.x &&
+					          center.x - r < bounds.Maxs.x &&
+					          center.y + r > bounds.Mins.y &&
+					          center.y - r < bounds.Maxs.y &&
+					          center.z + r > bounds.Mins.z &&
+					          center.z - r < bounds.Maxs.z;
+				}
+
+				if ( overlap )
+					return other.Owner;
+			}
+			return null;
+		}
+
 		/// <summary> Release all claims owned by an NPC. </summary>
 		public static void ReleaseAllClaims( string npcName )
 		{
@@ -332,6 +450,16 @@ namespace Lute.Building
 			_lastCleanup = 0;
 			_messageSeq = 0;
 			_claimSeq = 0;
+		}
+
+		/// <summary>
+		/// Check if two AABBs intersect (overlap on all 3 axes).
+		/// </summary>
+		static bool AabbIntersects( BBox a, BBox b )
+		{
+			return a.Mins.x <= b.Maxs.x && a.Maxs.x >= b.Mins.x &&
+			       a.Mins.y <= b.Maxs.y && a.Maxs.y >= b.Mins.y &&
+			       a.Mins.z <= b.Maxs.z && a.Maxs.z >= b.Mins.z;
 		}
 
 		/// <summary> Get a summary of the blackboard state (for console/debug). </summary>
