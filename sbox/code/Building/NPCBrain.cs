@@ -9,6 +9,7 @@ using Sandbox;
 
 namespace Lute.Building
 {
+	using Lute.NLP;
 	/// <summary>
 	/// LLM/NLP brain for building NPCs. Connects to a local LLM server
 	/// (LM Studio, Ollama, etc.) via OpenAI-compatible API. The LLM acts
@@ -613,6 +614,86 @@ Respond strictly with valid JSON matching this schema (no other text):
 			foreach ( var c in el.Children )
 				n += CountElements( c );
 			return n;
+		}
+
+		// ── NLP console commands ──
+
+		/// <summary>
+		/// Register an NPC for NLP conversation.
+		/// Usage: nlp_register "BuilderNPC_0" "builder"
+		/// </summary>
+		[ConCmd( "nlp_register" )]
+		public static void NlpRegisterCommand( string npcName, string role = "builder" )
+		{
+			var beliefs = new BeliefModel( npcName );
+			ConversationManager.Register( npcName, beliefs, role );
+		}
+
+		/// <summary>
+		/// Send a message from one NPC to another through the NLP pipeline.
+		/// Usage: nlp_say "BuilderNPC_0" "BuilderNPC_1" "I claim the north_site"
+		/// </summary>
+		[ConCmd( "nlp_say" )]
+		public static void NlpSayCommand( string from, string to, string text )
+		{
+			var response = ConversationManager.Send( from, to, text );
+
+			// Also process through BlackboardProtocol for CLAIM/RELEASE intents
+			var intent = NlpParser.Parse( text, sender: from, target: to );
+			BlackboardProtocol.ProcessIntent( intent );
+
+			if ( response != null )
+				Log.Info( $"[nlp_say] Response: \"{response}\"" );
+		}
+
+		/// <summary>
+		/// Broadcast a message from one NPC to all others.
+		/// Usage: nlp_broadcast "BuilderNPC_0" "I claim the north_site"
+		/// </summary>
+		[ConCmd( "nlp_broadcast" )]
+		public static void NlpBroadcastCommand( string from, string text )
+		{
+			ConversationManager.Broadcast( from, text );
+			var intent = NlpParser.Parse( text, sender: from );
+			BlackboardProtocol.ProcessIntent( intent );
+		}
+
+		/// <summary>
+		/// Show NLP conversation status — registered NPCs and their beliefs.
+		/// Usage: nlp_status
+		/// </summary>
+		[ConCmd( "nlp_status" )]
+		public static void NlpStatusCommand()
+		{
+			Log.Info( ConversationManager.Summary() );
+
+			foreach ( var name in ConversationManager.GetNpcNames() )
+			{
+				var beliefs = ConversationManager.GetBeliefs( name );
+				if ( beliefs != null )
+					Log.Info( beliefs.Summary() );
+			}
+		}
+
+		/// <summary>
+		/// Parse a text string and show the resulting intent (no sending).
+		/// Usage: nlp_parse "I need 50 stone for the wall"
+		/// </summary>
+		[ConCmd( "nlp_parse" )]
+		public static void NlpParseCommand( string text )
+		{
+			var intent = NlpParser.Parse( text );
+			Log.Info( $"[nlp_parse] \"{text}\"" );
+			Log.Info( $"  Type: {intent.Type}" );
+			Log.Info( $"  Topic: {intent.Topic}" );
+			Log.Info( $"  Subject: {intent.Subject}" );
+			Log.Info( $"  Confidence: {intent.Confidence:F2}" );
+			if ( intent.Parameters.Count > 0 )
+			{
+				Log.Info( "  Parameters:" );
+				foreach ( var kvp in intent.Parameters )
+					Log.Info( $"    {kvp.Key} = {kvp.Value}" );
+			}
 		}
 	}
 }
