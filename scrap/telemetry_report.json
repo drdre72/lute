@@ -1,7 +1,684 @@
 [
   {
-    "check": "hierarchy",
+    "check": "component_completeness",
     "passed": true,
-    "details": []
+    "details": [
+      {
+        "object": "Wall_0_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Wall_0_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Wall_1_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Wall_1_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Wall_2_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Wall_2_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Wall_3_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Wall_3_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Tower_0_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Tower_0_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Tower_1_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Tower_1_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Tower_2_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Tower_2_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Tower_3_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Tower_3_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateCeiling_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateJamb_0_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateJamb_0_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateLintel_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateCeiling_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateJamb_1_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateJamb_1_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateLintel_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateCeiling_2",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateJamb_2_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateJamb_2_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateLintel_2",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateCeiling_3",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateJamb_3_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateJamb_3_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateLintel_3",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Bridge_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Bridge_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Bridge_2",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Bridge_3",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_0_0_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_0_1_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_0_2_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_0_3_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_1_0_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_1_1_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_1_2_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_1_3_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_2_0_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_2_1_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_2_2_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_2_3_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_3_0_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_3_1_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_3_2_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_3_3_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Workbench_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Workbench_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Workbench_2",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Workbench_3",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Workbench_4",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Workbench_5",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Workbench_6",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Workbench_7",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "House_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "House_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "House_2",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "House_3",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "House_4",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "House_5",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "House_6",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "House_7",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "WellRim",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "PlazaFloor",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "InnerRingFloor_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "InnerRingFloor_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "InnerRingFloor_2",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "InnerRingFloor_3",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "MarketFoundation",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      }
+    ],
+    "failure_count": 0
   }
 ]

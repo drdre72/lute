@@ -217,10 +217,11 @@ public sealed class LuteMonumentBuilder : Component
 		// Stone rim — outer ring (hollow cylinder approximated as a short, wide box ring)
 		// Use a slightly squashed sphere for the rim base, then a water disc inside.
 		float rimSc = wellRadius / 32f;
-		CreatePrimitive( root, "WellRim", "models/dev/sphere.vmdl",
+		var rim = CreatePrimitive( root, "WellRim", "models/dev/sphere.vmdl",
 			new Vector3( 0, 0, plazaTopZ + rimH * 0.5f ), Rotation.Identity,
 			new Vector3( rimSc, rimSc, rimH / 64f ),
 			material: MatStoneDetail );
+		AddBoxCollider( rim, new Vector3( 50f, 50f, 50f ) );
 
 		// Water surface (dark disc at rim top)
 		float waterSc = (wellRadius - rimThick) / 32f;
@@ -522,12 +523,13 @@ public sealed class LuteMonumentBuilder : Component
 			var rot = new Angles( 0, EdgeYaw( side ), 0 );
 
 			// Ceiling (murder hole slab above the gate tunnel)
-			CreatePrimitive( root, $"GateCeiling_{side}",
+			var ceiling = CreatePrimitive( root, $"GateCeiling_{side}",
 				"models/dev/box.vmdl",
 				pos + new Vector3( 0, 0, ceilingH + ceilingThickness * 0.5f ),
 				rot,
 				new Vector3( gateGap / 50f, gateHouseDepth / 50f, ceilingThickness / 50f ),
 				material: MatStoneWall );
+			AddBoxCollider( ceiling, new Vector3( 50f, 50f, 50f ) );
 
 			// Gate frame — 2 vertical jambs + a lintel across the top of the opening
 			float jambW = 0.8f * M;
@@ -548,18 +550,20 @@ public sealed class LuteMonumentBuilder : Component
 			};
 			for ( int j = 0; j < 2; j++ )
 			{
-				CreatePrimitive( root, $"GateJamb_{side}_{j}",
+				var jamb = CreatePrimitive( root, $"GateJamb_{side}_{j}",
 					"models/dev/box.vmdl",
 					pos + jambOffsets[j], rot,
 					new Vector3( jambW / 50f, jambW / 50f, jambH / 50f ),
 					material: MatStoneWall );
+				AddBoxCollider( jamb, new Vector3( 50f, 50f, 50f ) );
 			}
 			// Lintel
-			CreatePrimitive( root, $"GateLintel_{side}",
+			var lintel = CreatePrimitive( root, $"GateLintel_{side}",
 				"models/dev/box.vmdl",
 				pos + new Vector3( 0, 0, ceilingH + lintelH * 0.5f ), rot,
 				new Vector3( (gateGap + jambW * 2f) / 50f, jambW / 50f, lintelH / 50f ),
 				material: MatStoneWall );
+			AddBoxCollider( lintel, new Vector3( 50f, 50f, 50f ) );
 
 			// Portcullis — a grid of vertical and horizontal metal bars filling the upper half of the gate
 			float barW = 0.2f * M;
