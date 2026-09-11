@@ -475,5 +475,43 @@ Respond strictly with valid JSON matching this schema (no other text):
 			// Validate the imported blueprint
 			BlueprintValidator.ValidateAndLog( bp, "imported" );
 		}
+
+		/// <summary>
+		/// Console command to generate and export a monument blueprint.
+		/// Usage: monument_export "StPetersBasilica"
+		/// </summary>
+		[ConCmd( "monument_export" )]
+		public static void MonumentExportCommand( string monumentName )
+		{
+			MonumentMassing massing = null;
+
+			switch ( monumentName.ToLowerInvariant() )
+			{
+				case "stpeters" or "stpetersbasilica":
+					massing = MonumentBlueprintProducer.StPetersBasilica( Vector3.Zero );
+					break;
+				default:
+					Log.Warning( $"[monument_export] Unknown monument '{monumentName}'. Available: StPetersBasilica" );
+					return;
+			}
+
+			var bp = MonumentBlueprintProducer.Generate( massing );
+
+			// Validate
+			BlueprintValidator.ValidateAndLog( bp, massing.Name );
+
+			// Save to file
+			string filename = $"blueprints/monument_{massing.Name}.json";
+			bp.SaveToFile( filename );
+
+			// Log volume breakdown
+			Log.Info( $"[monument_export] Monument: {massing.Name}, volumes: {massing.Volumes.Count}, total pieces: {bp.PieceCount}" );
+			foreach ( var vol in massing.Volumes )
+			{
+				var volPieces = bp.Pieces.Count( p => true ); // total; per-volume count would need tagging
+				Log.Info( $"  {vol.Name}: {vol.WidthCells}x{vol.DepthCells}x{vol.Stories} ({vol.Type}, {vol.RoofType})" );
+			}
+			Log.Info( $"[monument_export] Saved to {filename}." );
+		}
 	}
 }
