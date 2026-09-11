@@ -87,6 +87,7 @@ namespace Lute.Building
 		private int _totalPiecesPlaced;
 		private int _totalPiecesAll;
 		private GameObject _villageRoot;
+		private bool _reconstructMode; // when true, skip delays and place all pieces instantly
 
 		protected override void OnStart()
 		{
@@ -116,6 +117,15 @@ namespace Lute.Building
 					int completed = Tasks.Count( t => t.Status == 2 );
 					int inProgress = Tasks.Count( t => t.Status == 1 );
 					Log.Info( $"Lute: VillageBuilder loaded save — {completed}/{Tasks.Count} tasks complete, {inProgress} in progress, elapsed={ElapsedTime/60:F1} min." );
+
+					// Reconstruct geometry for completed tasks instantly (no delay).
+					// Runtime-spawned objects don't survive scene reload, so we must
+					// re-place all pieces for tasks already marked complete.
+					if ( completed > 0 )
+					{
+						ReconstructCompletedTasks();
+						Log.Info( $"Lute: VillageBuilder reconstructed geometry for {completed} completed tasks." );
+					}
 				}
 			}
 			else if ( FreshBuild )
@@ -208,6 +218,35 @@ namespace Lute.Building
 			}
 		}
 
+		/// <summary>
+		/// Reconstruct geometry for all completed tasks instantly (no delay).
+		/// Called after loading a save — runtime-spawned objects don't survive
+		/// scene reload, so we must re-place all pieces for tasks marked complete.
+		/// </summary>
+		void ReconstructCompletedTasks()
+		{
+			_reconstructMode = true;
+			var dummyToken = CancellationToken.None;
+			foreach ( var task in Tasks )
+			{
+				if ( task.Status != 2 )
+					continue;
+
+				// Set CurrentTask so SpawnBox names pieces correctly
+				CurrentTask = task;
+				CurrentTaskIndex = -1; // not in the build loop
+
+				// Temporarily set PiecesPlaced to 0 so the build methods re-place all pieces,
+				// then restore it after.
+				int savedPiecesPlaced = task.PiecesPlaced;
+				task.PiecesPlaced = 0;
+				_ = BuildTask( task, dummyToken );
+				task.PiecesPlaced = savedPiecesPlaced;
+			}
+			CurrentTask = null;
+			_reconstructMode = false;
+		}
+
 		async Task BuildTask( VillageBuildTask task, CancellationToken token )
 		{
 			switch ( task.TaskType )
@@ -256,7 +295,8 @@ namespace Lute.Building
 				}
 
 				ElapsedTime += BuildInterval;
-				await Task.DelaySeconds( BuildInterval );
+				if ( !_reconstructMode )
+					await Task.DelaySeconds( BuildInterval );
 				MaybeSave();
 			}
 		}
@@ -304,7 +344,8 @@ namespace Lute.Building
 				}
 
 				ElapsedTime += BuildInterval;
-				await Task.DelaySeconds( BuildInterval );
+				if ( !_reconstructMode )
+					await Task.DelaySeconds( BuildInterval );
 				MaybeSave();
 			}
 		}
@@ -333,7 +374,8 @@ namespace Lute.Building
 				}
 
 				ElapsedTime += BuildInterval;
-				await Task.DelaySeconds( BuildInterval );
+				if ( !_reconstructMode )
+					await Task.DelaySeconds( BuildInterval );
 				MaybeSave();
 			}
 		}
@@ -373,7 +415,8 @@ namespace Lute.Building
 				}
 
 				ElapsedTime += BuildInterval;
-				await Task.DelaySeconds( BuildInterval );
+				if ( !_reconstructMode )
+					await Task.DelaySeconds( BuildInterval );
 				MaybeSave();
 			}
 		}
@@ -401,7 +444,8 @@ namespace Lute.Building
 				}
 
 				ElapsedTime += BuildInterval;
-				await Task.DelaySeconds( BuildInterval );
+				if ( !_reconstructMode )
+					await Task.DelaySeconds( BuildInterval );
 				MaybeSave();
 			}
 		}
@@ -493,7 +537,8 @@ namespace Lute.Building
 				}
 
 				ElapsedTime += BuildInterval;
-				await Task.DelaySeconds( BuildInterval );
+				if ( !_reconstructMode )
+					await Task.DelaySeconds( BuildInterval );
 				MaybeSave();
 			}
 		}
