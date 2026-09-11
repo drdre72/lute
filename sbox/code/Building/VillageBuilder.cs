@@ -67,6 +67,12 @@ namespace Lute.Building
 		/// <summary> The task currently being built (or null if idle). </summary>
 		public VillageBuildTask CurrentTask { get; private set; }
 
+		/// <summary>
+		/// Index into <see cref="Tasks"/> of the current task, or -1 if none.
+		/// Used by the controller for index-based (not name-based) task tracking.
+		/// </summary>
+		public int CurrentTaskIndex { get; private set; } = -1;
+
 		/// <summary> All tasks in the village (sorted by priority). </summary>
 		public List<VillageBuildTask> Tasks { get; private set; } = new();
 
@@ -165,14 +171,16 @@ namespace Lute.Building
 		{
 			try
 			{
-				foreach ( var task in Tasks )
+				for ( int idx = 0; idx < Tasks.Count; idx++ )
 				{
+					var task = Tasks[idx];
 					token.ThrowIfCancellationRequested();
 
 					if ( task.Status == 2 )
 						continue; // already complete — skip
 
 					CurrentTask = task;
+					CurrentTaskIndex = idx;
 					task.Status = 1; // in progress
 
 					Log.Info( $"Lute: VillageBuilder starting task '{task.Name}' ({task.TaskType}) at {task.Position}." );
@@ -188,6 +196,7 @@ namespace Lute.Building
 				}
 
 				CurrentTask = null;
+				CurrentTaskIndex = -1;
 				IsComplete = true;
 				Log.Info( $"Lute: VillageBuilder FINISHED — all {Tasks.Count} tasks complete. Total pieces: {_totalPiecesPlaced}. Time: {ElapsedTime/3600:F1} hours." );
 				DoSave();
@@ -397,30 +406,42 @@ namespace Lute.Building
 			}
 		}
 
-		// ── Building: use BuildingGrammar for layout, place pieces ──
+		// ── Building: use StyleGrammar (if style set) or BuildingGrammar, place pieces ──
 		async Task BuildBuilding( VillageBuildTask task, CancellationToken token )
 		{
 			var rng = task.LayoutSeed > 0 ? new Random( task.LayoutSeed ) : new Random();
-			var grammar = new BuildingGrammar( rng );
-			var layout = grammar.GenerateLayout( task.BaseWidth, task.BaseHeight, task.WealthFactor );
 
-			// Convert layout to ordered piece list
-			var pieceList = new List<(Vector2Int pos, string type)>();
-			foreach ( var kvp in layout )
-				pieceList.Add( (kvp.Key, kvp.Value) );
+			// Generate the blueprint: StyleGrammar if a style is assigned, plain BuildingGrammar otherwise
+			Blueprint bp;
+			if ( task.Style is not null )
+			{
+				var styleGrammar = new StyleGrammar( task.Style, rng );
+				bp = styleGrammar.Generate( task.Position, task.Rotation,
+					task.BaseWidth, task.BaseHeight, task.WealthFactor,
+					CellSize, WallHeight, FloorThickness );
+				Log.Info( $"Lute: VillageBuilder generating '{task.Name}' with style '{task.Style.Name}' — {bp.PieceCount} pieces." );
+			}
+			else
+			{
+				var grammar = new BuildingGrammar( rng );
+				var layout = grammar.GenerateLayout( task.BaseWidth, task.BaseHeight, task.WealthFactor );
+				bp = Blueprint.FromGridLayout( layout, task.Position, task.Rotation,
+					CellSize, WallHeight, FloorThickness,
+					BuildingWallMaterial, BuildingFloorMaterial );
+			}
 
-			task.TotalPieces = pieceList.Count;
+			task.TotalPieces = bp.Pieces.Count;
 
-			for ( int i = 0; i < pieceList.Count; i++ )
+			for ( int i = 0; i < bp.Pieces.Count; i++ )
 			{
 				token.ThrowIfCancellationRequested();
 
 				if ( i >= task.PiecesPlaced )
 				{
-					var (gridPos, pieceType) = pieceList[i];
-					var pos = task.Position + new Vector3( gridPos.X * CellSize, gridPos.Y * CellSize, 0 );
+					var piece = bp.Pieces[i];
+					var pos = task.Position + piece.Position;
 
-					// Apply rotation around task position
+					// Apply structure rotation around task position
 					if ( task.Rotation != 0 )
 					{
 						var offset = pos - task.Position;
@@ -436,22 +457,32 @@ namespace Lute.Building
 					string materialPath;
 					bool collides;
 
-					switch ( pieceType )
+					switch ( piece.PieceType )
 					{
 						case "WALL":
 							size = new Vector3( CellSize, CellSize, WallHeight );
-							materialPath = BuildingWallMaterial;
+							materialPath = piece.Material ?? BuildingWallMaterial;
 							collides = true;
 							break;
 						case "DOOR":
 							size = new Vector3( CellSize, CellSize, FloorThickness * 2f );
-							materialPath = BuildingWallMaterial;
+							materialPath = piece.Material ?? BuildingWallMaterial;
+							collides = true;
+							break;
+						case "ROOF":
+							size = new Vector3( CellSize, CellSize, FloorThickness );
+							materialPath = piece.Material ?? BuildingFloorMaterial;
+							collides = false;
+							break;
+						case "COLUMN":
+							size = piece.Size.Length > 0 ? piece.Size : new Vector3( CellSize * 0.3f, CellSize * 0.3f, WallHeight );
+							materialPath = piece.Material ?? BuildingWallMaterial;
 							collides = true;
 							break;
 						case "FLOOR":
 						default:
 							size = new Vector3( CellSize, CellSize, FloorThickness );
-							materialPath = BuildingFloorMaterial;
+							materialPath = piece.Material ?? BuildingFloorMaterial;
 							collides = false;
 							break;
 					}

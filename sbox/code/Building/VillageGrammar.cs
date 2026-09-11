@@ -39,6 +39,13 @@ namespace Lute.Building
 		public int LayoutSeed = 0;
 
 		/// <summary>
+		/// Architectural style for this building. If null, uses plain
+		/// BuildingGrammar (no style constraints). If set, uses StyleGrammar
+		/// for period-coherent exterior (symmetry, roof, colonnade, windows).
+		/// </summary>
+		public ArchitecturalStyle Style;
+
+		/// <summary>
 		/// Build priority. Lower = built first. Infrastructure (walls,
 		/// roads, well) has priority 0, buildings have priority 10+.
 		/// </summary>
@@ -320,6 +327,7 @@ namespace Lute.Building
 				Priority = 10, WealthFactor = 2.0f,
 				BaseWidth = 5, BaseHeight = 5,
 				LayoutSeed = seed++,
+				Style = ArchitecturalStyle.Vernacular,
 			} );
 
 			tasks.Add( new VillageBuildTask
@@ -329,6 +337,7 @@ namespace Lute.Building
 				Priority = 10, WealthFactor = 2.5f,
 				BaseWidth = 6, BaseHeight = 5,
 				LayoutSeed = seed++,
+				Style = ArchitecturalStyle.Vernacular,
 			} );
 
 			tasks.Add( new VillageBuildTask
@@ -338,6 +347,7 @@ namespace Lute.Building
 				Priority = 10, WealthFactor = 3.0f,
 				BaseWidth = 5, BaseHeight = 7,
 				LayoutSeed = seed++,
+				Style = ArchitecturalStyle.Gothic,
 			} );
 
 			// Generate cottages and shops along roads
@@ -371,6 +381,7 @@ namespace Lute.Building
 						BaseWidth = 4,
 						BaseHeight = 4,
 						LayoutSeed = seed++,
+						Style = ArchitecturalStyle.Vernacular,
 					} );
 					buildingIndex++;
 				}
@@ -395,6 +406,7 @@ namespace Lute.Building
 						BaseWidth = 4,
 						BaseHeight = 4,
 						LayoutSeed = seed++,
+						Style = ArchitecturalStyle.Vernacular,
 					} );
 					buildingIndex++;
 				}
@@ -423,6 +435,7 @@ namespace Lute.Building
 						BaseWidth = 4,
 						BaseHeight = 4,
 						LayoutSeed = seed++,
+						Style = ArchitecturalStyle.Vernacular,
 					} );
 					buildingIndex++;
 
@@ -437,6 +450,7 @@ namespace Lute.Building
 						BaseWidth = 4,
 						BaseHeight = 4,
 						LayoutSeed = seed++,
+						Style = ArchitecturalStyle.Vernacular,
 					} );
 					buildingIndex++;
 				}

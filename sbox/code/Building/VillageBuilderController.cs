@@ -48,7 +48,7 @@ namespace Lute.Building
 		private float _stateTimer;
 		private float _logTimer;
 		private Vector3 _currentTarget;
-		private string _buildingTaskName; // tracks which task we're standing at
+		private int _buildingTaskIndex = -1; // tracks which task index we're standing at
 
 		protected override void OnStart()
 		{
@@ -147,7 +147,7 @@ namespace Lute.Building
 				// Arrived at site — start building
 				State = NpcState.Building;
 				_stateTimer = 0;
-				_buildingTaskName = Builder.CurrentTask.Name;
+				_buildingTaskIndex = Builder.CurrentTaskIndex;
 				Controller.WishVelocity = Vector3.Zero;
 				Log.Info( $"Lute: VillageBuilderController arrived at '{Builder.CurrentTask.Name}'. Building." );
 				return;
@@ -177,14 +177,15 @@ namespace Lute.Building
 			// Detect if the builder has moved on to a new task (race condition fix):
 			// The VillageBuilder completes a task and immediately starts the next one,
 			// so CurrentTask changes before we ever see Status==2. We track the task
-			// name we arrived at — if it's different from CurrentTask, the builder
-			// finished our task and moved on, so we walk to the new site.
-			if ( _buildingTaskName is not null && Builder.CurrentTask.Name != _buildingTaskName )
+			// index we arrived at — if it's different from CurrentTaskIndex, the builder
+			// finished our task and moved on, so we walk to the new site. Index-based
+			// comparison avoids fragility from duplicate task names.
+			if ( _buildingTaskIndex >= 0 && Builder.CurrentTaskIndex != _buildingTaskIndex )
 			{
 				State = NpcState.WalkingToNextSite;
 				_stateTimer = 0;
 				Controller.WishVelocity = Vector3.Zero;
-				Log.Info( $"Lute: VillageBuilderController task '{_buildingTaskName}' done (builder moved to '{Builder.CurrentTask.Name}'). Walking to next site." );
+				Log.Info( $"Lute: VillageBuilderController task #{_buildingTaskIndex} done (builder moved to #{Builder.CurrentTaskIndex}). Walking to next site." );
 				return;
 			}
 
