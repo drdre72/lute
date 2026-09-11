@@ -12,7 +12,7 @@ Usage:
 """
 import argparse, os, sys, time
 
-from vision_lib import VisionLib, vantage, save_img, ask_vision, pixel_check, SCRAP
+from vision_lib import VisionLib, vantage, save_img, ask_vision, pixel_check, _safe_print, SCRAP
 
 def main():
     parser = argparse.ArgumentParser(description='S&Box vision via Merlyn Eyes or Player camera')
@@ -46,7 +46,7 @@ def main():
             img_bytes = f.read()
         print(f'Asking vision about {img_path}...')
         answer = ask_vision(img_bytes, args.ask)
-        print(f'\n--- VISION ---\n{answer}\n')
+        _safe_print(f'\n--- VISION ---\n{answer}')
         return
 
     if args.orbit:
@@ -72,7 +72,7 @@ def main():
                     print(f'  [flash triggered: was {stats["dark_pct"]:.0%} dark]')
             print(f'\n=== Angle {yaw} === ({len(img)} bytes -> {path})')
             answer = ask_vision(img, args.ask)
-            print(answer)
+            _safe_print(answer)
         return
 
     if args.look:
@@ -97,7 +97,7 @@ def main():
             if args.flash and stats['dark_pct'] > args.flash_threshold:
                 print(f'  [flash was triggered for this dark scene]')
         answer = ask_vision(img, args.ask)
-        print(f'\n--- VISION ---\n{answer}\n')
+        _safe_print(f'\n--- VISION ---\n{answer}')
         return
 
     print('Use --look, --orbit, or --file')

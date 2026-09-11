@@ -18,7 +18,7 @@ import json, urllib.request, base64, os, sys, math, re, time, io
 
 MCP = 'http://127.0.0.1:7269/mcp'
 VISION = 'http://127.0.0.1:1234/v1/chat/completions'
-MODEL = 'moondream-2b-2025-04-14'
+MODEL = 'qwen3-vl-4b-instruct'
 SCRAP = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'scrap')
 
 
@@ -95,6 +95,14 @@ def ask_vision(img_bytes, question, model=MODEL):
         return result['choices'][0]['message']['content']
     except Exception as e:
         return f'[VISION ERROR: {e}]'
+
+
+def _safe_print(text):
+    """Print text safely on Windows (replace non-CP1252 chars)."""
+    try:
+        print(text)
+    except UnicodeEncodeError:
+        print(text.encode('ascii', 'replace').decode('ascii'))
 
 
 def pixel_check(img_bytes):
