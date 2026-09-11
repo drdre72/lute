@@ -52,6 +52,10 @@ namespace Lute.Building
 		private CancellationTokenSource _cts;
 		private readonly List<GameObject> _pieces = new();
 
+		// Layout extents captured in OnStart so the footprint collider can
+		// be sized from them after the build completes.
+		private int _minX, _maxX, _minY, _maxY;
+
 		/// <summary> Pieces placed so far (read-only view for diagnostics). </summary>
 		public IReadOnlyList<GameObject> Pieces => _pieces;
 
@@ -89,6 +93,7 @@ namespace Lute.Building
 				if ( kvp.Key.Y < minY ) minY = kvp.Key.Y;
 				if ( kvp.Key.Y > maxY ) maxY = kvp.Key.Y;
 			}
+			_minX = minX; _maxX = maxX; _minY = minY; _maxY = maxY;
 			var centerCell = new Vector2Int( (minX + maxX) / 2, (minY + maxY) / 2 );
 			BuildSiteCenter = WorldPosition
 				+ new Vector3( centerCell.X * CellSize, centerCell.Y * CellSize, 0f );
@@ -133,6 +138,7 @@ namespace Lute.Building
 
 				Log.Info( $"Lute: NPCBuilder '{GameObject.Name}' finished — {_pieces.Count} pieces placed." );
 				IsComplete = true;
+				SpawnFootprintCollider();
 			}
 			catch ( OperationCanceledException )
 			{
@@ -177,21 +183,25 @@ namespace Lute.Building
 					break;
 			}
 
-			BuildBoxMesh( go, size, materialPath );
+			BuildBoxMesh( go, size, materialPath, collides: pieceType != "FLOOR" );
 			go.Enabled = true;
 
 			_pieces.Add( go );
 		}
 
 		/// <summary>
-		/// Build a box PolygonMesh on a MeshComponent (render + collision in
-		/// one component). Mirrors the verified pattern from
-		/// <see cref="LuteBuilderNpc.PlaceBlock"/>.
+		/// Build a box PolygonMesh on a MeshComponent. Mirrors the verified
+		/// pattern from <see cref="LuteBuilderNpc.PlaceBlock"/>. When
+		/// <paramref name="collides"/> is false the piece is render-only —
+		/// used for floor tiles, which get a single shared footprint collider
+		/// instead of one collider per tile.
 		/// </summary>
-		void BuildBoxMesh( GameObject go, Vector3 size, string materialPath )
+		void BuildBoxMesh( GameObject go, Vector3 size, string materialPath, bool collides = true )
 		{
 			var meshComp = go.AddComponent<MeshComponent>();
-			meshComp.Collision = MeshComponent.CollisionType.Mesh;
+			meshComp.Collision = collides
+				? MeshComponent.CollisionType.Mesh
+				: MeshComponent.CollisionType.None;
 
 			var mesh = new PolygonMesh();
 			var half = size * 0.5f;
@@ -235,6 +245,39 @@ namespace Lute.Building
 			}
 
 			meshComp.Mesh = mesh;
+		}
+
+		/// <summary>
+		/// Spawn a single BoxCollider spanning the structure's footprint so
+		/// the NPC (and player) can stand on the floor without one collider
+		/// per floor tile. Sized from the layout extents captured in OnStart.
+		/// The box is centered on the footprint, top at z=0 (matching where
+		/// floor tiles sit), and thin enough not to obstruct doorways.
+		/// </summary>
+		void SpawnFootprintCollider()
+		{
+			float spanX = (_maxX - _minX + 1) * CellSize;
+			float spanY = (_maxY - _minY + 1) * CellSize;
+			// Center of the footprint in world space.
+			var centerCell = new Vector2Int( (_minX + _maxX) / 2, (_minY + _maxY) / 2 );
+			var center = WorldPosition
+				+ new Vector3( centerCell.X * CellSize, centerCell.Y * CellSize, 0f );
+			// Top at z=0 (floor surface), thickness = FloorThickness so it
+			// matches the floor tiles visually without sticking up.
+			float z = -FloorThickness * 0.5f;
+
+			var go = Scene.CreateObject( false );
+			go.Name = $"{GameObject.Name}_FloorCollider";
+			go.WorldPosition = center.WithZ( center.z + z );
+			go.WorldRotation = Rotation.Identity;
+
+			var box = go.AddComponent<BoxCollider>();
+			box.Scale = new Vector3( spanX, spanY, FloorThickness );
+
+			go.Enabled = true;
+			_pieces.Add( go );
+
+			Log.Info( $"Lute: NPCBuilder '{GameObject.Name}' footprint collider {spanX:F0}x{spanY:F0}x{FloorThickness:F0} at {go.WorldPosition}." );
 		}
 
 		/// <summary>
