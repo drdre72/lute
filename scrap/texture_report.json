@@ -1,12 +1,48 @@
 [
   {
+    "viewpoint": "aerial_overview",
+    "scale": "macro",
+    "verdict": "discrepancy",
+    "discrepancies": [
+      "missing",
+      "not concentric"
+    ],
+    "vlm_response": "The image shows a top-down view of a medieval-style walled settlement from an observer\u2019s perspective \u2014 likely a character with reddish-brown hair and a green shirt, reaching toward the scene.\n\nAnalysis:\n\n- Central plaza: Yes, visible as the open, paved area in the center, surrounded by buildings. It appears to be a grid or patterned stone surface.\n- Inner ring of buildings: Present \u2014 structures are arranged around the central plaza, forming an inner ring. These appear to be small, blocky buildings consistent with medieval architecture (e.g., towers, shops).\n- Outer curtain wall (square): Yes \u2014 a distinct square-shaped wall encloses the entire settlement. The wall is dark blue or black in the image and appears to form a clear boundary.\n- Moat surrounding the walls: Not visible. There is no discernible waterway or moat between the outer wall and the surrounding area. The space outside the wall is light gray (stone), not water.\n\nLight gray surfaces are stone \u2014 correct, as they appear to be paved ground/stone, not snow.\n\nLayout concentric square rings:\n\n- The settlement appears to have a central plaza \u2192 inner ring of buildings \u2192 outer curtain wall.\n- However, there is no moat between the outer wall and the surrounding area. Thus, the \u201couter curtain wall\u201d does not enclose a moat \u2014 it\u2019s directly adjacent to an open stone surface.\n\nConclusion:\n\u2705 Central plaza: Present  \n\u2705 Inner ring of buildings: Present  \n\u2705 Outer curtain wall (square): Present  \n\u274c Moat: Missing \u2014 no waterway is visible between outer wall and surrounding area.  \n\u2705 Light gray surfaces are stone \u2014 correct interpretation.  \n\u26a0\ufe0f Layout: Not concentric square rings with a moat \u2014 the outer wall lacks an encircling moat, so it does not conform to the described \u201cconcentric square rings\u201d model (which implies moat + outer wall).\n\nTherefore:\n\n**Major missing section**: The mo",
+    "notes": "missing, not concentric",
+    "image": "C:\\Users\\Shadow\\Documents\\lute\\agent\\..\\scrap\\macro_aerial_overview.png"
+  },
+  {
+    "viewpoint": "south_gate_approach",
+    "scale": "macro",
+    "verdict": "discrepancy",
+    "discrepancies": [
+      "missing",
+      "misplaced"
+    ],
+    "vlm_response": "Based on the image provided:\n\n- **Bridge crossing the moat**: The bridge is present \u2014 it spans the dark blue moat area between the viewer\u2019s position and the main structure ahead.\n  \n- **Two flanking watchtowers**: There are no visible watchtowers flanking the gate. Only a single stone tower with a barred window is visible on the left side, near the entrance. The other flank (right) appears to be open or lacks any tower-like structure.\n\n- **Main gate entrance in the curtain wall**: The main gate entrance is visible \u2014 it\u2019s an arched opening with black bars, set into the curtain wall and flanked by stone pillars. It appears functional and accessible.\n\n**Conclusion:**\n\n\u2705 Bridge crossing the moat \u2014 present  \n\u274c Two flanking watchtowers \u2014 only one tower visible (possibly missing or misplaced on the other side)  \n\u2705 Main gate entrance \u2014 present and unobstructed\n\nThe structure is not fully symmetrical as expected for a medieval market gate, but the essential elements are mostly in place. The absence of two towers may be an oversight or intentional design choice.\n\n**Final report:**\n\n- Bridge: \u2705 Present  \n- Watchtowers: \u274c Only one visible; second tower missing or misplaced  \n- Gate entrance: \u2705 Present and accessible\n\nYou can see the gate, but not both watchtowers.",
+    "notes": "missing, misplaced",
+    "image": "C:\\Users\\Shadow\\Documents\\lute\\agent\\..\\scrap\\macro_south_gate_approach.png"
+  },
+  {
+    "viewpoint": "plaza_interior",
+    "scale": "macro",
+    "verdict": "discrepancy",
+    "discrepancies": [
+      "missing",
+      "absent"
+    ],
+    "vlm_response": "No, you cannot verify that all required elements are present.\n\n- Market stalls with awnings: Not visible. There are no discernible stalls or awnings in the image.\n- Central well/fountain: Absent. There is no central water feature or fountain.\n- NPC housing buildings in the inner ring: Not visible. No structures resembling residential or NPC housing appear in the inner ring.\n- Plaza floor: Present \u2014 the light gray stone flagstone is clearly visible, and it\u2019s not snow or ice.\n\nAdditionally:\n- No objects are floating (all items appear grounded).\n- No objects are buried (everything is on the surface).\n- The well/fountain is missing as stated above.\n\nTherefore, while the plaza floor is present and correctly identified as stone flagstone, the other required elements \u2014 stalls, awnings, central well/fountain, and NPC housing buildings \u2014 are not visible in the image.",
+    "notes": "missing, absent",
+    "image": "C:\\Users\\Shadow\\Documents\\lute\\agent\\..\\scrap\\macro_plaza_interior.png"
+  },
+  {
     "viewpoint": "wall_north",
     "surface": "stone_wall",
     "verdict": "appropriate",
     "size": "45x20",
     "ratio_u": 1.5,
     "ratio_v": 0.8,
-    "notes": "Blocks appear slightly wider and shorter than target scale but still within reasonable range for a medieval texture.",
+    "notes": "Blocks appear slightly wider and shorter than target scale, but still within reasonable range for a stone wall texture.",
     "image": "C:\\Users\\Shadow\\Documents\\lute\\agent\\..\\scrap\\tex_wall_north.png"
   }
 ]

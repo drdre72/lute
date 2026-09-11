@@ -2,15 +2,22 @@
 Texture inspection loop — systematically checks each market surface
 against a medieval brick/stone rubric using Qwen vision.
 
+Two inspection scales:
+  - Macro: aerial / wide overview to verify overall layout, ring alignment,
+    moat, and major structural placement.
+  - Micro: close-up surface inspection for texture scale rubric checks.
+
 Drives Merlyn to representative viewpoints around the market perimeter,
 captures screenshots, asks Qwen to estimate texture scale, compares
 against a rubric, optionally auto-fixes material tiling, then re-inspects.
+Also checks for structural discrepancy keywords (floating, missing, etc.).
 
 Usage:
     python agent/texture_inspect.py              # inspect all surfaces, report
     python agent/texture_inspect.py --fix        # inspect + auto-fix tiling, reinspect
     python agent/texture_inspect.py --max-iter 3  # limit fix iterations
     python agent/texture_inspect.py --only wall   # only inspect surfaces matching "wall"
+    python agent/texture_inspect.py --no-macro    # skip macro overview pass
 """
 import sys, os, json, time, re, argparse
 
@@ -115,14 +122,81 @@ VIEWPOINTS = [
     ("merlon_n", CX, CY + WALL_HALF, FOUND_TOP + WALL_H + 50, 1500, 100, 0, "stone_detail"),
 ]
 
+# ── Macro viewpoints: aerial / wide overview for layout verification ──
+# These don't check texture scale — they check structural integrity.
+# Each has a free-text prompt and a set of discrepancy keywords to scan for.
+# Note: vantage() computes pitch from height/distance ratio. For a steep
+# top-down view, height must be much larger than distance.
+MACRO_VIEWPOINTS = [
+    {
+        "name": "aerial_overview",
+        # High above market center, looking down at steep angle.
+        # Large distance keeps Merlyn's body small in frame.
+        "target": (CX, CY, 0),
+        "distance": 4000,   # 102m horizontal
+        "height": 8000,    # 203m up — steep downward angle
+        "yaw": 0,
+        "prompt": (
+            "You are looking down at a medieval marketplace from above. "
+            "Verify you can see: a central plaza, an inner ring of buildings, "
+            "an outer curtain wall (square), and a moat surrounding the walls. "
+            "Report if any major section is missing, rotated, displaced, or "
+            "if the overall layout is not concentric square rings. "
+            "Light gray surfaces are stone, not snow."
+        ),
+        "discrepancy_keywords": ["missing", "rotated", "displaced", "not concentric", "gap"],
+    },
+    {
+        "name": "south_gate_approach",
+        # Outside the moat, looking north toward the south gate
+        "target": (CX, CY - MOAT_HALF, FOUND_TOP),
+        "distance": 1500,   # 38m from gate
+        "height": 300,      # 7.6m up — eye-level approach
+        "yaw": 0,
+        "prompt": (
+            "You are approaching the south gate of a medieval market from outside. "
+            "Verify you can see: a bridge crossing the moat, two flanking watchtowers, "
+            "and the main gate entrance in the curtain wall. "
+            "Report if the bridge is missing, towers are floating or misplaced, "
+            "or the gate entrance is blocked or absent."
+        ),
+        "discrepancy_keywords": ["missing", "floating", "misplaced", "blocked", "absent"],
+    },
+    {
+        "name": "plaza_interior",
+        # Elevated inside the market, looking down at the plaza
+        "target": (CX, CY, FOUND_TOP + 200),
+        "distance": 3000,   # 76m — keeps plaza in frame, Merlyn small
+        "height": 4000,    # 102m up — elevated overview
+        "yaw": 0,
+        "prompt": (
+            "You are looking down at the interior of a medieval market plaza from an elevated angle. "
+            "Verify you can see: market stalls with awnings, a central well/fountain, "
+            "NPC housing buildings in the inner ring, and the plaza floor. "
+            "Report if any objects are floating, buried, missing, or if the well is absent. "
+            "Light gray ground is stone flagstone, not snow or ice."
+        ),
+        "discrepancy_keywords": ["floating", "buried", "missing", "absent", "snow", "ice"],
+    },
+]
+
 
 def make_prompt(rubric, surface_name, distance_units):
-    """Build a structured Qwen prompt for texture scale assessment."""
+    """Build a structured Qwen prompt for texture scale assessment.
+    Includes anti-hallucination conditioning: explicit negative cues to
+    prevent common VLM misreads (snow/ice on light stone, etc.)."""
     dist_m = distance_units / M
+    # Anti-hallucination cues based on material type
+    skey = rubric.get("desc", "")
+    anti_halluc = ""
+    if "stone" in skey.lower() or "plaza" in skey.lower() or "foundation" in skey.lower():
+        anti_halluc = " Light gray surfaces are stone, not snow or ice."
+    if "wood" in skey.lower():
+        anti_halluc = " Brown surfaces are wood planks, not dirt or soil."
     return (
         f"You are inspecting a medieval market surface: {rubric['desc']}.\n"
         f"The camera is approximately {dist_m:.0f} meters from the surface.\n"
-        f"Target texture scale: {rubric['target']}.\n\n"
+        f"Target texture scale: {rubric['target']}.{anti_halluc}\n\n"
         f"Look at the stone/brick/wood texture on the main surface in this image. "
         f"Estimate the apparent physical size of individual blocks/tiles/planks in centimeters. "
         f"Compare to the target scale.\n\n"
@@ -301,11 +375,84 @@ def inspect_one(vl, vp, rubric):
     return verdict, path
 
 
+def inspect_macro(vl, wp):
+    """Run a macro (overview) inspection pass. Returns a report entry.
+    Unlike micro passes, this doesn't check texture scale — it checks
+    structural integrity by scanning Qwen's free-text response for
+    discrepancy keywords (floating, missing, displaced, etc.)."""
+    name = wp["name"]
+    tx, ty, tz = wp["target"]
+    dist = wp["distance"]
+    hoff = wp["height"]
+    yaw = wp["yaw"]
+    prompt = wp["prompt"]
+    keywords = wp.get("discrepancy_keywords", [])
+
+    pos, angles = vantage(tx, ty, tz, dist, hoff, yaw)
+    print(f"\n--- MACRO: {name} ---")
+    print(f"  Target: ({tx:.0f},{ty:.0f},{tz:.0f})  dist={dist/M:.0f}m  yaw={yaw}")
+
+    # Use Merlyn for macro views. Player camera shows the editor viewport,
+    # not the game. Merlyn's over-the-shoulder camera shows his body at
+    # close range, so macro viewpoints use large height-to-distance ratios
+    # for steep downward angles (body drops below frame).
+    vl.teleport(pos, angles=angles, via="merlyn")
+    img = vl.capture(via="merlyn", flash=True, flash_threshold=0.40,
+                     flash_radius=3000, flash_pos=(tx, ty, tz))
+    if not img:
+        print("  CAPTURE FAILED")
+        return {"viewpoint": name, "scale": "macro", "verdict": "not_visible",
+                "discrepancies": [], "notes": "capture failed", "image": None}
+
+    path = save_img(img, f"macro_{name}")
+    ok, stats = pixel_check(img)
+    if not ok:
+        print(f"  Frame rejected: {stats['dominant_pct']:.0%} single color")
+        return {"viewpoint": name, "scale": "macro", "verdict": "not_visible",
+                "discrepancies": [], "notes": "frame rejected", "image": path}
+    print(f"  Pixel: bright={stats['bright_pct']:.0%} mid={stats['mid_pct']:.0%} dark={stats['dark_pct']:.0%}")
+
+    answer = ask_vision(img, prompt)
+    print(f"  Qwen: {answer[:300]}")
+
+    # Scan for discrepancy keywords in Qwen's response.
+    # Handle negation: "not missing", "no gaps", "nothing is displaced"
+    # should NOT trigger a discrepancy.
+    answer_lower = answer.lower()
+    negations = ["not ", "no ", "nothing", "none", "without", "isn't", "aren't", "wasn't", "weren't"]
+    found = []
+    for kw in keywords:
+        # Find all occurrences of the keyword
+        idx = 0
+        while True:
+            pos = answer_lower.find(kw, idx)
+            if pos == -1:
+                break
+            # Check if a negation word appears within 20 chars before the keyword
+            context_before = answer_lower[max(0, pos - 25):pos]
+            is_negated = any(neg in context_before for neg in negations)
+            if not is_negated:
+                found.append(kw)
+                break  # one non-negated occurrence is enough
+            idx = pos + len(kw)
+
+    verdict = "ok" if not found else "discrepancy"
+    print(f"  >> {verdict}  discrepancies: {found if found else 'none'}")
+
+    return {
+        "viewpoint": name, "scale": "macro", "verdict": verdict,
+        "discrepancies": found, "vlm_response": answer,
+        "notes": ", ".join(found) if found else "no discrepancies detected",
+        "image": path,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description="Lute texture inspection loop")
     parser.add_argument("--fix", action="store_true", help="Auto-fix tiling and reinspect")
     parser.add_argument("--max-iter", type=int, default=3, help="Max fix iterations")
     parser.add_argument("--only", default="", help="Only inspect surfaces matching this substring")
+    parser.add_argument("--no-macro", action="store_true", help="Skip macro overview pass")
     args = parser.parse_args()
 
     viewpoints = VIEWPOINTS
@@ -314,13 +461,28 @@ def main():
 
     print("=== Lute Texture Inspection Loop ===")
     print(f"Surfaces: {len(viewpoints)}  Auto-fix: {args.fix}  Max iter: {args.max_iter}")
+    print(f"Macro pass: {'disabled' if args.no_macro else 'enabled'}")
 
     vl = VisionLib()
     report = []
 
+    # ── Macro pass: structural overview ──
+    if not args.no_macro:
+        print(f"\n{'='*60}")
+        print("  MACRO PASS (structural overview)")
+        print(f"{'='*60}")
+        for wp in MACRO_VIEWPOINTS:
+            entry = inspect_macro(vl, wp)
+            report.append(entry)
+            if entry["verdict"] == "discrepancy":
+                print(f"  [!] Structural discrepancies found: {entry['discrepancies']}")
+                # Note: macro discrepancies are reported but not auto-fixed.
+                # They require C# source changes, not material tiling changes.
+
+    # ── Micro pass: texture scale inspection ──
     for iteration in range(args.max_iter if args.fix else 1):
         print(f"\n{'='*60}")
-        print(f"  PASS {iteration+1}" + (" (inspect only)" if not args.fix else " (inspect + fix)"))
+        print(f"  MICRO PASS {iteration+1}" + (" (inspect only)" if not args.fix else " (inspect + fix)"))
         print(f"{'='*60}")
 
         changed_materials = {}
@@ -418,9 +580,16 @@ def main():
     print("  INSPECTION REPORT")
     print(f"{'='*60}")
     for r in report:
-        status = {"appropriate": "OK", "too_small": "SMALL", "too_large": "LARGE",
-                  "not_visible": "?"}.get(r["verdict"], "?")
-        print(f"  {status} {r['viewpoint']:20s} {r['surface']:14s} {r['verdict']:12s} {r['size']:20s} {r['notes']}")
+        scale = r.get("scale", "micro")
+        verdict = r["verdict"]
+        if scale == "macro":
+            status = {"ok": "OK", "discrepancy": "DISCREPANCY",
+                      "not_visible": "?"}.get(verdict, "?")
+            print(f"  {status:12s} {r['viewpoint']:20s} {'(macro)':14s} {verdict:12s} {r.get('notes', '')}")
+        else:
+            status = {"appropriate": "OK", "too_small": "SMALL", "too_large": "LARGE",
+                      "not_visible": "?"}.get(verdict, "?")
+            print(f"  {status:12s} {r['viewpoint']:20s} {r.get('surface', ''):14s} {verdict:12s} {r.get('size', ''):20s} {r.get('notes', '')}")
 
     # Save report
     report_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
