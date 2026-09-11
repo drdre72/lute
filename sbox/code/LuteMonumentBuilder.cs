@@ -52,6 +52,7 @@ public sealed class LuteMonumentBuilder : Component
 		root.SetParent( parent );
 		root.WorldPosition = Center;
 
+		BuildFoundation( root );
 		BuildPlazaFloor( root );
 		BuildCentralWell( root );
 		BuildMarketStalls( root );
@@ -173,13 +174,32 @@ public sealed class LuteMonumentBuilder : Component
 	// --- Build methods (spec §2a + §3) ---
 
 	/// <summary> 3.1: Central plaza floor — large flat square at ground level. </summary>
+	/// <summary> 3.0: Foundation — solid block under the market and walls,
+	/// rising to bridge height so the whole market sits on a raised platform. </summary>
+	void BuildFoundation( GameObject root )
+	{
+		// Foundation spans the wall area + margin, top above the moat water.
+		// Extra ~16m (8m each side) to cover wall thickness and corner towers.
+		float foundHalf = WallOuterHalfWidth + 8f * M;
+		float foundTopZ = 2.5f * M;  // above moat water (1.5m) and bridge (1.6m)
+		float foundThick = foundTopZ;  // from z=0 to top
+		float foundCenterZ = foundThick * 0.5f;
+
+		var foundation = CreatePrimitive( root, "MarketFoundation", "models/dev/box.vmdl",
+			new Vector3( 0, 0, foundCenterZ ), Rotation.Identity,
+			new Vector3( foundHalf * 2f / 50f, foundHalf * 2f / 50f, foundThick / 50f ),
+			material: MatStoneWall );
+		AddBoxCollider( foundation, new Vector3( 50f, 50f, 50f ) );
+	}
+
+	/// <summary> 3.1: Plaza floor — flat surface on top of the foundation. </summary>
 	void BuildPlazaFloor( GameObject root )
 	{
 		// plane_large.vmdl base = 100000×100000. Scale to 2×PlazaHalfWidth.
-		// Raised 1 unit above ground to prevent z-fighting with WorldGround.
+		// Sits on top of the foundation at z=1.6m.
 		float s = (PlazaHalfWidth * 2f) / 100000f;
 		var floor = CreatePrimitive( root, "PlazaFloor", "models/dev/plane_large.vmdl",
-			new Vector3( 0, 0, 1f ), Rotation.Identity, new Vector3( s, s, 1f ),
+			new Vector3( 0, 0, 2.5f * M + 1f ), Rotation.Identity, new Vector3( s, s, 1f ),
 			material: MatPlaza );
 		AddBoxCollider( floor, new Vector3( PlazaHalfWidth * 2f, PlazaHalfWidth * 2f, 1f ) );
 	}
@@ -320,7 +340,7 @@ public sealed class LuteMonumentBuilder : Component
 
 		for ( int side = 0; side < 4; side++ )
 		{
-			var pos = EdgeCenter( midRadius, side ) + new Vector3( 0, 0, 1f );
+			var pos = EdgeCenter( midRadius, side ) + new Vector3( 0, 0, 2.5f * M + 1f );
 			var rot = new Angles( 0, EdgeYaw( side ), 0 );
 			var seg = CreatePrimitive( root, $"InnerRingFloor_{side}",
 				"models/dev/box.vmdl",
@@ -436,7 +456,7 @@ public sealed class LuteMonumentBuilder : Component
 		// 4 wall segments (one per edge)
 		for ( int side = 0; side < 4; side++ )
 		{
-			var pos = EdgeCenter( WallOuterHalfWidth, side ) + new Vector3( 0, 0, WallHeight * 0.5f );
+			var pos = EdgeCenter( WallOuterHalfWidth, side ) + new Vector3( 0, 0, 2.5f * M + WallHeight * 0.5f );
 			var rot = new Angles( 0, EdgeYaw( side ), 0 );
 
 			// Skip the center portion of each edge — the gatehouse fills that gap.
@@ -471,7 +491,7 @@ public sealed class LuteMonumentBuilder : Component
 		for ( int corner = 0; corner < 4; corner++ )
 		{
 			float cornerH = WallHeight + Jitter( 0.5f * M );
-			var pos = CornerPos( WallOuterHalfWidth, corner ) + new Vector3( 0, 0, cornerH * 0.5f );
+			var pos = CornerPos( WallOuterHalfWidth, corner ) + new Vector3( 0, 0, 2.5f * M + cornerH * 0.5f );
 			var cornerGo = CreatePrimitive( root, $"WallCorner_{corner}",
 				"models/dev/box.vmdl",
 				pos, Rotation.Identity,
@@ -492,7 +512,7 @@ public sealed class LuteMonumentBuilder : Component
 
 		for ( int side = 0; side < 4; side++ )
 		{
-			var pos = EdgeCenter( WallOuterHalfWidth, side ) + new Vector3( 0, 0, 0 );
+			var pos = EdgeCenter( WallOuterHalfWidth, side ) + new Vector3( 0, 0, 2.5f * M );
 			var rot = new Angles( 0, EdgeYaw( side ), 0 );
 
 			// Ceiling (murder hole slab above the gate tunnel)
@@ -581,11 +601,15 @@ public sealed class LuteMonumentBuilder : Component
 		float bridgeW = 6f * M;
 		float bridgeThick = 1f * M;
 		float midRadius = (WallOuterHalfWidth + MoatOuterHalfWidth) * 0.5f;
+		// Moat water top is at z=1.5m. Bridge sits just above it at z=1.6m.
+		float bridgeZ = 1.6f * M;
 
 		for ( int side = 0; side < 4; side++ )
 		{
-			var pos = EdgeCenter( midRadius, side ) + new Vector3( 0, 0, bridgeThick * 0.5f );
-			var rot = new Angles( 0, EdgeYaw( side ), 0 );
+			var pos = EdgeCenter( midRadius, side ) + new Vector3( 0, 0, bridgeZ + bridgeThick * 0.5f );
+			// +90° yaw so the bridge length spans across the moat (radial),
+			// not along the wall (tangential).
+			var rot = new Angles( 0, EdgeYaw( side ) + 90f, 0 );
 
 			var bridge = CreatePrimitive( root, $"Bridge_{side}",
 				"models/dev/box.vmdl",
@@ -661,10 +685,9 @@ public sealed class LuteMonumentBuilder : Component
 
 		var go = Scene.CreateObject( true );
 		go.Name = "MarketTerrain";
-		go.SetParent( root );
-		// Terrain is centered on the market (root is at Center already).
-		// Local position (0,0,baseZ) puts the terrain square centered on root.
-		go.WorldPosition = Center + new Vector3( 0, 0, baseZ );
+		// Don't parent to root — terrain has its own transform offset.
+		// Position at terrain corner so the square is centered on the market.
+		go.WorldPosition = Center + new Vector3( -terrainSize * 0.5f, -terrainSize * 0.5f, baseZ );
 
 		var terrain = go.AddComponent<Terrain>();
 		terrain.Enabled = false; // force a clean enable cycle
@@ -711,7 +734,7 @@ public sealed class LuteMonumentBuilder : Component
 	{
 		// Heights in meters (relative to z=0 ground level).
 		const float groundHeightM = 1f;       // z=0 (base is at z=-1m, so 1m up)
-		const float bermPeakM = 1.91f;        // z=0.91m (~3ft above ground)
+		const float bermPeakM = 3f;           // z=2m (~6.5ft above ground)
 
 		// Distances in meters from market center.
 		const float moatOuterM = 170f;        // MoatOuterHalfWidth
@@ -731,10 +754,11 @@ public sealed class LuteMonumentBuilder : Component
 				float wx = x * worldPerTexel - halfSize;
 				float wy = y * worldPerTexel - halfSize;
 
-				// Distance from market center in meters.
-				float dxM = wx / M;
-				float dyM = wy / M;
-				float distM = MathF.Sqrt( dxM * dxM + dyM * dyM );
+				// Distance from market center in meters (square/Chebyshev —
+				// follows the square moat shape, not circular).
+				float dxM = MathF.Abs( wx / M );
+				float dyM = MathF.Abs( wy / M );
+				float distM = MathF.Max( dxM, dyM );
 
 				float heightM;
 
@@ -794,7 +818,7 @@ public sealed class LuteMonumentBuilder : Component
 
 				// Per-tower variation: height jitter (±1m) and tint
 				float thisTowerH = towerH + Jitter( 1f * M );
-				var towerPos = gatePos + offsetVec + new Vector3( 0, 0, thisTowerH * 0.5f );
+				var towerPos = gatePos + offsetVec + new Vector3( 0, 0, 2.5f * M + thisTowerH * 0.5f );
 
 				var tower = CreatePrimitive( root, $"Tower_{side}_{t}",
 					"models/dev/box.vmdl",
@@ -861,7 +885,7 @@ public sealed class LuteMonumentBuilder : Component
 
 		for ( int side = 0; side < 4; side++ )
 		{
-			var edgeMid = EdgeCenter( WallOuterHalfWidth, side ) + new Vector3( 0, 0, WallHeight + merlonH * 0.5f );
+			var edgeMid = EdgeCenter( WallOuterHalfWidth, side ) + new Vector3( 0, 0, 2.5f * M + WallHeight + merlonH * 0.5f );
 			var rot = new Angles( 0, EdgeYaw( side ), 0 );
 			bool isNS = (side == 0 || side == 2);  // N/S walls run along X; E/W walls run along Y
 
@@ -904,7 +928,7 @@ public sealed class LuteMonumentBuilder : Component
 		float cornerMerlonW = 2f * M;
 		for ( int corner = 0; corner < 4; corner++ )
 		{
-			var pos = CornerPos( WallOuterHalfWidth, corner ) + new Vector3( 0, 0, WallHeight + merlonH * 0.5f );
+			var pos = CornerPos( WallOuterHalfWidth, corner ) + new Vector3( 0, 0, 2.5f * M + WallHeight + merlonH * 0.5f );
 			CreatePrimitive( root, $"CornerMerlon_{corner}",
 				"models/dev/box.vmdl",
 				pos, Rotation.Identity,
@@ -934,7 +958,7 @@ public sealed class LuteMonumentBuilder : Component
 					? new Vector3( along, 0, 0 )
 					: new Vector3( 0, along, 0 );
 
-				var towerPos = gatePos + offsetVec + new Vector3( 0, 0, towerH + merlonH * 0.5f );
+				var towerPos = gatePos + offsetVec + new Vector3( 0, 0, 2.5f * M + towerH + merlonH * 0.5f );
 
 				// 4 merlons, one per side of the tower top
 				var merlonOffsets = new[] {
