@@ -266,12 +266,37 @@ namespace Lute.Building
 					}
 					break;
 
+				case ConstructionEventType.TaskCompleted:
+					// Update task history and reputation
+					if ( _beliefs != null && evt.Actor != null && evt.Actor != _npcId )
+					{
+						_beliefs.AdjustReputation( evt.Actor, +5 );
+						var rep = _beliefs.GetOrCreateReputation( evt.Actor );
+						rep.TasksCompletedObserved++;
+					}
+					break;
+
+				case ConstructionEventType.TaskFailed:
+					// Update task history and reputation
+					if ( _beliefs != null && evt.Actor != null && evt.Actor != _npcId )
+					{
+						_beliefs.AdjustReputation( evt.Actor, -3 );
+						var rep = _beliefs.GetOrCreateReputation( evt.Actor );
+						rep.TasksFailedObserved++;
+					}
+					break;
+
 				case ConstructionEventType.NpcRequestedHelp:
 					// Another NPC requested help — offer if we're available
 					if ( evt.Actor != _npcId && State != NpcState.Building )
 					{
 						ConversationManager.Send( _npcId, evt.Actor,
 							"I can help with that. What do you need?" );
+						if ( _beliefs != null )
+						{
+							var rep = _beliefs.GetOrCreateReputation( evt.Actor );
+							rep.HelpRequestedObserved++;
+						}
 					}
 					break;
 
@@ -281,6 +306,12 @@ namespace Lute.Building
 					{
 						ConversationManager.Send( _npcId, evt.Actor,
 							"Thank you. I'm blocked here." );
+						if ( _beliefs != null )
+						{
+							_beliefs.AdjustReputation( evt.Actor, +2 );
+							var rep = _beliefs.GetOrCreateReputation( evt.Actor );
+							rep.HelpOfferedObserved++;
+						}
 					}
 					break;
 			}
@@ -482,19 +513,35 @@ namespace Lute.Building
 		/// <summary>
 		/// Report task completion to the ConstructionDirector and fire
 		/// a TaskCompleted event. Called when the builder finishes a task.
+		/// Also updates self-beliefs (energy, morale, task history).
 		/// </summary>
 		void ReportTaskComplete()
 		{
-			if ( UseDirector && _registeredWithDirector && Builder?.CurrentTask is not null )
+			if ( Builder?.CurrentTask is not null )
 			{
-				var req = new BlackboardRequest
+				var taskName = Builder.CurrentTask.Name;
+
+				// Record in task history
+				if ( _beliefs != null )
 				{
-					Actor = _npcId,
-					Operation = BlackboardOperation.Complete,
-					Key = Builder.CurrentTask.Name,
-					Tick = (long)SpatialBlackboard.CurrentTime,
-				};
-				ConstructionDirector.ProcessRequest( req );
+					_beliefs.RecordTaskHistory( taskName, taskName, completed: true );
+					_beliefs.Self.TasksCompleted++;
+					_beliefs.Self.DrainEnergy( 10f ); // building is tiring
+					_beliefs.Self.AdjustMorale( +5f ); // completion feels good
+				}
+
+				// Report to director
+				if ( UseDirector && _registeredWithDirector )
+				{
+					var req = new BlackboardRequest
+					{
+						Actor = _npcId,
+						Operation = BlackboardOperation.Complete,
+						Key = taskName,
+						Tick = (long)SpatialBlackboard.CurrentTime,
+					};
+					ConstructionDirector.ProcessRequest( req );
+				}
 			}
 		}
 
