@@ -82,7 +82,7 @@ public sealed class LuteMonumentBuilder : Component
 	const string MatWoodHouse   = "materials/medieval/wood_house.vmat";   // houses (higher tiling)
 	const string MatMetal       = "materials/medieval/metal.vmat";        // portcullis bars
 	const string MatRoof        = "materials/medieval/roof.vmat";         // awnings, well roof
-	const string MatWater       = "materials/water/water_dark.vmat";      // moat (real water shader)
+	const string MatWater       = "materials/medieval/moat_water.vmat";      // moat (dark blue, reflective)
 
 	// --- Geometry helpers ---
 
@@ -595,74 +595,44 @@ public sealed class LuteMonumentBuilder : Component
 		}
 	}
 
-	/// <summary> 3.4: Moat — dark basin (box) + flat water surface (plane). </summary>
+	/// <summary> 3.4: Moat — raised water channel (solid box with water material).
+	/// The basin is raised above ground (z=0) to avoid z-fighting with the
+	/// WorldGround box. The top surface IS the water — no separate plane. </summary>
 	void BuildMoat( GameObject root )
 	{
 		float moatWidth = MoatOuterHalfWidth - WallOuterHalfWidth;
 		float segLen = MoatOuterHalfWidth * 2f;
 		float midRadius = (WallOuterHalfWidth + MoatOuterHalfWidth) * 0.5f;
 
-		// Dark basin — box sunk below ground (sides + bottom, no water shader)
-		var basinColor = new Color( 0.15f, 0.15f, 0.18f );
+		// Basin extends from -MoatDepth to +1.5m above ground.
+		// Top surface (the "water") is at +1.5m — well clear of ground at z=0.
+		float basinTopZ = 1.5f * M;
+		float basinH = MoatDepth + basinTopZ;
+		float basinCenterZ = -MoatDepth + basinH * 0.5f;
+
+		// 4 straight segments — solid box with water material (top = water surface)
 		for ( int side = 0; side < 4; side++ )
 		{
-			var pos = EdgeCenter( midRadius, side ) + new Vector3( 0, 0, -MoatDepth * 0.5f );
+			var pos = EdgeCenter( midRadius, side ) + new Vector3( 0, 0, basinCenterZ );
 			var rot = new Angles( 0, EdgeYaw( side ), 0 );
 
-			CreatePrimitive( root, $"MoatBasin_{side}",
+			CreatePrimitive( root, $"Moat_{side}",
 				"models/dev/box.vmdl",
 				pos, rot,
-				new Vector3( segLen / 50f, moatWidth / 50f, MoatDepth / 50f ),
-				tint: basinColor );
+				new Vector3( segLen / 50f, moatWidth / 50f, basinH / 50f ),
+				material: MatWater );
 		}
 
-		// 4 corner basins
+		// 4 corners
 		float cornerSize = moatWidth;
 		float cornerScale = cornerSize / 50f;
 		for ( int corner = 0; corner < 4; corner++ )
 		{
-			var pos = CornerPos( midRadius, corner ) + new Vector3( 0, 0, -MoatDepth * 0.5f );
-			CreatePrimitive( root, $"MoatBasinCorner_{corner}",
+			var pos = CornerPos( midRadius, corner ) + new Vector3( 0, 0, basinCenterZ );
+			CreatePrimitive( root, $"MoatCorner_{corner}",
 				"models/dev/box.vmdl",
 				pos, Rotation.Identity,
-				new Vector3( cornerScale, cornerScale, MoatDepth / 50f ),
-				tint: basinColor );
-		}
-
-		// Flat water surface — plane_large.vmdl at water level (z = -0.1 to avoid z-fight with basin top)
-		// plane_large.vmdl base = 100000×100000. Split per edge with bridge gaps.
-		float bridgeGap = 8f * M;  // gap for bridges
-		for ( int side = 0; side < 4; side++ )
-		{
-			var edgeMid = EdgeCenter( midRadius, side );
-			float halfLen = (segLen - bridgeGap) * 0.5f;
-			for ( int half = 0; half < 2; half++ )
-			{
-				float along = (half == 0 ? -1f : 1f) * (halfLen * 0.5f + bridgeGap * 0.5f);
-				var offsetVec = side == 0 || side == 2
-					? new Vector3( along, 0, 0 )
-					: new Vector3( 0, along, 0 );
-
-				float pScale = halfLen / 100000f;
-				float wScale = moatWidth / 100000f;
-				CreatePrimitive( root, $"MoatWater_{side}_{half}",
-					"models/dev/plane_large.vmdl",
-					edgeMid + offsetVec + new Vector3( 0, 0, -0.1f ),
-					new Angles( 0, EdgeYaw( side ), 0 ),
-					new Vector3( pScale, wScale, 1f ),
-					material: MatWater );
-			}
-		}
-
-		// Corner water planes
-		for ( int corner = 0; corner < 4; corner++ )
-		{
-			var pos = CornerPos( midRadius, corner ) + new Vector3( 0, 0, -0.1f );
-			float cScale = cornerSize / 100000f;
-			CreatePrimitive( root, $"MoatWaterCorner_{corner}",
-				"models/dev/plane_large.vmdl",
-				pos, Rotation.Identity,
-				new Vector3( cScale, cScale, 1f ),
+				new Vector3( cornerScale, cornerScale, basinH / 50f ),
 				material: MatWater );
 		}
 	}
