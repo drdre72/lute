@@ -1,0 +1,12 @@
+﻿/* VTEX */
+{
+	"version": 1,
+	"filename": "materials/castle_kit/variation-d.png",
+	"format": "DXT5",
+	"type": "Texture2D",
+	"filter": "Box",
+	"mipmaps": true,
+	"bumpmap": false,
+	"srgbread": true,
+	"srgbwrite": true,
+}

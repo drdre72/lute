@@ -757,5 +757,36 @@ Respond strictly with valid JSON matching this schema (no other text):
 					Log.Info( $"    {kvp.Key} = {kvp.Value}" );
 			}
 		}
+
+		/// <summary>
+		/// Load and test a castle_kit model. Triggers asset compilation.
+		/// Usage: castle_test wall
+		/// </summary>
+		[ConCmd( "castle_test" )]
+		public static void CastleTestCommand( string modelName )
+		{
+			var path = $"models/castle_kit/{modelName}.vmdl";
+			Log.Info( $"[castle_test] Loading '{path}'..." );
+			var model = Sandbox.Model.Load( path );
+			if ( model == null )
+			{
+				Log.Error( $"[castle_test] FAILED to load '{path}'" );
+				return;
+			}
+			var bounds = model.Bounds;
+			Log.Info( $"[castle_test] '{path}' loaded OK." );
+			Log.Info( $"  bounds: mins={bounds.Mins}, maxs={bounds.Maxs}" );
+			Log.Info( $"  center={bounds.Center}, size={bounds.Size}" );
+			var sizeM = bounds.Size / 39.3701f;
+			Log.Info( $"  sizeMeters=({sizeM.x:F2}, {sizeM.y:F2}, {sizeM.z:F2})" );
+
+			// Spawn it in the world to verify rendering
+			var go = Game.ActiveScene.CreateObject( true );
+			go.Name = $"CastleKit_{modelName}";
+			go.WorldPosition = new Vector3( 5000, 5000, 100 );
+			var mr = go.AddComponent<Sandbox.ModelRenderer>();
+			mr.Model = model;
+			Log.Info( $"[castle_test] Spawned '{go.Name}' at {go.WorldPosition}" );
+		}
 	}
 }
