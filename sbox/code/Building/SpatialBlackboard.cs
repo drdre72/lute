@@ -157,6 +157,15 @@ namespace Lute.Building
 		/// Claim a circular area around a position. Returns true if the
 		/// claim was successful, false if another NPC already has an
 		/// overlapping claim.
+		///
+		/// The <paramref name="expiry"/> parameter controls how long the
+		/// claim lasts:
+		/// - 0 = permanent (task-tied — released explicitly via ReleaseClaim)
+		/// - >0 = time-based (seconds, for temporary reservations)
+		///
+		/// For building tasks, pass expiry=0 so the claim lasts until the
+		/// task completes or fails, not a fixed timeout. The 300s default
+		/// is only for temporary walk/gather reservations.
 		/// </summary>
 		public static bool Claim( string npcName, Vector3 position, float radius, string activity = "building", float expiry = DefaultClaimExpiry )
 		{

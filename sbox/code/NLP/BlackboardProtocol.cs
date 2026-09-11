@@ -55,7 +55,9 @@ namespace Lute.NLP
 					radius = r;
 			}
 
-			// Create the blackboard claim
+			// Create the blackboard claim — expiry=0 means task-tied
+			// (released explicitly when the task completes/fails, not by
+			// a 300s timeout). See professor feedback on claim expiry.
 			bool success = SpatialBlackboard.Claim(
 				intent.Sender, pos, radius, "nlp_site_claim", 0 );
 

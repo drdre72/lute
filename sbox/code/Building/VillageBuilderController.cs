@@ -299,7 +299,7 @@ namespace Lute.Building
 				return false;
 			}
 
-			if ( SpatialBlackboard.Claim( _npcId, site, ClaimRadius, "building" ) )
+			if ( SpatialBlackboard.Claim( _npcId, site, ClaimRadius, "building", 0 ) )
 			{
 				_activeClaimId = SpatialBlackboard.GetClaimsByOwner( _npcId )
 					.OrderByDescending( c => c.Timestamp )

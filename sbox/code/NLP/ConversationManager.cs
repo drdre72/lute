@@ -93,7 +93,7 @@ namespace Lute.NLP
 
 		/// <summary>
 		/// Send a text message from one NPC to another. This ONLY posts
-		/// the message to the blackboard — it does NOT evaluate the
+		/// the message to the CommunicationBus — it does NOT evaluate the
 		/// recipient synchronously. The recipient will process it on
 		/// its own tick via <see cref="ProcessIncoming"/>.
 		///
@@ -106,19 +106,13 @@ namespace Lute.NLP
 			if ( string.IsNullOrWhiteSpace( text ) )
 				return;
 
-			SpatialBlackboard.PostMessage(
-				from: from,
-				to: to,
-				type: "nlp_message",
-				content: text
-			);
-
+			CommunicationBus.Post( from, to, "nlp_message", text );
 			Log.Info( $"[NLP] {from} → {to}: posted \"{text}\"" );
 		}
 
 		/// <summary>
 		/// Broadcast a message to all registered NPCs. Only posts to
-		/// the blackboard — each NPC processes it independently on its
+		/// the CommunicationBus — each NPC processes it independently on its
 		/// own tick.
 		/// </summary>
 		public static void Broadcast( string from, string text )
@@ -131,7 +125,7 @@ namespace Lute.NLP
 		}
 
 		/// <summary>
-		/// Process pending blackboard messages for a specific NPC.
+		/// Process pending CommunicationBus messages for a specific NPC.
 		/// Called by the NPC's update loop. This is the SOLE consumer —
 		/// messages are parsed, evaluated, and responded to here, not in
 		/// Send().
@@ -145,7 +139,7 @@ namespace Lute.NLP
 			if ( !_npcs.TryGetValue( npcName, out var entry ) )
 				return;
 
-			var messages = SpatialBlackboard.GetUnprocessedMessages(
+			var messages = CommunicationBus.GetUnprocessed(
 				npcName, entry.LastProcessedMessageId );
 
 			foreach ( var msg in messages )
@@ -185,12 +179,12 @@ namespace Lute.NLP
 						break;
 
 					case DecisionAction.Speak:
-						// Generate response text and post to blackboard
+						// Generate response text and post to CommunicationBus
 						if ( decision.ResponseIntent != null )
 						{
 							var responseText = SpeechGenerator.Generate( decision.ResponseIntent );
 							Log.Info( $"[NLP] {npcName} → {msg.From}: \"{responseText}\"" );
-							SpatialBlackboard.PostMessage( npcName, msg.From, "nlp_reply", responseText );
+							CommunicationBus.Post( npcName, msg.From, "nlp_reply", responseText );
 						}
 						break;
 
@@ -207,7 +201,7 @@ namespace Lute.NLP
 						{
 							var responseText = SpeechGenerator.Generate( decision.ResponseIntent );
 							Log.Info( $"[NLP] {npcName} → {msg.From}: \"{responseText}\" + action: {decision.WorldAction}" );
-							SpatialBlackboard.PostMessage( npcName, msg.From, "nlp_reply", responseText );
+							CommunicationBus.Post( npcName, msg.From, "nlp_reply", responseText );
 						}
 						Log.Info( $"[NLP] {npcName} acting: {decision.WorldAction}" );
 						break;
@@ -221,7 +215,7 @@ namespace Lute.NLP
 						{
 							var responseText = SpeechGenerator.Generate( decision.ResponseIntent );
 							Log.Info( $"[NLP] {npcName} → {msg.From}: \"{responseText}\" (clarification)" );
-							SpatialBlackboard.PostMessage( npcName, msg.From, "nlp_reply", responseText );
+							CommunicationBus.Post( npcName, msg.From, "nlp_reply", responseText );
 						}
 						break;
 				}
