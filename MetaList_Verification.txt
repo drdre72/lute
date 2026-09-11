@@ -60,12 +60,12 @@
 
 ## 2B: Context Window Sustainability
 
-- [ ] Create agent/context_manager.py — track and budget context usage
-- [ ] Implement context budget: track tokens/chars per file read, tool output, conversation
-- [ ] Implement context pruning: summarize old tool outputs, drop stale file reads
-- [ ] Implement context checkpoint: save key findings to persistent memory file
-- [ ] Add --budget, --checkpoint, --prune commands
-- [ ] Save state to .devin-context/context_state.json
+- [x] Create agent/context_manager.py — track and budget context usage
+- [x] Implement context budget: track tokens/chars per file read, tool output, conversation
+- [x] Implement context pruning: summarize old tool outputs, drop stale file reads
+- [x] Implement context checkpoint: save key findings to persistent memory file
+- [x] Add --budget, --checkpoint, --prune commands
+- [x] Save state to .devin-context/context_state.json
 
 ---
 

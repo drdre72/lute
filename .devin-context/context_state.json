@@ -1,0 +1,60 @@
+{
+  "entries": [
+    {
+      "type": "file",
+      "label": "LuteMonumentBuilder.cs",
+      "chars": 15000,
+      "tokens": 3750,
+      "details": "",
+      "timestamp": "2026-09-10T22:54:11",
+      "pruned": true
+    },
+    {
+      "type": "tool",
+      "label": "collision_probes",
+      "chars": 8000,
+      "tokens": 2000,
+      "details": "",
+      "timestamp": "2026-09-10T22:54:11"
+    },
+    {
+      "type": "turn",
+      "label": "",
+      "chars": 2000,
+      "tokens": 500,
+      "details": "",
+      "timestamp": "2026-09-10T22:54:11"
+    },
+    {
+      "type": "tool",
+      "label": "scene_telemetry_full",
+      "chars": 50000,
+      "tokens": 12500,
+      "details": "full telemetry dump",
+      "timestamp": "2026-09-10T22:54:18",
+      "pruned": true
+    },
+    {
+      "type": "file",
+      "label": "LuteMonumentBuilder.cs",
+      "chars": 15000,
+      "tokens": 3750,
+      "details": "",
+      "timestamp": "2026-09-10T22:54:18"
+    }
+  ],
+  "checkpoints": [
+    {
+      "summary": "All 10 verification checks pass (collision + telemetry)",
+      "category": "finding",
+      "timestamp": "2026-09-10T22:54:14"
+    },
+    {
+      "summary": "Gate colliders fixed in LuteMonumentBuilder.cs",
+      "category": "bug",
+      "timestamp": "2026-09-10T22:54:14"
+    }
+  ],
+  "total_chars": 25000,
+  "session_start": "2026-09-10T22:54:11"
+}
