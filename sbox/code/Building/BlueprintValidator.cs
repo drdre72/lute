@@ -4,9 +4,11 @@ using System.Linq;
 namespace Lute.Building
 {
 	/// <summary>
-	/// Result of a <see cref="BlueprintValidator"/> check. Contains a
-	/// pass/fail flag, a list of issue descriptions, and counts by
-	/// severity for quick console summaries.
+	/// Result of a <see cref="BlueprintValidator"/> check. Carries typed
+	/// <see cref="ValidationIssue"/>s (machine-readable) plus a legacy
+	/// free-text <see cref="Issues"/> list for back-compat with existing
+	/// console code. AI agents should prefer <see cref="TypedIssues"/>
+	/// over <see cref="Issues"/>.
 	/// </summary>
 	public class BlueprintValidationResult
 	{
@@ -19,25 +21,45 @@ namespace Lute.Building
 		/// <summary> Number of warning-level issues (don't block execution). </summary>
 		public int WarningCount { get; set; }
 
-		/// <summary> Human-readable issue descriptions. </summary>
+		/// <summary> Number of info-level issues (purely diagnostic). </summary>
+		public int InfoCount { get; set; }
+
+		/// <summary> Human-readable issue descriptions (legacy). </summary>
 		public List<string> Issues { get; set; } = new();
 
-		/// <summary> Short summary for console output. </summary>
-		public string Summary => $"valid={IsValid}, errors={ErrorCount}, warnings={WarningCount}, pieces checked";
+		/// <summary> Typed, machine-readable issues. AI agents read this. </summary>
+		public List<ValidationIssue> TypedIssues { get; set; } = new();
 
-		/// <summary> Add an error. </summary>
-		public void AddError( string msg )
+		/// <summary> Short summary for console output. </summary>
+		public string Summary => $"valid={IsValid}, errors={ErrorCount}, warnings={WarningCount}, info={InfoCount}";
+
+		/// <summary> Add a typed error (also pushed to legacy Issues). </summary>
+		public void AddError( string msg, string code = null, List<int> pieceIds = null,
+			string suggestedFix = null, bool autoFixable = false )
 		{
 			Issues.Add( $"ERROR: {msg}" );
 			ErrorCount++;
 			IsValid = false;
+			TypedIssues.Add( new ValidationIssue( IssueSeverity.Error,
+				code ?? IssueCode.Nan, msg, pieceIds, suggestedFix, autoFixable ) );
 		}
 
-		/// <summary> Add a warning. </summary>
-		public void AddWarning( string msg )
+		/// <summary> Add a typed warning (also pushed to legacy Issues). </summary>
+		public void AddWarning( string msg, string code = null, List<int> pieceIds = null,
+			string suggestedFix = null, bool autoFixable = false )
 		{
 			Issues.Add( $"WARN: {msg}" );
 			WarningCount++;
+			TypedIssues.Add( new ValidationIssue( IssueSeverity.Warning,
+				code ?? IssueCode.Overlap, msg, pieceIds, suggestedFix, autoFixable ) );
+		}
+
+		/// <summary> Add a typed info issue (diagnostic only). </summary>
+		public void AddInfo( string msg, string code = null, List<int> pieceIds = null )
+		{
+			InfoCount++;
+			TypedIssues.Add( new ValidationIssue( IssueSeverity.Info,
+				code ?? "INFO", msg, pieceIds ) );
 		}
 	}
 
@@ -149,7 +171,8 @@ namespace Lute.Building
 				if ( float.IsNaN( pos.x ) || float.IsNaN( pos.y ) || float.IsNaN( pos.z ) ||
 					 float.IsInfinity( pos.x ) || float.IsInfinity( pos.y ) || float.IsInfinity( pos.z ) )
 				{
-					result.AddError( $"Piece #{i} ({p.PieceType}) has invalid position {pos}." );
+					result.AddError( $"Piece #{i} ({p.PieceType}) has invalid position {pos}.",
+						IssueCode.Nan, new List<int> { i } );
 					continue;
 				}
 
@@ -157,13 +180,15 @@ namespace Lute.Building
 				float dist = pos.Length;
 				if ( dist > MaxDistanceFromOrigin )
 				{
-					result.AddError( $"Piece #{i} ({p.PieceType}) is {dist:F0}in from origin — exceeds max {MaxDistanceFromOrigin}." );
+					result.AddError( $"Piece #{i} ({p.PieceType}) is {dist:F0}in from origin - exceeds max {MaxDistanceFromOrigin}.",
+						IssueCode.OutOfBounds, new List<int> { i } );
 				}
 
 				// Negative Z for non-floor pieces (walls/roofs should be above ground)
 				if ( pos.z < -bp.FloorThickness * 2 && p.PieceType != "FLOOR" )
 				{
-					result.AddWarning( $"Piece #{i} ({p.PieceType}) at z={pos.z:F1} is below ground." );
+					result.AddWarning( $"Piece #{i} ({p.PieceType}) at z={pos.z:F1} is below ground.",
+						IssueCode.BelowGround, new List<int> { i } );
 				}
 			}
 		}
@@ -203,7 +228,8 @@ namespace Lute.Building
 					{
 						if ( overlapWarnings >= MaxOverlapWarnings )
 						{
-							result.AddWarning( $"... ({MaxOverlapWarnings} overlap warnings shown, more may exist)." );
+							result.AddWarning( $"... ({MaxOverlapWarnings} overlap warnings shown, more may exist).",
+							IssueCode.Overlap );
 							return;
 						}
 
@@ -215,7 +241,8 @@ namespace Lute.Building
 							float dist = Vector3.DistanceBetween( pa.Position, pb.Position );
 							if ( dist < OverlapTolerance )
 							{
-								result.AddWarning( $"Pieces #{kvp.Value[a]} and #{kvp.Value[b]} ({pa.PieceType}) overlap at {pa.Position} (dist={dist:F2})." );
+								result.AddWarning( $"Pieces #{kvp.Value[a]} and #{kvp.Value[b]} ({pa.PieceType}) overlap at {pa.Position} (dist={dist:F2}).",
+								IssueCode.Overlap, new List<int> { kvp.Value[a], kvp.Value[b] } );
 								overlapWarnings++;
 							}
 						}
@@ -272,13 +299,15 @@ namespace Lute.Building
 
 			if ( unsupportedWalls > 0 )
 			{
-				result.AddWarning( $"{unsupportedWalls} wall(s) have no adjacent floor support (may float)." );
+				result.AddWarning( $"{unsupportedWalls} wall(s) have no adjacent floor support (may float).",
+				IssueCode.FloatingWall, null, "Add floor pieces beneath unsupported walls", true );
 			}
 
 			// Check that there's at least one floor
 			if ( floorPositions.Count == 0 && bp.Pieces.Any( p => p.PieceType == "WALL" ) )
 			{
-				result.AddError( "Blueprint has walls but no floor pieces — structure will float." );
+				result.AddError( "Blueprint has walls but no floor pieces - structure will float.",
+			IssueCode.MissingFloor );
 			}
 		}
 
@@ -311,32 +340,37 @@ namespace Lute.Building
 			// Footprint check
 			if ( width > MaxFootprint || depth > MaxFootprint )
 			{
-				result.AddError( $"Structure footprint {width:F0}x{depth:F0}in exceeds max {MaxFootprint}." );
+				result.AddError( $"Structure footprint {width:F0}x{depth:F0}in exceeds max {MaxFootprint}.",
+			IssueCode.FootprintExceeded );
 			}
 
 			// Height sanity (no structure should be taller than ~500m)
 			if ( height > 20000f )
 			{
-				result.AddWarning( $"Structure height {height:F0}in (~{height/39.37f:F0}m) is unusually tall." );
+				result.AddWarning( $"Structure height {height:F0}in (~{height/39.37f:F0}m) is unusually tall.",
+			IssueCode.HeightExceeded );
 			}
 
 			// Wall height sanity
 			if ( bp.WallHeight < 50f || bp.WallHeight > 1000f )
 			{
-				result.AddWarning( $"WallHeight {bp.WallHeight:F0}in is outside typical range (50-1000)." );
+				result.AddWarning( $"WallHeight {bp.WallHeight:F0}in is outside typical range (50-1000).",
+			IssueCode.BadWallHeight );
 			}
 
 			// Floor thickness sanity
 			if ( bp.FloorThickness < 1f || bp.FloorThickness > 100f )
 			{
-				result.AddWarning( $"FloorThickness {bp.FloorThickness:F0}in is outside typical range (1-100)." );
+				result.AddWarning( $"FloorThickness {bp.FloorThickness:F0}in is outside typical range (1-100).",
+			IssueCode.BadFloorThickness );
 			}
 
 			// Empty type check
 			int emptyType = bp.Pieces.Count( p => string.IsNullOrEmpty( p.PieceType ) );
 			if ( emptyType > 0 )
 			{
-				result.AddError( $"{emptyType} piece(s) have empty PieceType." );
+				result.AddError( $"{emptyType} piece(s) have empty PieceType.",
+			IssueCode.EmptyType );
 			}
 		}
 	}

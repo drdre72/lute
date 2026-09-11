@@ -28,14 +28,98 @@ namespace Lute.Building
 	}
 
 	/// <summary>
+	/// Structural constraint on a blueprint (e.g. "must have a courtyard",
+	/// "facade must be symmetric"). Used by the validator's style/grammar
+	/// checks and by the AI authority model to express hard requirements
+	/// the LLM must satisfy.
+	/// </summary>
+	public class BlueprintConstraint
+	{
+		/// <summary> Constraint code, e.g. "MUST_HAVE.COURTYARD". </summary>
+		public string Code { get; set; }
+
+		/// <summary> Human-readable description. </summary>
+		public string Description { get; set; }
+
+		/// <summary> True if the constraint is enforced (false = advisory). </summary>
+		public bool Enforced { get; set; } = true;
+	}
+
+	/// <summary>
+	/// A named anchor point in a blueprint — a semantic location other
+	/// blueprints or systems can reference (e.g. "ENTRANCE", "ALTAR",
+	/// "BELL_TOWER_TOP"). Decouples intent from raw coordinates.
+	/// </summary>
+	public class BlueprintAnchor
+	{
+		public string Name { get; set; }
+		public Vector3 Position { get; set; }
+		public string Kind { get; set; } // ENTRANCE, CONNECTION, LANDMARK, etc.
+	}
+
+	/// <summary>
+	/// A dependency on another blueprint (by id+version). Lets the
+	/// ConstructionDirector build a dependency graph: e.g. a village
+	/// depends on its chapel, which depends on its foundation.
+	/// </summary>
+	public class BlueprintDependency
+	{
+		public string BlueprintId { get; set; }
+		public int MinVersion { get; set; }
+		public string Role { get; set; } // e.g. "FOUNDATION", "ROOF"
+	}
+
+	/// <summary>
+	/// Provenance: where this blueprint came from. Lets an agent answer
+	/// "who/what produced this and with what parameters?" without
+	/// guessing from the name.
+	/// </summary>
+	public class BlueprintProvenance
+	{
+		/// <summary> Producer name, e.g. "MonumentBlueprintProducer". </summary>
+		public string Producer { get; set; }
+
+		/// <summary> Preset/spec name, e.g. "StPetersBasilica". </summary>
+		public string Preset { get; set; }
+
+		/// <summary> Seed used for any deterministic randomness. </summary>
+		public int Seed { get; set; }
+
+		/// <summary> Free-form parameters (JSON-serializable). </summary>
+		public Dictionary<string, string> Parameters { get; set; } = new();
+
+		/// <summary> ISO timestamp of creation (UTC). </summary>
+		public string CreatedUtc { get; set; }
+	}
+
+	/// <summary>
 	/// A build blueprint: an ordered list of pieces that, when placed
 	/// by an executor, construct a complete structure. This is inert data —
 	/// it doesn't know or care where it came from (grammar, monument spec,
 	/// or hand-authored). The executor just iterates the list and places
 	/// each piece.
+	///
+	/// As of Phase 2, a Blueprint is a versioned, identifiable intermediate
+	/// representation: it carries an ID, version, content hash, metadata,
+	/// constraints, anchors, dependencies, and provenance. This lets the
+	/// system diff versions, roll back failed executions, and let an LLM
+	/// reason over typed requirements rather than raw geometry.
 	/// </summary>
 	public class Blueprint
 	{
+		/// <summary> Stable identifier for this structure (e.g. "chapel_001"). </summary>
+		public string Id { get; set; } = "";
+
+		/// <summary> Monotonic version number. Incremented on each modification. </summary>
+		public int Version { get; set; } = 1;
+
+		/// <summary>
+		/// Content hash of the piece list (SHA-256 of serialized pieces).
+		/// Computed by <see cref="ComputeHash"/>; used to detect
+		/// unauthorized drift and to compare versions.
+		/// </summary>
+		public string Hash { get; set; } = "";
+
 		/// <summary> Display name for logs. </summary>
 		public string Name { get; set; } = "Unnamed";
 
@@ -68,6 +152,21 @@ namespace Lute.Building
 
 		/// <summary> Default column material. </summary>
 		public string ColumnMaterial { get; set; } = "materials/medieval/stone_tower.vmat";
+
+		/// <summary> Hard constraints the blueprint must satisfy (style/grammar). </summary>
+		public List<BlueprintConstraint> Constraints { get; set; } = new();
+
+		/// <summary> Named semantic anchor points (entrances, landmarks, connections). </summary>
+		public List<BlueprintAnchor> Anchors { get; set; } = new();
+
+		/// <summary> Dependencies on other blueprints (by id+version). </summary>
+		public List<BlueprintDependency> Dependencies { get; set; } = new();
+
+		/// <summary> Where this blueprint came from. </summary>
+		public BlueprintProvenance Provenance { get; set; }
+
+		/// <summary> Free-form metadata (tags, category, author, etc.). </summary>
+		public Dictionary<string, string> Metadata { get; set; } = new();
 
 		/// <summary>
 		/// Convert a BuildingGrammar grid layout into a Blueprint piece list.
@@ -122,6 +221,66 @@ namespace Lute.Building
 
 		/// <summary> Total piece count. </summary>
 		public int PieceCount => Pieces.Count;
+
+		/// <summary>
+		/// Compute a SHA-256 content hash over the serialized piece list and
+		/// store it in <see cref="Hash"/>. Used to detect drift and to
+		/// compare blueprint versions deterministically.
+		/// </summary>
+		public string ComputeHash()
+		{
+			try
+			{
+				using var sha = System.Security.Cryptography.SHA256.Create();
+				var json = System.Text.Json.JsonSerializer.Serialize( Pieces );
+				var bytes = System.Text.Encoding.UTF8.GetBytes( json );
+				var hash = sha.ComputeHash( bytes );
+				Hash = System.BitConverter.ToString( hash ).Replace( "-", "" ).ToLowerInvariant();
+				return Hash;
+			}
+			catch ( System.Exception e )
+			{
+				Log.Warning( $"Lute: Blueprint hash failed: {e.Message}" );
+				return Hash = "";
+			}
+		}
+
+		/// <summary>
+		/// Compute the axis-aligned bounding box of all pieces (relative to
+		/// <see cref="Origin"/>). Returns null if there are no pieces.
+		/// </summary>
+		public (Vector3 Min, Vector3 Max)? ComputeBounds()
+		{
+			if ( Pieces.Count == 0 )
+				return null;
+
+			float minX = float.MaxValue, maxX = float.MinValue;
+			float minY = float.MaxValue, maxY = float.MinValue;
+			float minZ = float.MaxValue, maxZ = float.MinValue;
+
+			foreach ( var p in Pieces )
+			{
+				if ( p.Position.x < minX ) minX = p.Position.x;
+				if ( p.Position.x > maxX ) maxX = p.Position.x;
+				if ( p.Position.y < minY ) minY = p.Position.y;
+				if ( p.Position.y > maxY ) maxY = p.Position.y;
+				if ( p.Position.z < minZ ) minZ = p.Position.z;
+				if ( p.Position.z > maxZ ) maxZ = p.Position.z;
+			}
+
+			return ( new Vector3( minX, minY, minZ ), new Vector3( maxX, maxY, maxZ ) );
+		}
+
+		/// <summary>
+		/// Bump <see cref="Version"/> and recompute <see cref="Hash"/>.
+		/// Call after any structural modification so the versioning
+		/// registry can track the new revision.
+		/// </summary>
+		public void BumpVersion()
+		{
+			Version++;
+			ComputeHash();
+		}
 
 		// ── Serialization ──
 
