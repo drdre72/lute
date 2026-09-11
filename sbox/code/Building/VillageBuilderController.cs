@@ -48,6 +48,7 @@ namespace Lute.Building
 		private float _stateTimer;
 		private float _logTimer;
 		private Vector3 _currentTarget;
+		private string _buildingTaskName; // tracks which task we're standing at
 
 		protected override void OnStart()
 		{
@@ -146,6 +147,7 @@ namespace Lute.Building
 				// Arrived at site — start building
 				State = NpcState.Building;
 				_stateTimer = 0;
+				_buildingTaskName = Builder.CurrentTask.Name;
 				Controller.WishVelocity = Vector3.Zero;
 				Log.Info( $"Lute: VillageBuilderController arrived at '{Builder.CurrentTask.Name}'. Building." );
 				return;
@@ -159,7 +161,7 @@ namespace Lute.Building
 		{
 			if ( Builder.CurrentTask is null )
 			{
-				// Task completed — check for next or done
+				// No current task — check if village is complete
 				if ( Builder.IsComplete )
 				{
 					State = NpcState.VillageComplete;
@@ -172,14 +174,28 @@ namespace Lute.Building
 				return;
 			}
 
-			// Check if the current task is complete (Status == 2)
-			if ( Builder.CurrentTask.Status == 2 )
+			// Detect if the builder has moved on to a new task (race condition fix):
+			// The VillageBuilder completes a task and immediately starts the next one,
+			// so CurrentTask changes before we ever see Status==2. We track the task
+			// name we arrived at — if it's different from CurrentTask, the builder
+			// finished our task and moved on, so we walk to the new site.
+			if ( _buildingTaskName is not null && Builder.CurrentTask.Name != _buildingTaskName )
 			{
-				// Task done — walk to next site
 				State = NpcState.WalkingToNextSite;
 				_stateTimer = 0;
 				Controller.WishVelocity = Vector3.Zero;
-				Log.Info( $"Lute: VillageBuilderController task '{Builder.CurrentTask.Name}' done. Moving to next site." );
+				Log.Info( $"Lute: VillageBuilderController task '{_buildingTaskName}' done (builder moved to '{Builder.CurrentTask.Name}'). Walking to next site." );
+				return;
+			}
+
+			// Also check if the current task is complete (Status == 2) — this handles
+			// the case where the builder hasn't started the next task yet.
+			if ( Builder.CurrentTask.Status == 2 )
+			{
+				State = NpcState.WalkingToNextSite;
+				_stateTimer = 0;
+				Controller.WishVelocity = Vector3.Zero;
+				Log.Info( $"Lute: VillageBuilderController task '{Builder.CurrentTask.Name}' done. Walking to next site." );
 				return;
 			}
 
