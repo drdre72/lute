@@ -32,6 +32,6 @@
 
 ## Integration
 
-- [ ] Add --collision flag to texture_inspect.py to run collision probes as part of the macro pass
-- [ ] Add --telemetry flag to texture_inspect.py to run scene telemetry as part of the macro pass
-- [ ] Update AGENTS.md with new verification scripts and usage examples
+- [x] Add --collision flag to texture_inspect.py to run collision probes as part of the macro pass
+- [x] Add --telemetry flag to texture_inspect.py to run scene telemetry as part of the macro pass
+- [x] Update AGENTS.md with new verification scripts and usage examples

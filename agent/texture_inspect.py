@@ -18,6 +18,9 @@ Usage:
     python agent/texture_inspect.py --max-iter 3  # limit fix iterations
     python agent/texture_inspect.py --only wall   # only inspect surfaces matching "wall"
     python agent/texture_inspect.py --no-macro    # skip macro overview pass
+    python agent/texture_inspect.py --collision   # also run collision/traversal probes
+    python agent/texture_inspect.py --telemetry   # also run scene graph telemetry
+    python agent/texture_inspect.py --collision --telemetry  # full verification suite
 """
 import sys, os, json, time, re, argparse
 
@@ -25,8 +28,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from vision_lib import VisionLib, vantage, save_img, ask_vision, pixel_check
 
 # ── Market geometry (must match LuteMonumentBuilder.cs) ──
+# NeutralMarket root is at (15748, 15748, 0) in the live scene.
 M = 39.37
-CX, CY = 15000.0, 15000.0
+CX, CY = 15748.0, 15748.0
 WALL_HALF = 140.0 * M      # 5511.8
 MOAT_HALF = 170.0 * M      # 6692.9
 WALL_H = 12.0 * M           # 472.4
@@ -453,6 +457,10 @@ def main():
     parser.add_argument("--max-iter", type=int, default=3, help="Max fix iterations")
     parser.add_argument("--only", default="", help="Only inspect surfaces matching this substring")
     parser.add_argument("--no-macro", action="store_true", help="Skip macro overview pass")
+    parser.add_argument("--collision", action="store_true",
+                        help="Run collision/traversal probes as part of the macro pass")
+    parser.add_argument("--telemetry", action="store_true",
+                        help="Run scene graph telemetry as part of the macro pass")
     args = parser.parse_args()
 
     viewpoints = VIEWPOINTS
@@ -462,6 +470,8 @@ def main():
     print("=== Lute Texture Inspection Loop ===")
     print(f"Surfaces: {len(viewpoints)}  Auto-fix: {args.fix}  Max iter: {args.max_iter}")
     print(f"Macro pass: {'disabled' if args.no_macro else 'enabled'}")
+    print(f"Collision probes: {'enabled' if args.collision else 'disabled'}")
+    print(f"Scene telemetry: {'enabled' if args.telemetry else 'disabled'}")
 
     vl = VisionLib()
     report = []
@@ -478,6 +488,44 @@ def main():
                 print(f"  [!] Structural discrepancies found: {entry['discrepancies']}")
                 # Note: macro discrepancies are reported but not auto-fixed.
                 # They require C# source changes, not material tiling changes.
+
+    # ── Collision probes: non-visual verification ──
+    if args.collision:
+        print(f"\n{'='*60}")
+        print("  COLLISION PROBES (non-visual verification)")
+        print(f"{'='*60}")
+        try:
+            from collision_probes import (probe_gate_clearance, probe_wall_thickness,
+                                          probe_floor_solidity, probe_tower_alignment,
+                                          probe_bridge_traversal)
+            for func in [probe_gate_clearance, probe_wall_thickness,
+                         probe_floor_solidity, probe_tower_alignment,
+                         probe_bridge_traversal]:
+                result = func()
+                report.append(result)
+        except Exception as e:
+            print(f"  Collision probes failed: {e}")
+            report.append({"check": "collision_probes", "passed": False,
+                           "error": str(e)})
+
+    # ── Scene telemetry: object/material/component audit ──
+    if args.telemetry:
+        print(f"\n{'='*60}")
+        print("  SCENE TELEMETRY (object/material/component audit)")
+        print(f"{'='*60}")
+        try:
+            from scene_telemetry import (check_object_counts, check_material_coverage,
+                                         check_component_completeness,
+                                         check_spatial_bounds, check_hierarchy)
+            for func in [check_object_counts, check_material_coverage,
+                         check_component_completeness, check_spatial_bounds,
+                         check_hierarchy]:
+                result = func()
+                report.append(result)
+        except Exception as e:
+            print(f"  Scene telemetry failed: {e}")
+            report.append({"check": "scene_telemetry", "passed": False,
+                           "error": str(e)})
 
     # ── Micro pass: texture scale inspection ──
     for iteration in range(args.max_iter if args.fix else 1):
@@ -580,8 +628,14 @@ def main():
     print("  INSPECTION REPORT")
     print(f"{'='*60}")
     for r in report:
+        if "check" in r:
+            # Collision probe or telemetry result
+            passed = r.get("passed", False)
+            status = "PASS" if passed else "FAIL"
+            print(f"  {status:12s} {r['check']:20s} {'(verify)':14s}")
+            continue
         scale = r.get("scale", "micro")
-        verdict = r["verdict"]
+        verdict = r.get("verdict", "?")
         if scale == "macro":
             status = {"ok": "OK", "discrepancy": "DISCREPANCY",
                       "not_visible": "?"}.get(verdict, "?")

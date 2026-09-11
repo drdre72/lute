@@ -1,48 +1,2720 @@
 [
   {
-    "viewpoint": "aerial_overview",
-    "scale": "macro",
-    "verdict": "discrepancy",
-    "discrepancies": [
-      "missing",
-      "not concentric"
-    ],
-    "vlm_response": "The image shows a top-down view of a medieval-style walled settlement from an observer\u2019s perspective \u2014 likely a character with reddish-brown hair and a green shirt, reaching toward the scene.\n\nAnalysis:\n\n- Central plaza: Yes, visible as the open, paved area in the center, surrounded by buildings. It appears to be a grid or patterned stone surface.\n- Inner ring of buildings: Present \u2014 structures are arranged around the central plaza, forming an inner ring. These appear to be small, blocky buildings consistent with medieval architecture (e.g., towers, shops).\n- Outer curtain wall (square): Yes \u2014 a distinct square-shaped wall encloses the entire settlement. The wall is dark blue or black in the image and appears to form a clear boundary.\n- Moat surrounding the walls: Not visible. There is no discernible waterway or moat between the outer wall and the surrounding area. The space outside the wall is light gray (stone), not water.\n\nLight gray surfaces are stone \u2014 correct, as they appear to be paved ground/stone, not snow.\n\nLayout concentric square rings:\n\n- The settlement appears to have a central plaza \u2192 inner ring of buildings \u2192 outer curtain wall.\n- However, there is no moat between the outer wall and the surrounding area. Thus, the \u201couter curtain wall\u201d does not enclose a moat \u2014 it\u2019s directly adjacent to an open stone surface.\n\nConclusion:\n\u2705 Central plaza: Present  \n\u2705 Inner ring of buildings: Present  \n\u2705 Outer curtain wall (square): Present  \n\u274c Moat: Missing \u2014 no waterway is visible between outer wall and surrounding area.  \n\u2705 Light gray surfaces are stone \u2014 correct interpretation.  \n\u26a0\ufe0f Layout: Not concentric square rings with a moat \u2014 the outer wall lacks an encircling moat, so it does not conform to the described \u201cconcentric square rings\u201d model (which implies moat + outer wall).\n\nTherefore:\n\n**Major missing section**: The mo",
-    "notes": "missing, not concentric",
-    "image": "C:\\Users\\Shadow\\Documents\\lute\\agent\\..\\scrap\\macro_aerial_overview.png"
+    "check": "gate_clearance",
+    "passed": true,
+    "details": [
+      {
+        "gate": "north",
+        "height": "0.5m",
+        "passed": true,
+        "hit": false,
+        "distance": 200,
+        "hit_object": ""
+      },
+      {
+        "gate": "north",
+        "height": "1.0m",
+        "passed": true,
+        "hit": false,
+        "distance": 200,
+        "hit_object": ""
+      },
+      {
+        "gate": "north",
+        "height": "1.8m",
+        "passed": true,
+        "hit": false,
+        "distance": 200,
+        "hit_object": ""
+      },
+      {
+        "gate": "south",
+        "height": "0.5m",
+        "passed": true,
+        "hit": false,
+        "distance": 200,
+        "hit_object": ""
+      },
+      {
+        "gate": "south",
+        "height": "1.0m",
+        "passed": true,
+        "hit": false,
+        "distance": 200,
+        "hit_object": ""
+      },
+      {
+        "gate": "south",
+        "height": "1.8m",
+        "passed": true,
+        "hit": false,
+        "distance": 200,
+        "hit_object": ""
+      },
+      {
+        "gate": "east",
+        "height": "0.5m",
+        "passed": true,
+        "hit": false,
+        "distance": 200,
+        "hit_object": ""
+      },
+      {
+        "gate": "east",
+        "height": "1.0m",
+        "passed": true,
+        "hit": false,
+        "distance": 200,
+        "hit_object": ""
+      },
+      {
+        "gate": "east",
+        "height": "1.8m",
+        "passed": true,
+        "hit": false,
+        "distance": 200,
+        "hit_object": ""
+      },
+      {
+        "gate": "west",
+        "height": "0.5m",
+        "passed": true,
+        "hit": false,
+        "distance": 200,
+        "hit_object": ""
+      },
+      {
+        "gate": "west",
+        "height": "1.0m",
+        "passed": true,
+        "hit": false,
+        "distance": 200,
+        "hit_object": ""
+      },
+      {
+        "gate": "west",
+        "height": "1.8m",
+        "passed": true,
+        "hit": false,
+        "distance": 200,
+        "hit_object": ""
+      }
+    ]
   },
   {
-    "viewpoint": "south_gate_approach",
-    "scale": "macro",
-    "verdict": "discrepancy",
-    "discrepancies": [
-      "missing",
-      "misplaced"
-    ],
-    "vlm_response": "Based on the image provided:\n\n- **Bridge crossing the moat**: The bridge is present \u2014 it spans the dark blue moat area between the viewer\u2019s position and the main structure ahead.\n  \n- **Two flanking watchtowers**: There are no visible watchtowers flanking the gate. Only a single stone tower with a barred window is visible on the left side, near the entrance. The other flank (right) appears to be open or lacks any tower-like structure.\n\n- **Main gate entrance in the curtain wall**: The main gate entrance is visible \u2014 it\u2019s an arched opening with black bars, set into the curtain wall and flanked by stone pillars. It appears functional and accessible.\n\n**Conclusion:**\n\n\u2705 Bridge crossing the moat \u2014 present  \n\u274c Two flanking watchtowers \u2014 only one tower visible (possibly missing or misplaced on the other side)  \n\u2705 Main gate entrance \u2014 present and unobstructed\n\nThe structure is not fully symmetrical as expected for a medieval market gate, but the essential elements are mostly in place. The absence of two towers may be an oversight or intentional design choice.\n\n**Final report:**\n\n- Bridge: \u2705 Present  \n- Watchtowers: \u274c Only one visible; second tower missing or misplaced  \n- Gate entrance: \u2705 Present and accessible\n\nYou can see the gate, but not both watchtowers.",
-    "notes": "missing, misplaced",
-    "image": "C:\\Users\\Shadow\\Documents\\lute\\agent\\..\\scrap\\macro_south_gate_approach.png"
+    "check": "wall_thickness",
+    "passed": true,
+    "details": [
+      {
+        "wall": "north",
+        "passed": true,
+        "hit": true,
+        "distance": 460.83008,
+        "expected_thickness": 78.74,
+        "hit_object": "Wall_0_1"
+      },
+      {
+        "wall": "south",
+        "passed": true,
+        "hit": true,
+        "distance": 460.83008,
+        "expected_thickness": 78.74,
+        "hit_object": "Wall_2_1"
+      },
+      {
+        "wall": "east",
+        "passed": true,
+        "hit": true,
+        "distance": 460.82812,
+        "expected_thickness": 78.74,
+        "hit_object": "Wall_1_1"
+      },
+      {
+        "wall": "west",
+        "passed": true,
+        "hit": true,
+        "distance": 460.83008,
+        "expected_thickness": 78.74,
+        "hit_object": "Wall_3_1"
+      }
+    ]
   },
   {
-    "viewpoint": "plaza_interior",
-    "scale": "macro",
-    "verdict": "discrepancy",
-    "discrepancies": [
-      "missing",
-      "absent"
-    ],
-    "vlm_response": "No, you cannot verify that all required elements are present.\n\n- Market stalls with awnings: Not visible. There are no discernible stalls or awnings in the image.\n- Central well/fountain: Absent. There is no central water feature or fountain.\n- NPC housing buildings in the inner ring: Not visible. No structures resembling residential or NPC housing appear in the inner ring.\n- Plaza floor: Present \u2014 the light gray stone flagstone is clearly visible, and it\u2019s not snow or ice.\n\nAdditionally:\n- No objects are floating (all items appear grounded).\n- No objects are buried (everything is on the surface).\n- The well/fountain is missing as stated above.\n\nTherefore, while the plaza floor is present and correctly identified as stone flagstone, the other required elements \u2014 stalls, awnings, central well/fountain, and NPC housing buildings \u2014 are not visible in the image.",
-    "notes": "missing, absent",
-    "image": "C:\\Users\\Shadow\\Documents\\lute\\agent\\..\\scrap\\macro_plaza_interior.png"
+    "check": "floor_solidity",
+    "passed": true,
+    "details": [
+      {
+        "position": "well_center",
+        "passed": true,
+        "hit": true,
+        "hit_z": 141.501678,
+        "expected_z": 99.425,
+        "hit_object": "WellRim"
+      },
+      {
+        "position": "stall_NE",
+        "passed": true,
+        "hit": true,
+        "hit_z": 149.374451,
+        "expected_z": 99.425,
+        "hit_object": "Stall_1_0_Counter"
+      },
+      {
+        "position": "stall_NW",
+        "passed": true,
+        "hit": true,
+        "hit_z": 144.37677,
+        "expected_z": 99.425,
+        "hit_object": "Stall_0_0_Counter"
+      },
+      {
+        "position": "stall_SE",
+        "passed": true,
+        "hit": true,
+        "hit_z": 144.042358,
+        "expected_z": 99.425,
+        "hit_object": "Stall_2_0_Counter"
+      },
+      {
+        "position": "stall_SW",
+        "passed": true,
+        "hit": true,
+        "hit_z": 143.558746,
+        "expected_z": 99.425,
+        "hit_object": "Stall_3_0_Counter"
+      },
+      {
+        "position": "house_north",
+        "passed": true,
+        "hit": true,
+        "hit_z": 256.904968,
+        "expected_z": 99.425,
+        "hit_object": "House_1"
+      },
+      {
+        "position": "house_south",
+        "passed": true,
+        "hit": true,
+        "hit_z": 256.904968,
+        "expected_z": 99.425,
+        "hit_object": "House_5"
+      },
+      {
+        "position": "house_east",
+        "passed": true,
+        "hit": true,
+        "hit_z": 256.904968,
+        "expected_z": 99.425,
+        "hit_object": "House_3"
+      },
+      {
+        "position": "house_west",
+        "passed": true,
+        "hit": true,
+        "hit_z": 256.904968,
+        "expected_z": 99.425,
+        "hit_object": "House_7"
+      }
+    ]
   },
   {
-    "viewpoint": "wall_north",
-    "surface": "stone_wall",
-    "verdict": "appropriate",
-    "size": "45x20",
-    "ratio_u": 1.5,
-    "ratio_v": 0.8,
-    "notes": "Blocks appear slightly wider and shorter than target scale, but still within reasonable range for a stone wall texture.",
-    "image": "C:\\Users\\Shadow\\Documents\\lute\\agent\\..\\scrap\\tex_wall_north.png"
+    "check": "tower_alignment",
+    "passed": true,
+    "details": [
+      {
+        "tower": "tower_0",
+        "x": 16141.7,
+        "y": 21259.8,
+        "passed": true,
+        "hit": true,
+        "distance": 530.75476,
+        "hit_z": 777.245239,
+        "hit_object": "Tower_0_1"
+      },
+      {
+        "tower": "tower_1",
+        "x": 15354.3,
+        "y": 21259.8,
+        "passed": true,
+        "hit": true,
+        "distance": 507.68774,
+        "hit_z": 800.312256,
+        "hit_object": "Tower_0_0"
+      },
+      {
+        "tower": "tower_2",
+        "x": 16141.7,
+        "y": 10236.2,
+        "passed": true,
+        "hit": true,
+        "distance": 481.32532,
+        "hit_z": 826.674683,
+        "hit_object": "Tower_2_1"
+      },
+      {
+        "tower": "tower_3",
+        "x": 15354.3,
+        "y": 10236.2,
+        "passed": true,
+        "hit": true,
+        "distance": 462.22064,
+        "hit_z": 845.779358,
+        "hit_object": "Tower_2_0"
+      },
+      {
+        "tower": "tower_4",
+        "x": 21259.8,
+        "y": 16141.7,
+        "passed": true,
+        "hit": true,
+        "distance": 463.3282,
+        "hit_z": 844.671814,
+        "hit_object": "Tower_1_1"
+      },
+      {
+        "tower": "tower_5",
+        "x": 21259.8,
+        "y": 15354.3,
+        "passed": true,
+        "hit": true,
+        "distance": 539.0185,
+        "hit_z": 768.981506,
+        "hit_object": "Tower_1_0"
+      },
+      {
+        "tower": "tower_6",
+        "x": 10236.2,
+        "y": 16141.7,
+        "passed": true,
+        "hit": true,
+        "distance": 514.554,
+        "hit_z": 793.445984,
+        "hit_object": "Tower_3_1"
+      },
+      {
+        "tower": "tower_7",
+        "x": 10236.2,
+        "y": 15354.3,
+        "passed": true,
+        "hit": true,
+        "distance": 501.96588,
+        "hit_z": 806.034119,
+        "hit_object": "Tower_3_0"
+      }
+    ]
+  },
+  {
+    "check": "bridge_traversal",
+    "passed": true,
+    "details": [
+      {
+        "bridge": "north",
+        "passed": true,
+        "hit": false,
+        "distance": 1881,
+        "hit_object": ""
+      },
+      {
+        "bridge": "south",
+        "passed": true,
+        "hit": false,
+        "distance": 1881,
+        "hit_object": ""
+      },
+      {
+        "bridge": "east",
+        "passed": true,
+        "hit": false,
+        "distance": 1881,
+        "hit_object": ""
+      },
+      {
+        "bridge": "west",
+        "passed": true,
+        "hit": false,
+        "distance": 1881,
+        "hit_object": ""
+      }
+    ]
+  },
+  {
+    "check": "object_counts",
+    "passed": true,
+    "details": [
+      {
+        "type": "Wall",
+        "expected": "8",
+        "actual": 8,
+        "passed": true
+      },
+      {
+        "type": "Tower",
+        "expected": "8",
+        "actual": 8,
+        "passed": true
+      },
+      {
+        "type": "GateCeiling",
+        "expected": "4",
+        "actual": 4,
+        "passed": true
+      },
+      {
+        "type": "Bridge",
+        "expected": "4",
+        "actual": 4,
+        "passed": true
+      },
+      {
+        "type": "Stall",
+        "expected": "16",
+        "actual": 16,
+        "passed": true
+      },
+      {
+        "type": "Workbench",
+        "expected": "8",
+        "actual": 8,
+        "passed": true
+      },
+      {
+        "type": "House",
+        "expected": "8",
+        "actual": 8,
+        "passed": true
+      },
+      {
+        "type": "WellRim",
+        "expected": "1",
+        "actual": 1,
+        "passed": true
+      },
+      {
+        "type": "Merlon",
+        "expected": ">0",
+        "actual": 100,
+        "passed": true
+      },
+      {
+        "type": "PlazaFloor",
+        "expected": "1",
+        "actual": 1,
+        "passed": true
+      },
+      {
+        "type": "InnerRingFloor",
+        "expected": "4",
+        "actual": 4,
+        "passed": true
+      },
+      {
+        "type": "MarketFoundation",
+        "expected": "1",
+        "actual": 1,
+        "passed": true
+      }
+    ]
+  },
+  {
+    "check": "material_coverage",
+    "passed": true,
+    "details": [
+      {
+        "object": "Wall_0_0",
+        "passed": true,
+        "material": "materials/medieval/stone_wall.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Wall_0_1",
+        "passed": true,
+        "material": "materials/medieval/stone_wall.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Wall_1_0",
+        "passed": true,
+        "material": "materials/medieval/stone_wall.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Wall_1_1",
+        "passed": true,
+        "material": "materials/medieval/stone_wall.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Wall_2_0",
+        "passed": true,
+        "material": "materials/medieval/stone_wall.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Wall_2_1",
+        "passed": true,
+        "material": "materials/medieval/stone_wall.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Wall_3_0",
+        "passed": true,
+        "material": "materials/medieval/stone_wall.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Wall_3_1",
+        "passed": true,
+        "material": "materials/medieval/stone_wall.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Tower_0_0",
+        "passed": true,
+        "material": "materials/medieval/stone_tower.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Tower_0_1",
+        "passed": true,
+        "material": "materials/medieval/stone_tower.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Tower_1_0",
+        "passed": true,
+        "material": "materials/medieval/stone_tower.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Tower_1_1",
+        "passed": true,
+        "material": "materials/medieval/stone_tower.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Tower_2_0",
+        "passed": true,
+        "material": "materials/medieval/stone_tower.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Tower_2_1",
+        "passed": true,
+        "material": "materials/medieval/stone_tower.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Tower_3_0",
+        "passed": true,
+        "material": "materials/medieval/stone_tower.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Tower_3_1",
+        "passed": true,
+        "material": "materials/medieval/stone_tower.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "GateCeiling_0",
+        "passed": true,
+        "material": "materials/medieval/stone_wall.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "GateJamb_0_0",
+        "passed": true,
+        "material": "materials/medieval/stone_wall.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "GateJamb_0_1",
+        "passed": true,
+        "material": "materials/medieval/stone_wall.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "GateLintel_0",
+        "passed": true,
+        "material": "materials/medieval/stone_wall.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "GateCeiling_1",
+        "passed": true,
+        "material": "materials/medieval/stone_wall.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "GateJamb_1_0",
+        "passed": true,
+        "material": "materials/medieval/stone_wall.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "GateJamb_1_1",
+        "passed": true,
+        "material": "materials/medieval/stone_wall.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "GateLintel_1",
+        "passed": true,
+        "material": "materials/medieval/stone_wall.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "GateCeiling_2",
+        "passed": true,
+        "material": "materials/medieval/stone_wall.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "GateJamb_2_0",
+        "passed": true,
+        "material": "materials/medieval/stone_wall.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "GateJamb_2_1",
+        "passed": true,
+        "material": "materials/medieval/stone_wall.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "GateLintel_2",
+        "passed": true,
+        "material": "materials/medieval/stone_wall.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "GateCeiling_3",
+        "passed": true,
+        "material": "materials/medieval/stone_wall.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "GateJamb_3_0",
+        "passed": true,
+        "material": "materials/medieval/stone_wall.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "GateJamb_3_1",
+        "passed": true,
+        "material": "materials/medieval/stone_wall.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "GateLintel_3",
+        "passed": true,
+        "material": "materials/medieval/stone_wall.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Bridge_0",
+        "passed": true,
+        "material": "materials/medieval/plaza.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Bridge_1",
+        "passed": true,
+        "material": "materials/medieval/plaza.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Bridge_2",
+        "passed": true,
+        "material": "materials/medieval/plaza.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Bridge_3",
+        "passed": true,
+        "material": "materials/medieval/plaza.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_0_0_Counter",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_0_0_Post0",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_0_0_Post1",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_0_0_Awning",
+        "passed": true,
+        "material": "materials/medieval/roof.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_0_1_Counter",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_0_1_Post0",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_0_1_Post1",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_0_1_Awning",
+        "passed": true,
+        "material": "materials/medieval/roof.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_0_2_Counter",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_0_2_Post0",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_0_2_Post1",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_0_2_Awning",
+        "passed": true,
+        "material": "materials/medieval/roof.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_0_3_Counter",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_0_3_Post0",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_0_3_Post1",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_0_3_Awning",
+        "passed": true,
+        "material": "materials/medieval/roof.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_1_0_Counter",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_1_0_Post0",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_1_0_Post1",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_1_0_Awning",
+        "passed": true,
+        "material": "materials/medieval/roof.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_1_1_Counter",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_1_1_Post0",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_1_1_Post1",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_1_1_Awning",
+        "passed": true,
+        "material": "materials/medieval/roof.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_1_2_Counter",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_1_2_Post0",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_1_2_Post1",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_1_2_Awning",
+        "passed": true,
+        "material": "materials/medieval/roof.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_1_3_Counter",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_1_3_Post0",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_1_3_Post1",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_1_3_Awning",
+        "passed": true,
+        "material": "materials/medieval/roof.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_2_0_Counter",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_2_0_Post0",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_2_0_Post1",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_2_0_Awning",
+        "passed": true,
+        "material": "materials/medieval/roof.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_2_1_Counter",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_2_1_Post0",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_2_1_Post1",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_2_1_Awning",
+        "passed": true,
+        "material": "materials/medieval/roof.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_2_2_Counter",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_2_2_Post0",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_2_2_Post1",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_2_2_Awning",
+        "passed": true,
+        "material": "materials/medieval/roof.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_2_3_Counter",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_2_3_Post0",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_2_3_Post1",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_2_3_Awning",
+        "passed": true,
+        "material": "materials/medieval/roof.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_3_0_Counter",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_3_0_Post0",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_3_0_Post1",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_3_0_Awning",
+        "passed": true,
+        "material": "materials/medieval/roof.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_3_1_Counter",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_3_1_Post0",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_3_1_Post1",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_3_1_Awning",
+        "passed": true,
+        "material": "materials/medieval/roof.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_3_2_Counter",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_3_2_Post0",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_3_2_Post1",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_3_2_Awning",
+        "passed": true,
+        "material": "materials/medieval/roof.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_3_3_Counter",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_3_3_Post0",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_3_3_Post1",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Stall_3_3_Awning",
+        "passed": true,
+        "material": "materials/medieval/roof.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Workbench_0",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Workbench_1",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Workbench_2",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Workbench_3",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Workbench_4",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Workbench_5",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Workbench_6",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Workbench_7",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "House_0",
+        "passed": true,
+        "material": "materials/medieval/wood_house.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "House_1",
+        "passed": true,
+        "material": "materials/medieval/wood_house.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "House_2",
+        "passed": true,
+        "material": "materials/medieval/wood_house.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "House_3",
+        "passed": true,
+        "material": "materials/medieval/wood_house.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "House_4",
+        "passed": true,
+        "material": "materials/medieval/wood_house.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "House_5",
+        "passed": true,
+        "material": "materials/medieval/wood_house.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "House_6",
+        "passed": true,
+        "material": "materials/medieval/wood_house.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "House_7",
+        "passed": true,
+        "material": "materials/medieval/wood_house.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "WellRim",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/sphere.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "WellWater",
+        "passed": true,
+        "material": "materials/medieval/moat_water.vmat",
+        "model": "models/dev/sphere.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "WellPost_0",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "WellPost_1",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "WellPost_2",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "WellPost_3",
+        "passed": true,
+        "material": "materials/medieval/wood.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "WellRoof",
+        "passed": true,
+        "material": "materials/medieval/roof.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-1181",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-2362",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-3543",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-4724",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-5905",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-7086",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-8267",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-9448",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-10629",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-11811",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-12992",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-14173",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-15354",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-16535",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-17716",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-18897",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-20078",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-21259",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-22440",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-23622",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-24803",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-25984",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-27165",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-28346",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-29527",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-30708",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-31889",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-33070",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-34251",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-35433",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-36614",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-37795",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-38976",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-40157",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-41338",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-42519",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-43700",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-44881",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-46062",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-47244",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-48425",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-49606",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-50787",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-51968",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_0_-53149",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_1181",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_2362",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_3543",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_4724",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_5905",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_7086",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_8267",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_9448",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_10629",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_11811",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_12992",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_14173",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_15354",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_16535",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_17716",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_18897",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_20078",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_21259",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_22440",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_23622",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_24803",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_25984",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_27165",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_28346",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_29527",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_30708",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_31889",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_33070",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_34251",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_35433",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_36614",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_37795",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_38976",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_40157",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_41338",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_42519",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_43700",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_44881",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_46062",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_47244",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_48425",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_49606",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_50787",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_51968",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_0_1_53149",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_1_0_-1181",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_1_0_-2362",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_1_0_-3543",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_1_0_-4724",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_1_0_-5905",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_1_0_-7086",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_1_0_-8267",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_1_0_-9448",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_1_0_-10629",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "Merlon_1_0_-11811",
+        "passed": true,
+        "material": "materials/medieval/stone_detail.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "PlazaFloor",
+        "passed": true,
+        "material": "materials/medieval/plaza.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "InnerRingFloor_0",
+        "passed": true,
+        "material": "materials/medieval/plaza.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "InnerRingFloor_1",
+        "passed": true,
+        "material": "materials/medieval/plaza.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "InnerRingFloor_2",
+        "passed": true,
+        "material": "materials/medieval/plaza.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "InnerRingFloor_3",
+        "passed": true,
+        "material": "materials/medieval/plaza.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      },
+      {
+        "object": "MarketFoundation",
+        "passed": true,
+        "material": "materials/medieval/stone_wall.vmat",
+        "model": "models/dev/box.vmdl",
+        "reason": ""
+      }
+    ],
+    "warning_count": 0
+  },
+  {
+    "check": "component_completeness",
+    "passed": true,
+    "details": [
+      {
+        "object": "Wall_0_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Wall_0_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Wall_1_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Wall_1_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Wall_2_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Wall_2_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Wall_3_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Wall_3_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Tower_0_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Tower_0_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Tower_1_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Tower_1_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Tower_2_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Tower_2_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Tower_3_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Tower_3_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateCeiling_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateJamb_0_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateJamb_0_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateLintel_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateCeiling_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateJamb_1_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateJamb_1_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateLintel_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateCeiling_2",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateJamb_2_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateJamb_2_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateLintel_2",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateCeiling_3",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateJamb_3_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateJamb_3_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "GateLintel_3",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Bridge_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Bridge_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Bridge_2",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Bridge_3",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_0_0_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_0_1_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_0_2_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_0_3_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_1_0_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_1_1_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_1_2_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_1_3_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_2_0_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_2_1_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_2_2_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_2_3_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_3_0_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_3_1_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_3_2_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Stall_3_3_Counter",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Workbench_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Workbench_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Workbench_2",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Workbench_3",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Workbench_4",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Workbench_5",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Workbench_6",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "Workbench_7",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "House_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "House_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "House_2",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "House_3",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "House_4",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "House_5",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "House_6",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "House_7",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "WellRim",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "PlazaFloor",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "InnerRingFloor_0",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "InnerRingFloor_1",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "InnerRingFloor_2",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "InnerRingFloor_3",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      },
+      {
+        "object": "MarketFoundation",
+        "passed": true,
+        "components": [
+          "ModelRenderer",
+          "BoxCollider"
+        ],
+        "issues": []
+      }
+    ],
+    "failure_count": 0
+  },
+  {
+    "check": "spatial_bounds",
+    "passed": true,
+    "details": []
+  },
+  {
+    "check": "hierarchy",
+    "passed": true,
+    "details": []
   }
 ]
