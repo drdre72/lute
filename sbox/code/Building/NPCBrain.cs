@@ -726,5 +726,36 @@ Respond strictly with valid JSON matching this schema (no other text):
 					Log.Info( $"    {kvp.Key} = {kvp.Value}" );
 			}
 		}
+
+		/// <summary>
+		/// Parse text using the grammar-based parser and show full structure.
+		/// Handles negation, conditions, multi-intent, and reasons.
+		/// Usage: nlp_grammar "I'll take the wall, but not until I finish the gate"
+		/// </summary>
+		[ConCmd( "nlp_grammar" )]
+		public static void NlpGrammarCommand( string text )
+		{
+			var result = GrammarParser.Parse( text );
+			Log.Info( $"[nlp_grammar] \"{text}\"" );
+			Log.Info( $"  Primary: {result.Primary.Type} ({result.Primary.Topic}) '{result.Primary.Subject}' conf={result.Primary.Confidence:F2}" );
+			if ( result.Secondary.Count > 0 )
+			{
+				Log.Info( $"  Secondary intents ({result.Secondary.Count}):" );
+				foreach ( var s in result.Secondary )
+					Log.Info( $"    {s.Type} ({s.Topic}) '{s.Subject}'" );
+			}
+			if ( result.Condition != null )
+				Log.Info( $"  Condition: {result.Condition}" );
+			if ( result.Reason != null )
+				Log.Info( $"  Reason: {result.Reason}" );
+			if ( result.HasNegation )
+				Log.Info( "  [NEGATED]" );
+			if ( result.Primary.Parameters.Count > 0 )
+			{
+				Log.Info( "  Parameters:" );
+				foreach ( var kvp in result.Primary.Parameters )
+					Log.Info( $"    {kvp.Key} = {kvp.Value}" );
+			}
+		}
 	}
 }
