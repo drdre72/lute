@@ -130,8 +130,8 @@ namespace Lute.Npc
 				builder.Center = center;
 				builder.VillageSeed = marker.VillageSeed;
 				builder.FreshBuild = marker.FreshBuild;
-				builder.BuildInterval = 6.0f;     // ~6s per piece = 8-hour pace
-				builder.SaveInterval = 600f;       // save every 10 minutes
+				builder.BuildInterval = 1.0f;     // 1s per piece = fast build (~73 min for full village)
+				builder.SaveInterval = 60f;        // save every 1 minute
 				builder.CellSize = 100f;
 				builder.WallHeight = 200f;
 				builder.FloorThickness = 10f;
