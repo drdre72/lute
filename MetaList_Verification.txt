@@ -104,7 +104,7 @@
 - [x] Implement NPC spawning from scene markers (SpawnMarker + NPCSpawner, commit d760714)
 - [x] Fix PlayerController grounding — WishVelocity + spawn at z=4 (commit d760714)
 - [x] Implement NPC pathfinding — NavMeshAgent + NavMesh.Generate in LuteGame (commit pending)
-- [ ] Implement NPC interaction (talk, trade, quest)
+- [x] Implement NPC interaction — Interactable + PlayerInteractor + Talk/Trade/Quest modes (commit pending)
 
 ---
 

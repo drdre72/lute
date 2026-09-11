@@ -163,6 +163,14 @@ namespace Lute.Npc
 			var npc = go.AddComponent<NPCBuilderController>();
 			npc.Builder = builder;
 
+			// Interaction — Interactable lets the player press E to cycle
+			// through Talk / Trade / Quest modes. Native FSM, no LLM.
+			var interactable = go.AddComponent<Interactable>();
+			interactable.NpcMode = true;
+			interactable.DisplayName = name;
+			interactable.Range = 150f;
+			interactable.IsAvailable = true;
+
 			Log.Info( $"Lute: NPCSpawner citizen body '{name}' at {go.WorldPosition} (site={builder.BuildSiteCenter})." );
 			return go;
 		}

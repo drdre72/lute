@@ -1,3 +1,5 @@
+using Lute.Npc;
+
 /// <summary>
 /// Lute mage player. Sits alongside the built-in <see cref="PlayerController"/>
 /// and adds spell-casting input hooks for the eight Lute spell schools.
@@ -22,6 +24,12 @@ public sealed class LutePlayer : Component
 		_body = Controller.GetComponent<Rigidbody>();
 		// Collect all colliders on the player hierarchy so we can disable them for noclip
 		_colliders = Controller.GameObject.GetComponentsInChildren<Collider>( true, true ).ToList();
+
+		// Add the interaction controller if not already present (e.g. from
+		// the scene file). This lets the player press E to interact with
+		// nearby Interactable components (NPCs, objects, etc.).
+		Components.GetOrCreate<PlayerInteractor>();
+		Log.Info( "Lute: PlayerInteractor attached to player." );
 	}
 
 	protected override void OnUpdate()
