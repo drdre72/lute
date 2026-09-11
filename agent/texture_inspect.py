@@ -483,6 +483,7 @@ def main():
         print(f"{'='*60}")
         for wp in MACRO_VIEWPOINTS:
             entry = inspect_macro(vl, wp)
+            entry["type"] = "macro"
             report.append(entry)
             if entry["verdict"] == "discrepancy":
                 print(f"  [!] Structural discrepancies found: {entry['discrepancies']}")
@@ -502,11 +503,12 @@ def main():
                          probe_floor_solidity, probe_tower_alignment,
                          probe_bridge_traversal]:
                 result = func()
+                result["type"] = "collision"
                 report.append(result)
         except Exception as e:
             print(f"  Collision probes failed: {e}")
-            report.append({"check": "collision_probes", "passed": False,
-                           "error": str(e)})
+            report.append({"type": "collision", "check": "collision_probes",
+                           "passed": False, "error": str(e)})
 
     # ── Scene telemetry: object/material/component audit ──
     if args.telemetry:
@@ -521,11 +523,12 @@ def main():
                          check_component_completeness, check_spatial_bounds,
                          check_hierarchy]:
                 result = func()
+                result["type"] = "telemetry"
                 report.append(result)
         except Exception as e:
             print(f"  Scene telemetry failed: {e}")
-            report.append({"check": "scene_telemetry", "passed": False,
-                           "error": str(e)})
+            report.append({"type": "telemetry", "check": "scene_telemetry",
+                           "passed": False, "error": str(e)})
 
     # ── Micro pass: texture scale inspection ──
     for iteration in range(args.max_iter if args.fix else 1):
@@ -542,6 +545,7 @@ def main():
             verdict, img_path = inspect_one(vl, vp, rubric)
 
             entry = {
+                "type": "micro",
                 "viewpoint": name, "surface": skey,
                 "verdict": verdict["verdict"], "size": verdict["size"],
                 "ratio_u": verdict["ratio_u"], "ratio_v": verdict["ratio_v"],
@@ -628,19 +632,18 @@ def main():
     print("  INSPECTION REPORT")
     print(f"{'='*60}")
     for r in report:
-        if "check" in r:
-            # Collision probe or telemetry result
+        rtype = r.get("type", "micro")
+        if rtype in ("collision", "telemetry"):
             passed = r.get("passed", False)
             status = "PASS" if passed else "FAIL"
-            print(f"  {status:12s} {r['check']:20s} {'(verify)':14s}")
-            continue
-        scale = r.get("scale", "micro")
-        verdict = r.get("verdict", "?")
-        if scale == "macro":
+            print(f"  {status:12s} {r['check']:20s} {'(' + rtype + ')':14s}")
+        elif rtype == "macro":
+            verdict = r.get("verdict", "?")
             status = {"ok": "OK", "discrepancy": "DISCREPANCY",
                       "not_visible": "?"}.get(verdict, "?")
             print(f"  {status:12s} {r['viewpoint']:20s} {'(macro)':14s} {verdict:12s} {r.get('notes', '')}")
-        else:
+        else:  # micro
+            verdict = r.get("verdict", "?")
             status = {"appropriate": "OK", "too_small": "SMALL", "too_large": "LARGE",
                       "not_visible": "?"}.get(verdict, "?")
             print(f"  {status:12s} {r['viewpoint']:20s} {r.get('surface', ''):14s} {verdict:12s} {r.get('size', ''):20s} {r.get('notes', '')}")

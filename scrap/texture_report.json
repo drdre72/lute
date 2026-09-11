@@ -99,7 +99,8 @@
         "distance": 200,
         "hit_object": ""
       }
-    ]
+    ],
+    "type": "collision"
   },
   {
     "check": "wall_thickness",
@@ -137,7 +138,8 @@
         "expected_thickness": 78.74,
         "hit_object": "Wall_3_1"
       }
-    ]
+    ],
+    "type": "collision"
   },
   {
     "check": "floor_solidity",
@@ -215,7 +217,8 @@
         "expected_z": 99.425,
         "hit_object": "House_7"
       }
-    ]
+    ],
+    "type": "collision"
   },
   {
     "check": "tower_alignment",
@@ -301,7 +304,8 @@
         "hit_z": 806.034119,
         "hit_object": "Tower_3_0"
       }
-    ]
+    ],
+    "type": "collision"
   },
   {
     "check": "bridge_traversal",
@@ -335,7 +339,8 @@
         "distance": 1881,
         "hit_object": ""
       }
-    ]
+    ],
+    "type": "collision"
   },
   {
     "check": "object_counts",
@@ -413,7 +418,8 @@
         "actual": 1,
         "passed": true
       }
-    ]
+    ],
+    "type": "telemetry"
   },
   {
     "check": "material_coverage",
@@ -2023,7 +2029,8 @@
         "reason": ""
       }
     ],
-    "warning_count": 0
+    "warning_count": 0,
+    "type": "telemetry"
   },
   {
     "check": "component_completeness",
@@ -2705,16 +2712,19 @@
         "issues": []
       }
     ],
-    "failure_count": 0
+    "failure_count": 0,
+    "type": "telemetry"
   },
   {
     "check": "spatial_bounds",
     "passed": true,
-    "details": []
+    "details": [],
+    "type": "telemetry"
   },
   {
     "check": "hierarchy",
     "passed": true,
-    "details": []
+    "details": [],
+    "type": "telemetry"
   }
 ]
