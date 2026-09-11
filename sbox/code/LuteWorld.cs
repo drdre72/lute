@@ -410,8 +410,69 @@ public sealed class LuteWorld : Component
 			builder.FloorMaterial = "materials/dev/gray_50.vmat";
 			builder.LayoutSeed = 1000 + i; // deterministic per tier
 
+			// Spawn a citizen body + controller as a sibling GameObject so the
+			// builder has an actual NPC standing beside the construction site.
+			// This is NOT Merlyn — separate body, separate controller, no LLM.
+			SpawnBuilderBody( parent, $"BuilderNPC_W{wealthTiers[i]:F1}", go.WorldPosition, builder );
+
 			Log.Info( $"Lute: TestStructure {i} (wealth={wealthTiers[i]:F1}) spawned at {go.WorldPosition}." );
 		}
+	}
+
+	/// <summary>
+	/// Spawns a citizen body with a <see cref="NPCBuilderController"/> for an
+	/// <see cref="NPCBuilder"/>. Mirrors the Merlyn body setup (citizen model
+	/// + capsule/box colliders + Rigidbody + PlayerController with input
+	/// disabled) but uses <see cref="NPCBuilderController"/> instead of
+	/// <see cref="LuteBuilderNpc"/>. The body starts a few meters in front
+	/// of the build site so the controller has to walk to it.
+	/// </summary>
+	void SpawnBuilderBody( GameObject parent, string name, Vector3 sitePos, NPCBuilder builder )
+	{
+		var go = Scene.CreateObject( true );
+		go.Name = name;
+		go.SetParent( parent );
+
+		// Start 5m north of the site, on the ground.
+		go.WorldPosition = sitePos + new Vector3( 0f, 5f * 39.37f, 64f );
+		go.WorldRotation = Rotation.Identity;
+
+		// Body — citizen model (same as the player and Merlyn).
+		var bodyGo = Scene.CreateObject( true );
+		bodyGo.Name = "Body";
+		bodyGo.SetParent( go );
+		bodyGo.WorldPosition = Vector3.Zero;
+		bodyGo.WorldRotation = Rotation.Identity;
+		var bodyRenderer = bodyGo.AddComponent<SkinnedModelRenderer>();
+		bodyRenderer.Model = Model.Load( "models/citizen/citizen.vmdl" );
+
+		// Colliders — same setup as Merlyn (capsule + box).
+		var collidersGo = Scene.CreateObject( true );
+		collidersGo.Name = "Colliders";
+		collidersGo.SetParent( go );
+		var capsule = collidersGo.AddComponent<CapsuleCollider>();
+		capsule.Radius = 16f;
+		capsule.Start = new Vector3( 0, 0, 0 );
+		capsule.End = new Vector3( 0, 0, 72f );
+		var box = collidersGo.AddComponent<BoxCollider>();
+		box.Scale = new Vector3( 32f, 32f, 72f );
+
+		// Rigidbody for physics.
+		var rb = go.AddComponent<Rigidbody>();
+		rb.Gravity = true;
+
+		// PlayerController — input disabled, NPC moves via code.
+		var controller = go.AddComponent<PlayerController>();
+		controller.UseInputControls = false;
+		controller.UseCameraControls = false;
+		controller.UseAnimatorControls = true;
+		controller.Renderer = bodyRenderer;
+
+		// The controller — wires itself to the sibling builder if not set.
+		var npc = go.AddComponent<NPCBuilderController>();
+		npc.Builder = builder;
+
+		Log.Info( $"Lute: BuilderNPC '{name}' spawned at {go.WorldPosition} (site={sitePos})." );
 	}
 
 	/// <summary> Creates a GameObject with a ModelRenderer using a primitive model. </summary>

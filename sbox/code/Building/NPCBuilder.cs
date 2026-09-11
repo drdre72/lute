@@ -55,6 +55,20 @@ namespace Lute.Building
 		/// <summary> Pieces placed so far (read-only view for diagnostics). </summary>
 		public IReadOnlyList<GameObject> Pieces => _pieces;
 
+		/// <summary>
+		/// True once the build queue has drained and every piece has been
+		/// placed. Drives the controller's FSM transition out of Building.
+		/// </summary>
+		public bool IsComplete { get; private set; }
+
+		/// <summary>
+		/// World position the NPC body should walk to before/while building —
+		/// the geometric center of the structure's footprint, on the ground.
+		/// Computed from the layout in OnStart so the controller can steer
+		/// toward it before the first piece is placed.
+		/// </summary>
+		public Vector3 BuildSiteCenter { get; private set; }
+
 		protected override void OnStart()
 		{
 			_cts = new CancellationTokenSource();
@@ -62,6 +76,22 @@ namespace Lute.Building
 			var rng = LayoutSeed > 0 ? new Random( LayoutSeed ) : new Random();
 			var grammar = new BuildingGrammar( rng );
 			var layout = grammar.GenerateLayout( BaseWidth, BaseHeight, WealthFactor );
+
+			// Compute the build-site center from the layout's cell extents so
+			// the controller can steer toward the middle of the footprint
+			// before the first piece exists.
+			int minX = int.MaxValue; int maxX = int.MinValue;
+			int minY = int.MaxValue; int maxY = int.MinValue;
+			foreach ( var kvp in layout )
+			{
+				if ( kvp.Key.X < minX ) minX = kvp.Key.X;
+				if ( kvp.Key.X > maxX ) maxX = kvp.Key.X;
+				if ( kvp.Key.Y < minY ) minY = kvp.Key.Y;
+				if ( kvp.Key.Y > maxY ) maxY = kvp.Key.Y;
+			}
+			var centerCell = new Vector2Int( (minX + maxX) / 2, (minY + maxY) / 2 );
+			BuildSiteCenter = WorldPosition
+				+ new Vector3( centerCell.X * CellSize, centerCell.Y * CellSize, 0f );
 
 			foreach ( var kvp in layout )
 				_buildQueue.Enqueue( kvp );
@@ -102,6 +132,7 @@ namespace Lute.Building
 				}
 
 				Log.Info( $"Lute: NPCBuilder '{GameObject.Name}' finished — {_pieces.Count} pieces placed." );
+				IsComplete = true;
 			}
 			catch ( OperationCanceledException )
 			{
