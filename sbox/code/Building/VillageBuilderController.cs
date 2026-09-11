@@ -16,6 +16,13 @@ namespace Lute.Building
 	/// present and the scene's NavMesh is enabled/loaded, the agent
 	/// pathfinds to the target. Otherwise it falls back to direct
 	/// steering toward the world target.
+	///
+	/// When <see cref="UseBlackboard"/> is true, this NPC registers its
+	/// position on the shared <see cref="SpatialBlackboard"/> every tick,
+	/// claims a radius around the current build site before construction,
+	/// and releases the claim when the task completes or the NPC is
+	/// destroyed. Other NPCs check the blackboard before building so
+	/// multiple builders don't stack on the same site.
 	/// </summary>
 	public sealed class VillageBuilderController : Component
 	{
@@ -34,6 +41,27 @@ namespace Lute.Building
 		/// <summary> Use NavMesh for pathfinding when available. </summary>
 		[Property] public bool UseNavMesh { get; set; } = true;
 
+		/// <summary>
+		/// Identity of this NPC on the <see cref="SpatialBlackboard"/>. If
+		/// empty, the GameObject's name is used. Must be unique among builder
+		/// NPCs so positions and claims don't collide.
+		/// </summary>
+		[Property] public string NpcName { get; set; } = "";
+
+		/// <summary>
+		/// Radius (inches) claimed around a build site while constructing.
+		/// Other NPCs avoid building inside this radius. ~150in is about
+		/// 3.8m, enough to cover a single wall segment plus standing room.
+		/// </summary>
+		[Property] public float ClaimRadius { get; set; } = 150f;
+
+		/// <summary>
+		/// If true, this NPC participates in the shared spatial blackboard:
+		/// publishing its position every tick, claiming build sites, and
+		/// releasing them on completion. Disable for purely decorative NPCs.
+		/// </summary>
+		[Property] public bool UseBlackboard { get; set; } = true;
+
 		public enum NpcState
 		{
 			Idle,
@@ -49,6 +77,10 @@ namespace Lute.Building
 		private float _logTimer;
 		private Vector3 _currentTarget;
 		private int _buildingTaskIndex = -1; // tracks which task index we're standing at
+		private string _npcId;       // resolved blackboard identity
+		private string _activeClaimId; // non-null while we hold a build-site claim
+		private bool _npcIdResolved;
+		private static int _fallbackIdCounter;
 
 		protected override void OnStart()
 		{
@@ -59,6 +91,22 @@ namespace Lute.Building
 				NavAgent.UpdatePosition = false;
 				NavAgent.UpdateRotation = false;
 			}
+
+			ResolveNpcId();
+		}
+
+		void ResolveNpcId()
+		{
+			_npcId = string.IsNullOrWhiteSpace( NpcName ) ? GameObject?.Name : NpcName;
+			if ( string.IsNullOrWhiteSpace( _npcId ) )
+			{
+				// Name not available yet (e.g. OnStart ran before the GameObject
+				// was fully initialized) — assign a stable fallback so the
+				// blackboard never receives a null key.
+				_fallbackIdCounter++;
+				_npcId = $"villager_{_fallbackIdCounter}";
+			}
+			_npcIdResolved = true;
 		}
 
 		protected override void OnFixedUpdate()
@@ -68,6 +116,17 @@ namespace Lute.Building
 
 			_stateTimer += Time.Delta;
 			_logTimer += Time.Delta;
+
+			// Keep the shared blackboard clock ticking and publish our position
+			// every tick so other NPCs know where we are.
+			if ( UseBlackboard )
+			{
+				if ( !_npcIdResolved )
+					ResolveNpcId();
+
+				SpatialBlackboard.Update( Time.Delta );
+				SpatialBlackboard.UpdatePosition( _npcId, WorldPosition );
+			}
 
 			switch ( State )
 			{
@@ -84,6 +143,7 @@ namespace Lute.Building
 				case NpcState.VillageComplete:
 					// Stand idle — village is done.
 					Controller.WishVelocity = Vector3.Zero;
+					ReleaseActiveClaim();
 					break;
 			}
 
@@ -95,6 +155,14 @@ namespace Lute.Building
 			}
 		}
 
+		protected override void OnDestroy()
+		{
+			// Always release our claim and announce departure so other NPCs
+			// don't think the site is still reserved.
+			ReleaseActiveClaim();
+			if ( UseBlackboard && !string.IsNullOrEmpty( _npcId ) )
+				SpatialBlackboard.PostMessage( _npcId, "", "done", "npc destroyed", WorldPosition );
+		}
 		void HandleIdle()
 		{
 			// Wait a moment, then start walking to the first/current build site
@@ -144,7 +212,16 @@ namespace Lute.Building
 
 			if ( dist <= StopRadius )
 			{
-				// Arrived at site — start building
+				// Arrived at site — claim it before building so other NPCs
+				// don't stack on the same spot.
+				if ( UseBlackboard && !TryClaimSite( _currentTarget ) )
+				{
+					// Site is contested. Wait here and retry next tick; the
+					// other NPC will release when its task completes.
+					Controller.WishVelocity = Vector3.Zero;
+					return;
+				}
+
 				State = NpcState.Building;
 				_stateTimer = 0;
 				_buildingTaskIndex = Builder.CurrentTaskIndex;
@@ -165,6 +242,7 @@ namespace Lute.Building
 				if ( Builder.IsComplete )
 				{
 					State = NpcState.VillageComplete;
+					ReleaseActiveClaim();
 					Log.Info( "Lute: VillageBuilderController — village complete!" );
 					return;
 				}
@@ -182,6 +260,7 @@ namespace Lute.Building
 			// comparison avoids fragility from duplicate task names.
 			if ( _buildingTaskIndex >= 0 && Builder.CurrentTaskIndex != _buildingTaskIndex )
 			{
+				ReleaseActiveClaim();
 				State = NpcState.WalkingToNextSite;
 				_stateTimer = 0;
 				Controller.WishVelocity = Vector3.Zero;
@@ -193,6 +272,7 @@ namespace Lute.Building
 			// the case where the builder hasn't started the next task yet.
 			if ( Builder.CurrentTask.Status == 2 )
 			{
+				ReleaseActiveClaim();
 				State = NpcState.WalkingToNextSite;
 				_stateTimer = 0;
 				Controller.WishVelocity = Vector3.Zero;
@@ -202,6 +282,48 @@ namespace Lute.Building
 
 			// Stand by while building — small idle movement
 			Controller.WishVelocity = Vector3.Zero;
+		}
+
+		/// <summary>
+		/// Claim the build site at <paramref name="site"/> if it is clear
+		/// of other NPCs' claims. Stores the claim ID in
+		/// <see cref="_activeClaimId"/> on success. Returns false (and
+		/// logs) if another NPC already holds an overlapping claim.
+		/// </summary>
+		bool TryClaimSite( Vector3 site )
+		{
+			var blocker = SpatialBlackboard.CheckClear( site, ClaimRadius, _npcId );
+			if ( blocker is not null )
+			{
+				Log.Info( $"Lute: VillageBuilderController '{_npcId}' site at {site} blocked by '{blocker}' — waiting." );
+				return false;
+			}
+
+			if ( SpatialBlackboard.Claim( _npcId, site, ClaimRadius, "building" ) )
+			{
+				_activeClaimId = SpatialBlackboard.GetClaimsByOwner( _npcId )
+					.OrderByDescending( c => c.Timestamp )
+					.First().Id;
+				SpatialBlackboard.PostMessage( _npcId, "", "request", $"claiming site at {site}", site );
+				return true;
+			}
+
+			Log.Info( $"Lute: VillageBuilderController '{_npcId}' claim rejected at {site}." );
+			return false;
+		}
+
+		/// <summary>
+		/// Release the current build-site claim (if any) and announce it
+		/// on the blackboard so waiting NPCs can proceed.
+		/// </summary>
+		void ReleaseActiveClaim()
+		{
+			if ( !UseBlackboard || string.IsNullOrEmpty( _activeClaimId ) )
+				return;
+
+			SpatialBlackboard.ReleaseClaim( _activeClaimId );
+			SpatialBlackboard.PostMessage( _npcId, "", "done", "site released", WorldPosition );
+			_activeClaimId = null;
 		}
 
 		void MoveToward( Vector3 target )
