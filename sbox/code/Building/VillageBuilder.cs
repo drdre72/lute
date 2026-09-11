@@ -25,11 +25,11 @@ namespace Lute.Building
 	{
 		const float M = 39.37f;
 
-		/// <summary> Seconds between placed pieces. ~6s = 8-hour pace. </summary>
-		[Property] public float BuildInterval { get; set; } = 6.0f;
+		/// <summary> Seconds between placed pieces. 1s = ~73-minute pace. </summary>
+		[Property] public float BuildInterval { get; set; } = 1.0f;
 
 		/// <summary> Seconds between save checks. </summary>
-		[Property] public float SaveInterval { get; set; } = 600f; // 10 minutes
+		[Property] public float SaveInterval { get; set; } = 60f; // 1 minute
 
 		/// <summary> World center of the village. </summary>
 		[Property] public Vector3 Center { get; set; } = new Vector3( 5000, 5000, 0 );
@@ -117,6 +117,19 @@ namespace Lute.Building
 		protected override void OnStart()
 		{
 			_cts = new CancellationTokenSource();
+
+			// Force build speed override — scene file may have stale value
+			// from a previous run. 1s/piece = ~73 minute build.
+			if ( BuildInterval > 2.0f )
+			{
+				Log.Info( $"Lute: VillageBuilder overriding BuildInterval {BuildInterval}s → 1.0s (fast mode)" );
+				BuildInterval = 1.0f;
+			}
+			if ( SaveInterval > 120f )
+			{
+				Log.Info( $"Lute: VillageBuilder overriding SaveInterval {SaveInterval}s → 60s (fast mode)" );
+				SaveInterval = 60f;
+			}
 
 			// Create village root GameObject
 			_villageRoot = Scene.CreateObject( true );
