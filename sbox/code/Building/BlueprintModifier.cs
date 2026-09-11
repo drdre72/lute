@@ -10,9 +10,108 @@ namespace Lute.Building
 	/// geometry execution. It modifies PENDING tasks only — never touches
 	/// in-progress or complete tasks, respecting the incremental build model
 	/// and save/resume system.
+	///
+	/// As of Phase 2, also supports direct <see cref="Blueprint"/> modification
+	/// via <see cref="ModifyBlueprint"/>: applies a critique to a blueprint's
+	/// pieces, bumps the version, recomputes the hash, and registers the new
+	/// version with <see cref="BlueprintRegistry"/>. This enables the
+	/// critique -> v(n+1) -> validate -> execute -> rollback-on-failure loop.
 	/// </summary>
 	public static class BlueprintModifier
 	{
+		/// <summary>
+		/// Apply a critique directly to a Blueprint's pieces, producing a
+		/// new version. The original blueprint is not mutated; a versioned
+		/// copy is created, modified, validated, and registered. Returns
+		/// the new version, or null if the critique was a no-op.
+		///
+		/// This is the piece-level path used when an LLM critique targets
+		/// a specific blueprint (not a village task). The task-level path
+		/// (<see cref="ApplyCritique"/>) is for village-build-time
+		/// modifications before the blueprint is generated.
+		/// </summary>
+		public static Blueprint ModifyBlueprint( Blueprint original, BuildingCritique critique )
+		{
+			if ( original == null || critique == null )
+				return null;
+
+			// Create a versioned copy
+			var modified = new Blueprint
+			{
+				Id = original.Id,
+				Version = original.Version + 1,
+				Name = original.Name,
+				Origin = critique.PositionOffset ?? original.Origin,
+				Rotation = original.Rotation,
+				CellSize = original.CellSize,
+				WallHeight = original.WallHeight,
+				FloorThickness = original.FloorThickness,
+				WallMaterial = !string.IsNullOrEmpty( critique.MaterialOverride ) ? critique.MaterialOverride : original.WallMaterial,
+				FloorMaterial = !string.IsNullOrEmpty( critique.MaterialOverride ) ? critique.MaterialOverride : original.FloorMaterial,
+				RoofMaterial = original.RoofMaterial,
+				ColumnMaterial = original.ColumnMaterial,
+				Constraints = original.Constraints,
+				Anchors = original.Anchors,
+				Dependencies = original.Dependencies,
+				Provenance = new BlueprintProvenance
+				{
+					Producer = "BlueprintModifier.ModifyBlueprint",
+					Preset = original.Provenance?.Preset ?? original.Name,
+					Seed = original.Provenance?.Seed ?? 0,
+					Parameters = new Dictionary<string, string>( original.Provenance?.Parameters ?? new() )
+					{
+						["critiqueSource"] = critique.CriticSource,
+						["critiqueReason"] = critique.Reason,
+						["parentVersion"] = original.Version.ToString(),
+					},
+				},
+				Metadata = new Dictionary<string, string>( original.Metadata ),
+				Pieces = new List<BlueprintPiece>( original.Pieces ),
+			};
+
+			// Apply material override to all pieces if specified
+			if ( !string.IsNullOrEmpty( critique.MaterialOverride ) )
+			{
+				for ( int i = 0; i < modified.Pieces.Count; i++ )
+				{
+					var p = modified.Pieces[i];
+					p.Material = critique.MaterialOverride;
+				}
+			}
+
+			// Apply position offset to all pieces if specified
+			if ( critique.PositionOffset.HasValue )
+			{
+				var offset = critique.PositionOffset.Value;
+				for ( int i = 0; i < modified.Pieces.Count; i++ )
+				{
+					var p = modified.Pieces[i];
+					p.Position = p.Position + offset;
+				}
+			}
+
+			modified.ComputeHash();
+			BlueprintRegistry.Register( modified );
+			Log.Info( $"Lute: BlueprintModifier.ModifyBlueprint — {modified.Id} v{modified.Version} ({modified.PieceCount} pieces, hash={modified.Hash?[..8]})." );
+			return modified;
+		}
+
+		/// <summary>
+		/// Compute the diff between two blueprint versions and log it.
+		/// Useful for understanding what an LLM critique actually changed.
+		/// </summary>
+		public static BlueprintDiff DiffVersions( Blueprint from, Blueprint to )
+		{
+			var diff = BlueprintDiffer.Diff( from, to );
+			Log.Info( $"Lute: BlueprintDiff {diff.Summary}." );
+			if ( diff.Added.Count > 0 )
+				Log.Info( $"  Added pieces: [{string.Join( ",", diff.Added )}]" );
+			if ( diff.Removed.Count > 0 )
+				Log.Info( $"  Removed pieces: [{string.Join( ",", diff.Removed )}]" );
+			if ( diff.Modified.Count > 0 )
+				Log.Info( $"  Modified pieces: [{string.Join( ",", diff.Modified )}]" );
+			return diff;
+		}
 		/// <summary>
 		/// Apply a critique to the village task list. Only pending tasks
 		/// (Status == 0) are modified. In-progress and complete tasks

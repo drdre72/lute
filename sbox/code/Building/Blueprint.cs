@@ -107,6 +107,7 @@ namespace Lute.Building
 	/// </summary>
 	public class Blueprint
 	{
+		static int _gridSeq;
 		/// <summary> Stable identifier for this structure (e.g. "chapel_001"). </summary>
 		public string Id { get; set; } = "";
 
@@ -180,6 +181,8 @@ namespace Lute.Building
 		{
 			var bp = new Blueprint
 			{
+				Id = $"grid_{_gridSeq++}",
+				Version = 1,
 				Name = "GridBuilding",
 				Origin = origin,
 				Rotation = rotation,
@@ -188,6 +191,15 @@ namespace Lute.Building
 				FloorThickness = floorThickness,
 				WallMaterial = wallMaterial,
 				FloorMaterial = floorMaterial,
+				Provenance = new BlueprintProvenance
+				{
+					Producer = "Blueprint.FromGridLayout",
+					Parameters = new Dictionary<string, string>
+					{
+						["layoutCells"] = layout.Count.ToString(),
+						["cellSize"] = cellSize.ToString(),
+					},
+				},
 			};
 
 			foreach ( var kvp in layout )
@@ -216,6 +228,8 @@ namespace Lute.Building
 				bp.Pieces.Add( piece );
 			}
 
+			bp.ComputeHash();
+			BlueprintRegistry.Register( bp );
 			return bp;
 		}
 

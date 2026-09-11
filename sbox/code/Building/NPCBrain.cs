@@ -582,6 +582,31 @@ Respond strictly with valid JSON matching this schema (no other text):
 			Log.Info( $"[authority_status] {AuthorityPipeline.Summary( 20 )}" );
 		}
 
+		/// <summary>
+		/// Console command to list all registered blueprint versions in
+		/// the <see cref="BlueprintRegistry"/>. Shows id, versions,
+		/// piece count, and hash prefix for each.
+		/// Usage: blueprint_versions
+		/// </summary>
+		[ConCmd( "blueprint_versions" )]
+		public static void BlueprintVersionsCommand()
+		{
+			var ids = BlueprintRegistry.Ids();
+			if ( ids.Count == 0 )
+			{
+				Log.Info( "[blueprint_versions] No blueprints registered." );
+				return;
+			}
+
+			Log.Info( $"[blueprint_versions] {ids.Count} blueprint id(s) registered:" );
+			foreach ( var id in ids )
+			{
+				var versions = BlueprintRegistry.Versions( id );
+				var latest = BlueprintRegistry.GetLatest( id );
+				Log.Info( $"  {id}: v{string.Join( ",", versions )} — latest v{latest.Version} ({latest.PieceCount} pieces, hash={latest.Hash?[..8] ?? "none"})" );
+			}
+		}
+
 		static int CountElements( ArchitecturalElement el )
 		{
 			int n = 1;

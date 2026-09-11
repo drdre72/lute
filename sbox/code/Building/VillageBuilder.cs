@@ -704,6 +704,19 @@ namespace Lute.Building
 
 			task.TotalPieces = bp.Pieces.Count;
 
+			// Record the blueprint id/version on the directed task (if
+			// we're building via the ConstructionDirector) so the
+			// registry and the director stay in sync.
+			if ( CurrentDirectedTaskId != null )
+			{
+				var directed = ConstructionDirector.GetTask( CurrentDirectedTaskId );
+				if ( directed != null )
+				{
+					directed.BlueprintId = bp.Id;
+					directed.BlueprintVersion = bp.Version;
+				}
+			}
+
 			// Validate the blueprint before placing pieces.
 			// In reconstruct mode we skip validation (the blueprint was
 			// already validated when first built).

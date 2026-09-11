@@ -168,6 +168,7 @@ namespace Lute.Building
 	public class StyleGrammar
 	{
 		private readonly Random _rng;
+		static int _styleSeq;
 		private const float M = 39.37f;
 
 		public ArchitecturalStyle Style { get; set; }
@@ -196,6 +197,8 @@ namespace Lute.Building
 
 			var bp = new Blueprint
 			{
+				Id = $"style_{Style.Name}_{_styleSeq++}",
+				Version = 1,
 				Name = $"{Style.Name}_Building",
 				Origin = origin,
 				Rotation = rotation,
@@ -205,6 +208,18 @@ namespace Lute.Building
 				WallMaterial = Style.WallMaterial,
 				FloorMaterial = Style.FloorMaterial,
 				RoofMaterial = Style.RoofMaterial,
+				Provenance = new BlueprintProvenance
+				{
+					Producer = "StyleGrammar",
+					Preset = Style.Name,
+					Parameters = new Dictionary<string, string>
+					{
+						["baseWidth"] = baseWidth.ToString(),
+						["baseHeight"] = baseHeight.ToString(),
+						["wealthFactor"] = wealthFactor.ToString( "F2" ),
+						["effectiveWealth"] = effectiveWealth.ToString( "F2" ),
+					},
+				},
 			};
 
 			// 1. Interior: use BuildingGrammar for room layout
@@ -227,6 +242,8 @@ namespace Lute.Building
 			if ( Style.WindowSpacing > 0 )
 				AddWindows( bp, w, h, cellSize, wallHeight );
 
+			bp.ComputeHash();
+			BlueprintRegistry.Register( bp );
 			return bp;
 		}
 

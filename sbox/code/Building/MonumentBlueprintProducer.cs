@@ -151,6 +151,8 @@ namespace Lute.Building
 	/// </summary>
 	public static class MonumentBlueprintProducer
 	{
+		static int _monumentSeq;
+
 		/// <summary>
 		/// Generate a Blueprint from a MonumentMassing spec.
 		/// Each volume contributes floor, wall, and roof pieces.
@@ -159,6 +161,8 @@ namespace Lute.Building
 		{
 			var bp = new Blueprint
 			{
+				Id = $"monument_{massing.Name}_{_monumentSeq++}",
+				Version = 1,
 				Name = massing.Name,
 				Origin = massing.Origin,
 				Rotation = massing.Rotation,
@@ -169,11 +173,23 @@ namespace Lute.Building
 				FloorMaterial = massing.FloorMaterial,
 				RoofMaterial = massing.RoofMaterial,
 				ColumnMaterial = massing.ColumnMaterial,
+				Provenance = new BlueprintProvenance
+				{
+					Producer = "MonumentBlueprintProducer.Generate",
+					Preset = massing.Name,
+					Parameters = new Dictionary<string, string>
+					{
+						["path"] = "massing-direct",
+						["volumes"] = massing.Volumes.Count.ToString(),
+					},
+				},
 			};
 
 			foreach ( var vol in massing.Volumes )
 				GenerateVolume( bp, massing, vol );
 
+			bp.ComputeHash();
+			BlueprintRegistry.Register( bp );
 			return bp;
 		}
 
