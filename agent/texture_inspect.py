@@ -129,14 +129,21 @@ def make_prompt(rubric, surface_name, distance_units):
         f"Respond EXACTLY in this format (no other text):\n"
         f"SIZE=<estimated width cm>x<estimated height cm>\n"
         f"VERDICT=appropriate|too_small|too_large|not_visible\n"
-        f"RATIO=<how many times off, e.g. 2.0 or 0.5; 1.0 if appropriate>\n"
+        f"RATIO_U=<width ratio vs target, e.g. 2.0 means 2x too wide; 1.0 if appropriate>\n"
+        f"RATIO_V=<height ratio vs target; 1.0 if appropriate>\n"
         f"NOTES=<one short sentence>"
     )
 
 
 def parse_verdict(text):
-    """Parse Qwen's structured response into a dict."""
-    result = {"verdict": "not_visible", "size": "", "ratio": 1.0, "notes": ""}
+    """Parse Qwen's structured response into a dict.
+    Extracts separate U (width) and V (height) ratios when available;
+    falls back to a single RATIO for backward compatibility."""
+    result = {
+        "verdict": "not_visible", "size": "",
+        "ratio_u": 1.0, "ratio_v": 1.0, "ratio": 1.0,
+        "notes": "",
+    }
     if not text:
         return result
     for line in text.strip().split("\n"):
@@ -147,70 +154,118 @@ def parse_verdict(text):
             v = line[8:].strip().lower()
             if v in ("appropriate", "too_small", "too_large", "not_visible"):
                 result["verdict"] = v
+        elif line.upper().startswith("RATIO_U="):
+            try:
+                result["ratio_u"] = float(line[8:].strip())
+            except ValueError:
+                pass
+        elif line.upper().startswith("RATIO_V="):
+            try:
+                result["ratio_v"] = float(line[8:].strip())
+            except ValueError:
+                pass
         elif line.upper().startswith("RATIO="):
             try:
-                result["ratio"] = float(line[6:].strip())
+                r = float(line[6:].strip())
+                result["ratio"] = r
             except ValueError:
                 pass
         elif line.upper().startswith("NOTES="):
             result["notes"] = line[6:].strip()
+    # Backward compat: if U/V not provided, fall back to single RATIO
+    if result["ratio_u"] == 1.0 and result["ratio_v"] == 1.0 and result["ratio"] != 1.0:
+        result["ratio_u"] = result["ratio"]
+        result["ratio_v"] = result["ratio"]
     return result
 
 
 def read_tiling(vmat_path):
-    """Read current g_vTexCoordScale from a .vmat file."""
-    full = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "sbox", "Assets", vmat_path)
-    if not os.path.exists(full):
+    """Read current g_vTexCoordScale (U, V) from a .vmat file.
+    Returns (u, v) tuple or None."""
+    from paths import material_paths
+    repo_full, _ = material_paths(vmat_path)
+    if not os.path.exists(repo_full):
         return None
-    with open(full, "r") as f:
+    with open(repo_full, "r") as f:
         for line in f:
             m = re.search(r'g_vTexCoordScale\s+"\[([\d.]+)\s+([\d.]+)\]"', line)
             if m:
-                return float(m.group(1))
+                return float(m.group(1)), float(m.group(2))
     return None
 
 
-def write_tiling(vmat_path, new_tiling):
-    """Update g_vTexCoordScale in a .vmat file (repo + editor live addon copy)."""
-    repo_full = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "sbox", "Assets", vmat_path)
-    addon_full = os.path.join(r"C:\Users\Shadow\Documents\sbox-public-clean\game\addons\lute\Assets", vmat_path)
-    targets = [repo_full, addon_full]
-    wrote_any = False
-    for full in targets:
+def write_tiling(vmat_path, new_u, new_v):
+    """Update g_vTexCoordScale in a .vmat file (repo + editor live addon copy).
+    Returns True only if BOTH copies were written successfully."""
+    from paths import material_paths
+    repo_full, addon_full = material_paths(vmat_path)
+    targets = [("repo", repo_full), ("addon", addon_full)]
+    new_str = f'g_vTexCoordScale "[{new_u:.3f} {new_v:.3f}]"'
+    wrote_repo = False
+    wrote_addon = False
+    for label, full in targets:
         if not os.path.exists(full):
-            print(f"  ! Material file not found: {full}")
+            print(f"  ! Material file not found ({label}): {full}")
             continue
         with open(full, "r") as f:
             content = f.read()
         new_content = re.sub(
             r'g_vTexCoordScale\s+"\[[\d.]+\s+[\d.]+\]"',
-            f'g_vTexCoordScale "[{new_tiling:.3f} {new_tiling:.3f}]"',
+            new_str,
             content
         )
         if new_content == content:
-            print(f"  ! No g_vTexCoordScale found in {full}")
+            print(f"  ! No g_vTexCoordScale found in {label}: {full}")
             continue
         with open(full, "w") as f:
             f.write(new_content)
-        print(f"  >> {full}: tiling -> {new_tiling:.3f}")
-        wrote_any = True
-    return wrote_any
+        print(f"  >> {label}: {full}: tiling -> U={new_u:.3f} V={new_v:.3f}")
+        if label == "repo":
+            wrote_repo = True
+        else:
+            wrote_addon = True
+    if wrote_repo and not wrote_addon:
+        print(f"  !! WARNING: repo updated but addon copy did not — "
+              f"the editor will not see this change. Check ADDON_ROOT in paths.py.")
+    return wrote_repo and wrote_addon
 
 
-def compute_new_tiling(current, verdict, ratio):
-    """Compute new tiling value based on Qwen verdict.
-    Higher tiling = smaller blocks. If blocks too small, decrease tiling."""
-    if verdict == "appropriate" or verdict == "not_visible":
-        return current
-    if ratio <= 0 or ratio == 1.0:
-        return current
-    if verdict == "too_small":
-        # blocks appear too small → tiling too high → reduce
-        return max(1.0, current / ratio)
+# Damping factor: move only this fraction of the suggested correction per pass.
+# 0.5 = halfway, prevents overshoot from noisy single-image estimates.
+DAMPING = 0.5
+
+
+def compute_new_tiling(current_u, current_v, verdict, ratio_u, ratio_v):
+    """Compute new (U, V) tiling values based on Qwen verdict.
+    Higher tiling = smaller blocks. Applies DAMPING to avoid overshoot.
+    Returns (new_u, new_v) — unchanged if verdict is appropriate/not_visible."""
+    if verdict in ("appropriate", "not_visible"):
+        return current_u, current_v
+    if ratio_u <= 0:
+        ratio_u = 1.0
+    if ratio_v <= 0:
+        ratio_v = 1.0
+
+    def damped(current, ratio, too_large):
+        # too_large: blocks too big -> tiling too low -> increase tiling
+        # too_small: blocks too small -> tiling too high -> decrease tiling
+        if too_large:
+            target = current * ratio
+        else:
+            target = current / ratio
+        # Move only DAMPING fraction toward target
+        return current + (target - current) * DAMPING
+
+    new_u = current_u
+    new_v = current_v
     if verdict == "too_large":
-        # blocks appear too large → tiling too low → increase
-        return min(200.0, current * ratio)
-    return current
+        new_u = damped(current_u, ratio_u, too_large=True)
+        new_v = damped(current_v, ratio_v, too_large=True)
+    elif verdict == "too_small":
+        new_u = damped(current_u, ratio_u, too_large=False)
+        new_v = damped(current_v, ratio_v, too_large=False)
+
+    return max(1.0, min(200.0, new_u)), max(1.0, min(200.0, new_v))
 
 
 def inspect_one(vl, vp, rubric):
@@ -241,7 +296,8 @@ def inspect_one(vl, vp, rubric):
     answer = ask_vision(img, prompt)
     print(f"  Qwen: {answer[:200]}")
     verdict = parse_verdict(answer)
-    print(f"  >> {verdict['verdict']}  size={verdict['size']}  ratio={verdict['ratio']}  notes={verdict['notes']}")
+    print(f"  >> {verdict['verdict']}  size={verdict['size']}  "
+          f"U={verdict['ratio_u']:.2f} V={verdict['ratio_v']:.2f}  notes={verdict['notes']}")
     return verdict, path
 
 
@@ -278,8 +334,8 @@ def main():
             entry = {
                 "viewpoint": name, "surface": skey,
                 "verdict": verdict["verdict"], "size": verdict["size"],
-                "ratio": verdict["ratio"], "notes": verdict["notes"],
-                "image": img_path,
+                "ratio_u": verdict["ratio_u"], "ratio_v": verdict["ratio_v"],
+                "notes": verdict["notes"], "image": img_path,
             }
             report.append(entry)
 
@@ -289,11 +345,18 @@ def main():
                     mat_path = rubric.get("material")
                     if not mat_path:
                         continue
-                    current = read_tiling(mat_path) or rubric.get("tiling", 1)
-                    new_t = compute_new_tiling(current, verdict["verdict"], verdict["ratio"])
-                    if new_t != current and mat_path not in changed_materials:
-                        changed_materials[mat_path] = new_t
-                        print(f"  [FIX] {mat_path}: {current:.3f} -> {new_t:.3f}")
+                    current = read_tiling(mat_path)
+                    if current is None:
+                        cur_u = rubric.get("tiling", 1)
+                        cur_v = cur_u
+                    else:
+                        cur_u, cur_v = current
+                    new_u, new_v = compute_new_tiling(
+                        cur_u, cur_v, verdict["verdict"],
+                        verdict["ratio_u"], verdict["ratio_v"])
+                    if (new_u != cur_u or new_v != cur_v) and mat_path not in changed_materials:
+                        changed_materials[mat_path] = (new_u, new_v)
+                        print(f"  [FIX] {mat_path}: U {cur_u:.3f}->{new_u:.3f}  V {cur_v:.3f}->{new_v:.3f}")
 
         if not args.fix:
             break
@@ -307,19 +370,18 @@ def main():
 
         # Apply fixes
         print(f"\n--- Applying {len(changed_materials)} material fixes ---")
-        for mat_path, new_t in changed_materials.items():
-            write_tiling(mat_path, new_t)
+        for mat_path, (new_u, new_v) in changed_materials.items():
+            write_tiling(mat_path, new_u, new_v)
             # Update rubric cache so reinspection shows updated context
             for rk, rv in RUBRIC.items():
                 if rv["material"] == mat_path:
-                    rv["tiling"] = new_t
+                    rv["tiling"] = (new_u + new_v) * 0.5  # avg for display
 
         # Rebuild + restart
         print("\n--- Rebuilding S&Box project ---")
         import subprocess
-        csproj = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                              "sbox", "code", "lute.csproj")
-        result = subprocess.run(["dotnet", "build", csproj],
+        from paths import CSPROJ
+        result = subprocess.run(["dotnet", "build", CSPROJ],
                                 capture_output=True, text=True, timeout=120)
         if result.returncode != 0:
             print(f"  BUILD FAILED:\n{result.stderr[-500:]}")

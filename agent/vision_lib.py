@@ -1,14 +1,14 @@
 """
 vision_lib.py — Shared library for S&Box camera control, screenshot capture,
-and Moondream2 vision queries. Used by sbox_vision.py, sbox_camera.py, and
-drive_merlyn.py.
+and Qwen3-VL vision queries (via LM Studio's OpenAI-compatible endpoint).
+Used by sbox_vision.py, sbox_camera.py, drive_merlyn.py, texture_inspect.py.
 
 Two capture modes:
   - merlyn: teleport Merlyn NPC, capture from his Eyes camera (over-the-shoulder)
   - player: teleport the Player Controller, capture from the main camera
 
 Usage from other scripts:
-  from vision_lib import VisonLib
+  from vision_lib import VisionLib
   vl = VisionLib()
   vl.teleport_merlyn(pos, target=target)
   img = vl.capture_merlyn()
@@ -62,10 +62,10 @@ def save_img(img_bytes, name):
 
 
 def ask_vision(img_bytes, question, model=MODEL):
-    """Send an image + question to the local Moondream2 vision model.
+    """Send an image + question to the local Qwen3-VL vision model
+    (via LM Studio's OpenAI-compatible /v1/chat/completions endpoint).
 
-    Converts to JPEG, resizes to 640x360, base64-encodes, and POSTs to
-    the OpenAI-compatible /v1/chat/completions endpoint.
+    Converts to JPEG, resizes to 640x360, base64-encodes, and POSTs.
 
     Returns the text response, or empty string on failure.
     """
