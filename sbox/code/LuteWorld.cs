@@ -50,12 +50,13 @@ public sealed class LuteWorld : Component
 		BuildBuilderNpc( root );
 		BuildWatchtower( root );
 		BuildTestStructure( root );
+		BuildVillage( root );
 
 		// Spawn NPCs from all SpawnMarkers (both editor-placed and code-spawned
-		// by BuildTestStructure above). Each marker is consumed after spawning.
+		// by BuildTestStructure/BuildVillage above). Each marker is consumed after spawning.
 		NPCSpawner.SpawnAll( Scene, root );
 
-		Log.Info( "Lute: Sanctuary built (world ground + monument + portal + temple floor + hex chamber + builder NPC + watchtower + test structure + NPC markers)." );
+		Log.Info( "Lute: Sanctuary built (world ground + monument + portal + temple floor + hex chamber + builder NPC + watchtower + test structure + village + NPC markers)." );
 		return root;
 	}
 
@@ -421,6 +422,35 @@ public sealed class LuteWorld : Component
 
 			Log.Info( $"Lute: TestMarker {i} (wealth={wealthTiers[i]:F1}) placed at {markerGo.WorldPosition}." );
 		}
+	}
+
+	/// <summary>
+	/// Spawns a <see cref="SpawnMarker"/> for a village builder NPC at a
+	/// new location ~400m SW of the sanctuary (opposite the Neutral Market
+	/// which is ~400m NE). The village builder constructs a full medieval
+	/// village (stone walls, gates, roads, ~40 buildings) over ~8 hours
+	/// with periodic saves every 10 minutes. On reload, it resumes from
+	/// the last save.
+	/// </summary>
+	void BuildVillage( GameObject parent )
+	{
+		const float M = 39.37f;
+
+		var markerGo = Scene.CreateObject( true );
+		markerGo.Name = "VillageMarker";
+		markerGo.SetParent( parent );
+
+		// 400m SW of sanctuary — opposite the market at 400m NE.
+		markerGo.WorldPosition = new Vector3( -400f * M, -400f * M, 0f );
+		markerGo.WorldRotation = Rotation.Identity;
+
+		var marker = markerGo.AddComponent<SpawnMarker>();
+		marker.NpcType = "VillageBuilder";
+		marker.NpcName = "VillageBuilderNPC";
+		marker.VillageSeed = 42;     // deterministic village layout
+		marker.FreshBuild = false;   // resume from save if one exists
+
+		Log.Info( $"Lute: VillageMarker placed at {markerGo.WorldPosition} (~400m SW of sanctuary). Village builder will construct a medieval village over ~8 hours with saves every 10 min." );
 	}
 
 	/// <summary> Creates a GameObject with a ModelRenderer using a primitive model. </summary>

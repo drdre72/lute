@@ -55,6 +55,9 @@ namespace Lute.Npc
 				case "Builder":
 					SpawnBuilder( marker, parent, name );
 					break;
+				case "VillageBuilder":
+					SpawnVillageBuilder( marker, parent, name );
+					break;
 				default:
 					Log.Warning( $"Lute: NPCSpawner unknown NpcType '{marker.NpcType}' on marker '{marker.GameObject.Name}' — skipped." );
 					break;
@@ -97,6 +100,115 @@ namespace Lute.Npc
 		// Spawning at z=64 leaves the body floating ~60 units above the floor
 		// and the ground trace never hits.
 		SpawnCitizenBody( marker.Scene, parent, name, sitePos + new Vector3( 0f, 5f * M, 4f ), builder );
+		}
+
+		/// <summary>
+		/// Spawn a village builder NPC: creates a VillageBuilder orchestrator
+		/// component on a village-root GameObject, then spawns a citizen body
+		/// with a VillageBuilderController wired to it. The village builds
+		/// over several hours with periodic saves.
+		/// </summary>
+		static void SpawnVillageBuilder( SpawnMarker marker, GameObject parent, string name )
+		{
+			const float M = 39.37f;
+			var center = marker.WorldPosition;
+
+			// Village root GameObject with VillageBuilder orchestrator.
+			var villageGo = marker.Scene.CreateObject( true );
+			villageGo.Name = $"VillageRoot_{name}";
+			villageGo.SetParent( parent );
+			villageGo.WorldPosition = center;
+
+			var builder = villageGo.AddComponent<VillageBuilder>();
+			builder.Center = center;
+			builder.VillageSeed = marker.VillageSeed;
+			builder.FreshBuild = marker.FreshBuild;
+			builder.BuildInterval = 6.0f;     // ~6s per piece = 8-hour pace
+			builder.SaveInterval = 600f;       // save every 10 minutes
+			builder.CellSize = 100f;
+			builder.WallHeight = 200f;
+			builder.FloorThickness = 10f;
+			builder.WallMaterial = "materials/medieval/stone_wall.vmat";
+			builder.FloorMaterial = "materials/medieval/plaza.vmat";
+			builder.BuildingWallMaterial = "materials/medieval/wood.vmat";
+			builder.BuildingFloorMaterial = "materials/medieval/wood.vmat";
+			builder.GateMaterial = "materials/medieval/stone_tower.vmat";
+
+			// Body GameObject — citizen + colliders + Rigidbody + PlayerController.
+			// Spawn near the village center, offset so the controller walks in.
+			SpawnVillageCitizenBody( marker.Scene, parent, name,
+				center + new Vector3( 0f, 10f * M, 4f ), builder );
+		}
+
+		/// <summary>
+		/// Spawn a citizen body with the standard collider/rigidbody/
+		/// PlayerController stack and attach a VillageBuilderController wired
+		/// to the given village builder. Same body setup as SpawnCitizenBody
+		/// but with the village-scale controller.
+		/// </summary>
+		public static GameObject SpawnVillageCitizenBody(
+			Scene scene, GameObject parent, string name,
+			Vector3 bodyPos, VillageBuilder builder )
+		{
+			var go = scene.CreateObject( true );
+			go.Name = name;
+			go.SetParent( parent );
+			go.WorldPosition = bodyPos;
+			go.WorldRotation = Rotation.Identity;
+
+			// Body — citizen model.
+			var bodyGo = scene.CreateObject( true );
+			bodyGo.Name = "Body";
+			bodyGo.SetParent( go );
+			bodyGo.WorldPosition = Vector3.Zero;
+			bodyGo.WorldRotation = Rotation.Identity;
+			var bodyRenderer = bodyGo.AddComponent<SkinnedModelRenderer>();
+			bodyRenderer.Model = Model.Load( "models/citizen/citizen.vmdl" );
+
+			// Colliders — capsule + box.
+			var collidersGo = scene.CreateObject( true );
+			collidersGo.Name = "Colliders";
+			collidersGo.SetParent( go );
+			var capsule = collidersGo.AddComponent<CapsuleCollider>();
+			capsule.Radius = 16f;
+			capsule.Start = new Vector3( 0, 0, 0 );
+			capsule.End = new Vector3( 0, 0, 72f );
+			var box = collidersGo.AddComponent<BoxCollider>();
+			box.Scale = new Vector3( 32f, 32f, 72f );
+
+			// Rigidbody.
+			var rb = go.AddComponent<Rigidbody>();
+			rb.Gravity = true;
+
+			// PlayerController — input disabled.
+			var controller = go.AddComponent<PlayerController>();
+			controller.UseInputControls = false;
+			controller.UseCameraControls = false;
+			controller.UseAnimatorControls = true;
+			controller.Renderer = bodyRenderer;
+
+			// NavMeshAgent.
+			var navAgent = go.AddComponent<NavMeshAgent>();
+			navAgent.Height = 64f;
+			navAgent.Radius = 16f;
+			navAgent.MaxSpeed = 5f * 39.37f;
+			navAgent.Acceleration = 5f * 39.37f;
+			navAgent.UpdatePosition = false;
+			navAgent.UpdateRotation = false;
+
+			// Village builder controller.
+			var npc = go.AddComponent<VillageBuilderController>();
+			npc.Builder = builder;
+
+			// Interaction.
+			var interactable = go.AddComponent<Interactable>();
+			interactable.NpcMode = true;
+			interactable.DisplayName = name;
+			interactable.Range = 150f;
+			interactable.IsAvailable = true;
+
+			Log.Info( $"Lute: NPCSpawner village builder body '{name}' at {go.WorldPosition} (village center={builder.Center})." );
+			return go;
 		}
 
 		/// <summary>

@@ -50,6 +50,18 @@ namespace Lute.Npc
 		[Property, Group( "Builder" )] public int BaseWidth { get; set; } = 4;
 		[Property, Group( "Builder" )] public int BaseHeight { get; set; } = 4;
 
+		/// <summary>
+		/// For village builder NPCs: seed for the village layout (0 = random).
+		/// Ignored by other NPC types.
+		/// </summary>
+		[Property, Group( "Village" )] public int VillageSeed { get; set; } = 0;
+
+		/// <summary>
+		/// For village builder NPCs: if true, clear any existing save and
+		/// start a fresh village build. Ignored by other NPC types.
+		/// </summary>
+		[Property, Group( "Village" )] public bool FreshBuild { get; set; } = false;
+
 		protected override void OnStart()
 		{
 			// Markers are invisible placeholders — disable rendering of the
