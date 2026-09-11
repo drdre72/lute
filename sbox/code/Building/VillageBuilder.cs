@@ -157,6 +157,11 @@ namespace Lute.Building
 			int done = Tasks.Count( t => t.Status == 2 );
 			Log.Info( $"Lute: VillageBuilder started — {Tasks.Count} tasks total, {done} complete, {pending} pending. Estimated ~{_totalPiecesAll} pieces at {BuildInterval}s/piece = {_totalPiecesAll * BuildInterval / 3600:F1} hours." );
 
+			// In multi-builder mode, partition tasks across builders by
+			// estimated piece count (balanced deal, biggest-first).
+			if ( TotalBuilders > 1 )
+				PartitionTasks();
+
 			_ = BuildLoop( _cts.Token );
 		}
 
@@ -196,6 +201,50 @@ namespace Lute.Building
 			return w * h; // rough: perimeter + interior + floor
 		}
 
+		/// <summary>
+		/// Partition tasks across builders for balanced load. Estimates
+		/// piece counts, sorts tasks by size (descending), then deals them
+		/// round-robin to builders like dealing cards. This spreads the
+		/// biggest tasks (Chapel, Tavern) across different builders
+		/// instead of stacking them on one. Only runs in multi-builder mode.
+		/// </summary>
+		void PartitionTasks()
+		{
+			// Estimate piece count for each task
+			var estimates = new List<(int idx, int pieces)>();
+			for ( int i = 0; i < Tasks.Count; i++ )
+			{
+				int pieces = Tasks[i].TaskType switch
+				{
+					"wall" => 12,
+					"gate" => 30,
+					"road" => 8,
+					"well" => 20,
+					"market_square" => 25,
+					_ => EstimateBuildingPieces( Tasks[i] ),
+				};
+				estimates.Add( (i, pieces) );
+			}
+
+			// Sort by piece count descending (biggest first)
+			estimates.Sort( (a, b) => b.pieces.CompareTo( a.pieces ) );
+
+			// Deal round-robin: biggest task to builder 0, next to 1, etc.
+			for ( int i = 0; i < estimates.Count; i++ )
+			{
+				int builderId = i % TotalBuilders;
+				Tasks[estimates[i].idx].BuilderAssignment = builderId;
+			}
+
+			// Log the partition for verification
+			var perBuilder = new int[TotalBuilders];
+			foreach ( var e in estimates )
+				perBuilder[e.idx % TotalBuilders] += e.pieces;
+			Log.Info( $"Lute: VillageBuilder[{BuilderId}/{TotalBuilders}] partitioned {Tasks.Count} tasks (balanced deal):" );
+			for ( int b = 0; b < TotalBuilders; b++ )
+				Log.Info( $"  builder {b}: ~{perBuilder[b]} pieces" );
+		}
+
 		async Task BuildLoop( CancellationToken token )
 		{
 			try
@@ -207,9 +256,9 @@ namespace Lute.Building
 
 					// Multi-builder partitioning: in single-builder mode (TotalBuilders=1)
 					// this builder processes every task. In multi-builder mode, each
-					// builder only processes tasks whose index mod TotalBuilders equals
-					// its BuilderId. Other tasks are left for the other builders.
-					if ( TotalBuilders > 1 && idx % TotalBuilders != BuilderId )
+					// task has a BuilderAssignment set by PartitionTasks (balanced deal
+					// by estimated piece count). Skip tasks not assigned to us.
+					if ( TotalBuilders > 1 && task.BuilderAssignment != BuilderId )
 						continue;
 
 					if ( task.Status == 2 )

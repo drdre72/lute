@@ -59,6 +59,13 @@ namespace Lute.Building
 
 		/// <summary> Runtime: total pieces in this task's layout. </summary>
 		public int TotalPieces = 0;
+
+		/// <summary>
+		/// Multi-builder mode: which builder ID is assigned this task.
+		/// -1 = not yet assigned (single-builder mode or pre-partition).
+		/// Set by VillageBuilder.PartitionTasks during OnStart.
+		/// </summary>
+		public int BuilderAssignment = -1;
 	}
 
 	/// <summary>
