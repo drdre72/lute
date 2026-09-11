@@ -3,6 +3,7 @@ using Sandbox;
 
 namespace Lute.Building
 {
+	using Lute.NLP;
 	/// <summary>
 	/// Body + AI controller for a <see cref="VillageBuilder"/>. A
 	/// traditional finite-state machine that dresses a citizen body as
@@ -62,6 +63,29 @@ namespace Lute.Building
 		/// </summary>
 		[Property] public bool UseBlackboard { get; set; } = true;
 
+		/// <summary>
+		/// If true, this NPC registers with the ConversationManager and
+		/// processes incoming NLP messages from other NPCs. Enables
+		/// cooperative task negotiation and help requests.
+		/// </summary>
+		[Property] public bool UseCommunication { get; set; } = true;
+
+		/// <summary>
+		/// If true, this NPC registers with the ConstructionDirector and
+		/// claims tasks through the authoritative transaction system
+		/// (BlackboardRequest → BlackboardResult) instead of directly
+		/// manipulating the SpatialBlackboard.
+		/// </summary>
+		[Property] public bool UseDirector { get; set; } = true;
+
+		/// <summary> Builder ID for ConstructionDirector registration. </summary>
+		[Property] public int BuilderId { get; set; } = -1;
+
+		private BeliefModel _beliefs;
+		private bool _registeredWithDirector;
+		private bool _registeredWithConversation;
+		private float _helpRequestCooldown;
+
 		public enum NpcState
 		{
 			Idle,
@@ -93,6 +117,31 @@ namespace Lute.Building
 			}
 
 			ResolveNpcId();
+
+			// Register with the ConversationManager for NLP communication
+			if ( UseCommunication )
+			{
+				_beliefs = new BeliefModel( _npcId ) { Role = "builder", CurrentGoal = "build" };
+				ConversationManager.Register( _npcId, _beliefs, "builder" );
+				_registeredWithConversation = true;
+				Log.Info( $"Lute: VillageBuilderController '{_npcId}' registered with ConversationManager." );
+			}
+
+			// Register with the ConstructionDirector for authoritative task scheduling
+			if ( UseDirector )
+			{
+				if ( BuilderId < 0 )
+					BuilderId = _npcId.GetHashCode() & 0x7FFFFFFF;
+				ConstructionDirector.RegisterBuilder( BuilderId, _npcId );
+				_registeredWithDirector = true;
+				Log.Info( $"Lute: VillageBuilderController '{_npcId}' registered with ConstructionDirector as builder {BuilderId}." );
+			}
+
+			// Subscribe to construction events for cooperative behavior
+			if ( UseCommunication )
+			{
+				ConstructionEventBus.Subscribe( OnConstructionEvent );
+			}
 		}
 
 		void ResolveNpcId()
@@ -128,6 +177,16 @@ namespace Lute.Building
 				SpatialBlackboard.UpdatePosition( _npcId, WorldPosition );
 			}
 
+			// Process incoming NLP messages from other NPCs
+			if ( UseCommunication && _registeredWithConversation )
+			{
+				ConversationManager.ProcessIncoming( _npcId );
+				_helpRequestCooldown -= Time.Delta;
+			}
+
+			// Update construction event bus clock
+			ConstructionEventBus.Update( Time.Delta );
+
 			switch ( State )
 			{
 				case NpcState.Idle:
@@ -157,12 +216,76 @@ namespace Lute.Building
 
 		protected override void OnDestroy()
 		{
+			// Unsubscribe from construction events
+			ConstructionEventBus.Unsubscribe( OnConstructionEvent );
+
+			// Unregister from conversation system
+			if ( _registeredWithConversation && !string.IsNullOrEmpty( _npcId ) )
+				ConversationManager.Unregister( _npcId );
+
+			// Deactivate from director
+			if ( _registeredWithDirector )
+				ConstructionDirector.DeactivateBuilder( BuilderId );
+
 			// Always release our claim and announce departure so other NPCs
 			// don't think the site is still reserved.
 			ReleaseActiveClaim();
 			if ( UseBlackboard && !string.IsNullOrEmpty( _npcId ) )
 				SpatialBlackboard.PostMessage( _npcId, "", "done", "npc destroyed", WorldPosition );
 		}
+		/// <summary>
+		/// Handle a construction event from the ConstructionEventBus.
+		/// This is how conversation becomes a consequence of simulation:
+		/// when a task is blocked or a reservation conflicts, the NPC
+		/// can request help or negotiate with other NPCs.
+		/// </summary>
+		void OnConstructionEvent( ConstructionEvent evt )
+		{
+			if ( evt == null )
+				return;
+
+			switch ( evt.Type )
+			{
+				case ConstructionEventType.ReservationConflict:
+					// Our reservation was blocked by another NPC — request help
+					if ( evt.Actor == _npcId && _helpRequestCooldown <= 0 )
+					{
+						var blockedBy = evt.Parameters.TryGetValue( "blocked_by", out var b ) ? b : "unknown";
+						ConversationManager.Send( _npcId, blockedBy,
+							$"I'm blocked at {evt.TaskId}. Can you help or move?" );
+						_helpRequestCooldown = 10f; // don't spam
+					}
+					break;
+
+				case ConstructionEventType.TaskBlocked:
+					// A task failed and is retrying — offer help if we're idle
+					if ( State == NpcState.Idle || State == NpcState.VillageComplete )
+					{
+						ConversationManager.Send( _npcId, "",
+							$"Task {evt.TaskId} is blocked. I can help." );
+					}
+					break;
+
+				case ConstructionEventType.NpcRequestedHelp:
+					// Another NPC requested help — offer if we're available
+					if ( evt.Actor != _npcId && State != NpcState.Building )
+					{
+						ConversationManager.Send( _npcId, evt.Actor,
+							"I can help with that. What do you need?" );
+					}
+					break;
+
+				case ConstructionEventType.NpcOfferedHelp:
+					// Someone offered help — accept if we're blocked
+					if ( evt.Target == _npcId && State == NpcState.Building )
+					{
+						ConversationManager.Send( _npcId, evt.Actor,
+							"Thank you. I'm blocked here." );
+					}
+					break;
+			}
+		}
+
 		void HandleIdle()
 		{
 			// Wait a moment, then start walking to the first/current build site
@@ -260,6 +383,7 @@ namespace Lute.Building
 			// comparison avoids fragility from duplicate task names.
 			if ( _buildingTaskIndex >= 0 && Builder.CurrentTaskIndex != _buildingTaskIndex )
 			{
+				ReportTaskComplete();
 				ReleaseActiveClaim();
 				State = NpcState.WalkingToNextSite;
 				_stateTimer = 0;
@@ -272,6 +396,7 @@ namespace Lute.Building
 			// the case where the builder hasn't started the next task yet.
 			if ( Builder.CurrentTask.Status == 2 )
 			{
+				ReportTaskComplete();
 				ReleaseActiveClaim();
 				State = NpcState.WalkingToNextSite;
 				_stateTimer = 0;
@@ -289,9 +414,37 @@ namespace Lute.Building
 		/// of other NPCs' claims. Stores the claim ID in
 		/// <see cref="_activeClaimId"/> on success. Returns false (and
 		/// logs) if another NPC already holds an overlapping claim.
+		///
+		/// When UseDirector is true, the claim goes through the
+		/// ConstructionDirector's authoritative transaction system
+		/// (BlackboardRequest → BlackboardResult) instead of directly
+		/// calling SpatialBlackboard.
 		/// </summary>
 		bool TryClaimSite( Vector3 site )
 		{
+			// Director path: submit a Claim transaction
+			if ( UseDirector && _registeredWithDirector && Builder?.CurrentTask is not null )
+			{
+				var taskName = Builder.CurrentTask.Name;
+				var req = new BlackboardRequest
+				{
+					Actor = _npcId,
+					Operation = BlackboardOperation.Claim,
+					Key = taskName,
+					Tick = (long)SpatialBlackboard.CurrentTime,
+				};
+				var result = ConstructionDirector.ProcessRequest( req );
+				if ( result.Success )
+				{
+					_activeClaimId = result.Value?.ToString() ?? taskName;
+					SpatialBlackboard.PostMessage( _npcId, "", "request", $"claiming site at {site}", site );
+					return true;
+				}
+				Log.Info( $"Lute: VillageBuilderController '{_npcId}' director claim rejected at {site}: {result.Reason}" );
+				return false;
+			}
+
+			// Fallback: direct SpatialBlackboard claim
 			var blocker = SpatialBlackboard.CheckClear( site, ClaimRadius, _npcId );
 			if ( blocker is not null )
 			{
@@ -324,6 +477,25 @@ namespace Lute.Building
 			SpatialBlackboard.ReleaseClaim( _activeClaimId );
 			SpatialBlackboard.PostMessage( _npcId, "", "done", "site released", WorldPosition );
 			_activeClaimId = null;
+		}
+
+		/// <summary>
+		/// Report task completion to the ConstructionDirector and fire
+		/// a TaskCompleted event. Called when the builder finishes a task.
+		/// </summary>
+		void ReportTaskComplete()
+		{
+			if ( UseDirector && _registeredWithDirector && Builder?.CurrentTask is not null )
+			{
+				var req = new BlackboardRequest
+				{
+					Actor = _npcId,
+					Operation = BlackboardOperation.Complete,
+					Key = Builder.CurrentTask.Name,
+					Tick = (long)SpatialBlackboard.CurrentTime,
+				};
+				ConstructionDirector.ProcessRequest( req );
+			}
 		}
 
 		void MoveToward( Vector3 target )
