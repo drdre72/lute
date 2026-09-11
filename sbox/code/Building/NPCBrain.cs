@@ -386,6 +386,18 @@ Respond strictly with valid JSON matching this schema (no other text):
 		}
 
 		/// <summary>
+		/// Console command to show the ConstructionDirector state: task
+		/// counts, per-builder assignments, blocked/failed tasks, and
+		/// dependency status.
+		/// Usage: director_status
+		/// </summary>
+		[ConCmd( "director_status" )]
+		public static void DirectorStatusCommand()
+		{
+			Log.Info( $"[director_status] {ConstructionDirector.StatusSummary()}" );
+		}
+
+		/// <summary>
 		/// Console command to export a village task's blueprint to JSON.
 		/// Generates the blueprint (via StyleGrammar or BuildingGrammar),
 		/// validates it, and saves to FileSystem.Data.
