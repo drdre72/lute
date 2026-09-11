@@ -195,11 +195,13 @@ public sealed class LuteMonumentBuilder : Component
 	/// <summary> 3.1: Plaza floor — flat surface on top of the foundation. </summary>
 	void BuildPlazaFloor( GameObject root )
 	{
-		// plane_large.vmdl base = 100000×100000. Scale to 2×PlazaHalfWidth.
-		// Sits on top of the foundation at z=1.6m.
-		float s = (PlazaHalfWidth * 2f) / 100000f;
-		var floor = CreatePrimitive( root, "PlazaFloor", "models/dev/plane_large.vmdl",
-			new Vector3( 0, 0, 2.5f * M + 1f ), Rotation.Identity, new Vector3( s, s, 1f ),
+		// Use a thin box instead of plane_large (single-sided plane) to ensure
+		// the floor renders from all angles and doesn't z-fight with the
+		// foundation top. Box base = 50×50×50, scale to 2×PlazaHalfWidth.
+		float plazaScale = (PlazaHalfWidth * 2f) / 50f;
+		var floor = CreatePrimitive( root, "PlazaFloor", "models/dev/box.vmdl",
+			new Vector3( 0, 0, 2.5f * M + 1f ), Rotation.Identity,
+			new Vector3( plazaScale, plazaScale, 0.02f ),
 			material: MatPlaza );
 		AddBoxCollider( floor, new Vector3( PlazaHalfWidth * 2f, PlazaHalfWidth * 2f, 1f ) );
 	}
@@ -210,19 +212,20 @@ public sealed class LuteMonumentBuilder : Component
 		float wellRadius = 4f * M;
 		float rimH = 1.2f * M;
 		float rimThick = 0.6f * M;
+		float plazaTopZ = 2.5f * M + 1f;  // top of plaza floor — well sits on this
 
 		// Stone rim — outer ring (hollow cylinder approximated as a short, wide box ring)
 		// Use a slightly squashed sphere for the rim base, then a water disc inside.
 		float rimSc = wellRadius / 32f;
 		CreatePrimitive( root, "WellRim", "models/dev/sphere.vmdl",
-			new Vector3( 0, 0, rimH * 0.5f ), Rotation.Identity,
+			new Vector3( 0, 0, plazaTopZ + rimH * 0.5f ), Rotation.Identity,
 			new Vector3( rimSc, rimSc, rimH / 64f ),
 			material: MatStoneDetail );
 
 		// Water surface (dark disc at rim top)
 		float waterSc = (wellRadius - rimThick) / 32f;
 		CreatePrimitive( root, "WellWater", "models/dev/sphere.vmdl",
-			new Vector3( 0, 0, rimH * 0.9f ), Rotation.Identity,
+			new Vector3( 0, 0, plazaTopZ + rimH * 0.9f ), Rotation.Identity,
 			new Vector3( waterSc, waterSc, 0.02f ),
 			material: MatWater );
 
@@ -232,10 +235,10 @@ public sealed class LuteMonumentBuilder : Component
 		float postSc = postW / 50f;
 		float postOffset = wellRadius + rimThick * 0.5f;
 		var postPositions = new[] {
-			new Vector3(  postOffset, 0, postH * 0.5f ),
-			new Vector3( -postOffset, 0, postH * 0.5f ),
-			new Vector3( 0,  postOffset, postH * 0.5f ),
-			new Vector3( 0, -postOffset, postH * 0.5f ),
+			new Vector3(  postOffset, 0, plazaTopZ + postH * 0.5f ),
+			new Vector3( -postOffset, 0, plazaTopZ + postH * 0.5f ),
+			new Vector3( 0,  postOffset, plazaTopZ + postH * 0.5f ),
+			new Vector3( 0, -postOffset, plazaTopZ + postH * 0.5f ),
 		};
 		for ( int i = 0; i < 4; i++ )
 		{
@@ -251,7 +254,7 @@ public sealed class LuteMonumentBuilder : Component
 		float roofT = 0.4f * M;
 		CreatePrimitive( root, "WellRoof",
 			"models/dev/box.vmdl",
-			new Vector3( 0, 0, postH + roofT * 0.5f ), Rotation.Identity,
+			new Vector3( 0, 0, plazaTopZ + postH + roofT * 0.5f ), Rotation.Identity,
 			new Vector3( roofW / 50f, roofW / 50f, roofT / 50f ),
 			material: MatRoof );
 	}
@@ -274,6 +277,7 @@ public sealed class LuteMonumentBuilder : Component
 		float postH = 2.8f * M;
 		float postW = 0.15f * M;
 		float awningTilt = 12f; // degrees of pitch for rain runoff
+		float plazaTopZ = 2.5f * M + 1f;  // top of plaza floor
 		for ( int quad = 0; quad < 4; quad++ )
 		{
 			// Quadrant offset signs
@@ -296,7 +300,7 @@ public sealed class LuteMonumentBuilder : Component
 				// Counter (wood)
 				var counter = CreatePrimitive( root, $"Stall_{quad}_{i}_Counter",
 					"models/dev/box.vmdl",
-					new Vector3( x, y, thisStallH * 0.5f ), Rotation.Identity,
+					new Vector3( x, y, plazaTopZ + thisStallH * 0.5f ), Rotation.Identity,
 					new Vector3( stallW / 50f, stallD / 50f, thisStallH / 50f ),
 					material: MatWood, tint: TintJitter( new Color( 0.7f, 0.5f, 0.3f ), 0.05f ) );
 				AddBoxCollider( counter, new Vector3( 50f, 50f, 50f ) );
@@ -305,8 +309,8 @@ public sealed class LuteMonumentBuilder : Component
 				float postSc = postW / 50f;
 				float postFwd = stallD * 0.45f;
 				var postPositions = new[] {
-					new Vector3( x + stallW * 0.4f, y + postFwd, postH * 0.5f ),
-					new Vector3( x - stallW * 0.4f, y + postFwd, postH * 0.5f ),
+					new Vector3( x + stallW * 0.4f, y + postFwd, plazaTopZ + postH * 0.5f ),
+					new Vector3( x - stallW * 0.4f, y + postFwd, plazaTopZ + postH * 0.5f ),
 				};
 				for ( int p = 0; p < 2; p++ )
 				{
@@ -322,7 +326,7 @@ public sealed class LuteMonumentBuilder : Component
 				var awningRot = new Angles( awningTilt, 0, 0 );
 				CreatePrimitive( root, $"Stall_{quad}_{i}_Awning",
 					"models/dev/box.vmdl",
-					new Vector3( x, y, postH ), awningRot,
+					new Vector3( x, y, plazaTopZ + postH ), awningRot,
 					new Vector3( stallW / 50f, stallD / 50f, 0.1f ),
 					material: MatRoof, tint: thisAwningColor );
 			}
@@ -358,6 +362,7 @@ public sealed class LuteMonumentBuilder : Component
 		float benchD = 1.5f * M;
 		float benchH = 1f * M;
 		float legW = 0.15f * M;
+		float plazaTopZ = 2.5f * M + 1f;  // top of plaza floor
 
 		// Positions along each edge at 1/3 and 2/3 offsets
 		float[] offsets = { -InnerRingOuter / 3f, InnerRingOuter / 3f };
@@ -382,7 +387,7 @@ public sealed class LuteMonumentBuilder : Component
 				// Bench top (wood)
 				var bench = CreatePrimitive( root, $"Workbench_{idx}",
 					"models/dev/box.vmdl",
-					benchPos + new Vector3( 0, 0, benchH ),
+					benchPos + new Vector3( 0, 0, plazaTopZ + benchH ),
 					Rotation.Identity,
 					new Vector3( benchW / 50f, benchD / 50f, 0.3f / 50f * 50f ),
 					material: MatWood );
@@ -391,7 +396,7 @@ public sealed class LuteMonumentBuilder : Component
 				// 4 legs (simplified — just 4 thin boxes)
 				float legH = benchH;
 				float legScale = legW / 50f;
-				float legZ = legH * 0.5f;
+				float legZ = plazaTopZ + legH * 0.5f;
 				var legOffsets = new[] {
 					new Vector3( benchW * 0.4f, benchD * 0.3f, 0 ),
 					new Vector3( -benchW * 0.4f, benchD * 0.3f, 0 ),
@@ -419,6 +424,7 @@ public sealed class LuteMonumentBuilder : Component
 		float houseW = 6f * M;
 		float houseH = 4f * M;
 		float houseScale = houseW / 50f;
+		float plazaTopZ = 2.5f * M + 1f;  // top of plaza floor
 
 		// Offset from crafting stations — place at 0 and 1/2 offsets
 		float[] offsets = { -InnerRingOuter / 2f, 0f };
@@ -436,7 +442,7 @@ public sealed class LuteMonumentBuilder : Component
 
 				var house = CreatePrimitive( root, $"House_{idx}",
 					"models/dev/box.vmdl",
-					edgeMid + offsetVec + new Vector3( 0, 0, houseH * 0.5f ),
+					edgeMid + offsetVec + new Vector3( 0, 0, plazaTopZ + houseH * 0.5f ),
 					Rotation.Identity,
 					new Vector3( houseScale, houseScale, houseH / 50f ),
 					material: MatWoodHouse );
@@ -1059,6 +1065,7 @@ public sealed class LuteMonumentBuilder : Component
 		float stallH = 1.2f * M;
 		float goodsW = 0.8f * M;
 		float goodsH = 0.4f * M;
+		float plazaTopZ = 2.5f * M + 1f;  // top of plaza floor
 
 		for ( int quad = 0; quad < 4; quad++ )
 		{
@@ -1077,7 +1084,7 @@ public sealed class LuteMonumentBuilder : Component
 				{
 					float gx = x + (g == 0 ? -stallW * 0.2f : stallW * 0.2f);
 					float gy = y;
-					float gz = stallH + goodsH * 0.5f;
+					float gz = plazaTopZ + stallH + goodsH * 0.5f;
 
 					CreatePrimitive( root, $"Goods_{quad}_{i}_{g}",
 						"models/dev/box.vmdl",
@@ -1097,6 +1104,7 @@ public sealed class LuteMonumentBuilder : Component
 		float houseH = 4f * M;
 		float doorW = 1.2f * M;
 		float doorH = 2.2f * M;
+		float plazaTopZ = 2.5f * M + 1f;  // top of plaza floor
 
 		float[] offsets = { -InnerRingOuter / 2f, 0f };
 
@@ -1123,7 +1131,7 @@ public sealed class LuteMonumentBuilder : Component
 				};
 
 				// Place door slightly inset from house center, facing plaza
-				var doorPos = housePos + inwardDir * (houseW * 0.5f) + new Vector3( 0, 0, doorH * 0.5f );
+				var doorPos = housePos + inwardDir * (houseW * 0.5f) + new Vector3( 0, 0, plazaTopZ + doorH * 0.5f );
 
 				CreatePrimitive( root, $"Door_{idx}",
 					"models/dev/box.vmdl",
