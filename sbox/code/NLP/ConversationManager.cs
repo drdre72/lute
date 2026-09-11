@@ -9,17 +9,25 @@ namespace Lute.NLP
 	/// <summary>
 	/// Central conversation manager. Each NPC that wants to participate
 	/// in NLP-driven conversation registers here with its name and
-	/// <see cref="BeliefModel"/>. The manager routes messages between
-	/// NPCs, parses incoming text into intents, evaluates them through
-	/// social rules, generates response text, and posts it back.
+	/// <see cref="BeliefModel"/>.
 	///
-	/// This replaces the LLM-based <see cref="Lute.Building.NPCConversation"/>
-	/// with a fully deterministic pipeline:
+	/// Architecture (fixed per professor feedback):
 	///
-	///   text in → NlpParser.Parse → SocialRules.Evaluate → SpeechGenerator.Generate → text out
+	///   Send() = "I have placed a message into the communication system."
+	///            It posts to the blackboard and returns. It does NOT
+	///            synchronously evaluate the recipient.
 	///
-	/// All via the <see cref="Lute.Building.SpatialBlackboard"/> message
-	/// system — no LLM, no cloud, no randomness.
+	///   ProcessIncoming() = the sole consumer. Each NPC's update loop
+	///            calls this. It reads unprocessed messages from the
+	///            blackboard (using monotonic MessageId for exactly-once
+	///            delivery), parses them, evaluates through social rules,
+	///            generates response text, and posts the reply back to
+	///            the blackboard for the other NPC to consume on its
+	///            next tick.
+	///
+	/// This makes NPCs independent agents — each processes messages on
+	/// its own tick, at its own pace. No synchronous evaluation, no
+	/// double-processing.
 	/// </summary>
 	public static class ConversationManager
 	{
@@ -62,77 +70,34 @@ namespace Lute.NLP
 		}
 
 		/// <summary>
-		/// Send a text message from one NPC to another. This is the main
-		/// entry point for NPC-to-NPC communication. The message is:
-		/// 1. Posted to the SpatialBlackboard (for spatial awareness)
-		/// 2. Parsed into an Intent by NlpParser
-		/// 3. Evaluated by SocialRules against the receiver's beliefs
-		/// 4. If a response intent is produced, converted to text by
-		///    SpeechGenerator and sent back
+		/// Send a text message from one NPC to another. This ONLY posts
+		/// the message to the blackboard — it does NOT evaluate the
+		/// recipient synchronously. The recipient will process it on
+		/// its own tick via <see cref="ProcessIncoming"/>.
+		///
+		/// Send() means: "I have placed a message into the
+		/// communication system." Not: "I have simulated the entire
+		/// conversation already."
 		/// </summary>
-		/// <returns> The response text, or null if no response. </returns>
-		public static string Send( string from, string to, string text )
+		public static void Send( string from, string to, string text )
 		{
 			if ( string.IsNullOrWhiteSpace( text ) )
-				return null;
+				return;
 
-			// Post to blackboard for spatial awareness
-			Lute.Building.SpatialBlackboard.PostMessage(
+			SpatialBlackboard.PostMessage(
 				from: from,
 				to: to,
 				type: "nlp_message",
 				content: text
 			);
 
-			// Parse the incoming text
-			var intent = NlpParser.Parse( text, sender: from, target: to );
-
-			Log.Info( $"[NLP] {from} → {to}: \"{text}\" → {intent.Summary}" );
-
-			// Find the receiver
-			if ( !_npcs.TryGetValue( to, out var receiver ) )
-			{
-				Log.Info( $"[NLP] Receiver '{to}' not registered — message dropped." );
-				return null;
-			}
-
-			// Track conversation turns
-			receiver.TurnCount++;
-			if ( receiver.TurnCount > MaxTurns )
-			{
-				Log.Info( $"[NLP] {to} max turns reached — ending conversation with {from}." );
-				receiver.TurnCount = 0;
-				return null;
-			}
-
-			// Evaluate through social rules
-			var responseIntent = SocialRules.Evaluate( intent, receiver.Beliefs );
-
-			if ( responseIntent == null )
-			{
-				Log.Info( $"[NLP] {to} stayed silent (no response to {intent.Type})." );
-				return null;
-			}
-
-			// Generate response text
-			var responseText = SpeechGenerator.Generate( responseIntent );
-
-			Log.Info( $"[NLP] {to} → {from}: \"{responseText}\" ← {responseIntent.Summary}" );
-
-			// Post response to blackboard
-			Lute.Building.SpatialBlackboard.PostMessage(
-				from: to,
-				to: from,
-				type: "nlp_reply",
-				content: responseText
-			);
-
-			return responseText;
+			Log.Info( $"[NLP] {from} → {to}: posted \"{text}\"" );
 		}
 
 		/// <summary>
-		/// Broadcast a message to all registered NPCs. Each receiver
-		/// processes it independently through their own beliefs.
+		/// Broadcast a message to all registered NPCs. Only posts to
+		/// the blackboard — each NPC processes it independently on its
+		/// own tick.
 		/// </summary>
 		public static void Broadcast( string from, string text )
 		{
@@ -145,37 +110,102 @@ namespace Lute.NLP
 
 		/// <summary>
 		/// Process pending blackboard messages for a specific NPC.
-		/// Called by the NPC's update loop. This picks up any messages
-		/// that were posted to the blackboard since the last check.
+		/// Called by the NPC's update loop. This is the SOLE consumer —
+		/// messages are parsed, evaluated, and responded to here, not in
+		/// Send().
+		///
+		/// Uses monotonic MessageId for exactly-once consumption: each
+		/// NPC tracks the highest MessageId it has processed and only
+		/// receives messages with higher IDs.
 		/// </summary>
-		public static void ProcessIncoming( string npcName, float sinceTimestamp )
+		public static void ProcessIncoming( string npcName )
 		{
 			if ( !_npcs.TryGetValue( npcName, out var entry ) )
 				return;
 
-			var messages = Lute.Building.SpatialBlackboard.GetMessages( npcName, sinceTimestamp );
+			var messages = SpatialBlackboard.GetUnprocessedMessages(
+				npcName, entry.LastProcessedMessageId );
 
 			foreach ( var msg in messages )
 			{
-				if ( msg.Type == "nlp_message" || msg.Type == "conversation_start" )
+				// Track the highest processed message ID
+				if ( msg.MessageId > entry.LastProcessedMessageId )
+					entry.LastProcessedMessageId = msg.MessageId;
+
+				// Only process NLP messages
+				if ( msg.Type != "nlp_message" && msg.Type != "nlp_reply" &&
+					 msg.Type != "conversation_start" )
+					continue;
+
+				// Track conversation turns
+				entry.TurnCount++;
+				if ( entry.TurnCount > MaxTurns )
 				{
-					// Parse and respond
-					var intent = NlpParser.Parse( msg.Content, sender: msg.From, target: npcName );
-					var response = SocialRules.Evaluate( intent, entry.Beliefs );
-
-					if ( response != null )
-					{
-						var responseText = SpeechGenerator.Generate( response );
-						Log.Info( $"[NLP] {npcName} → {msg.From}: \"{responseText}\" ← {response.Summary}" );
-
-						Lute.Building.SpatialBlackboard.PostMessage(
-							from: npcName,
-							to: msg.From,
-							type: "nlp_reply",
-							content: responseText
-						);
-					}
+					Log.Info( $"[NLP] {npcName} max turns reached — ending conversation with {msg.From}." );
+					entry.TurnCount = 0;
+					continue;
 				}
+
+				// Parse the incoming text
+				var intent = NlpParser.Parse( msg.Content, sender: msg.From, target: npcName );
+				Log.Info( $"[NLP] {npcName} received from {msg.From}: \"{msg.Content}\" → {intent.Summary}" );
+
+				// Evaluate through social rules — returns a decision
+				var decision = SocialRules.Evaluate( intent, entry.Beliefs );
+
+				Log.Info( $"[NLP] {npcName} decision: {decision.Summary}" );
+
+				// Handle the decision
+				switch ( decision.Action )
+				{
+					case DecisionAction.Ignore:
+						// Stay silent
+						break;
+
+					case DecisionAction.Speak:
+						// Generate response text and post to blackboard
+						if ( decision.ResponseIntent != null )
+						{
+							var responseText = SpeechGenerator.Generate( decision.ResponseIntent );
+							Log.Info( $"[NLP] {npcName} → {msg.From}: \"{responseText}\"" );
+							SpatialBlackboard.PostMessage( npcName, msg.From, "nlp_reply", responseText );
+						}
+						break;
+
+					case DecisionAction.Act:
+						// Take a physical action (the GoalAction system handles this)
+						Log.Info( $"[NLP] {npcName} acting: {decision.WorldAction}" );
+						// World actions are handled by the NPC's controller, not here.
+						// The decision is logged for the controller to pick up.
+						break;
+
+					case DecisionAction.SpeakAndAct:
+						// Both speak and act
+						if ( decision.ResponseIntent != null )
+						{
+							var responseText = SpeechGenerator.Generate( decision.ResponseIntent );
+							Log.Info( $"[NLP] {npcName} → {msg.From}: \"{responseText}\" + action: {decision.WorldAction}" );
+							SpatialBlackboard.PostMessage( npcName, msg.From, "nlp_reply", responseText );
+						}
+						Log.Info( $"[NLP] {npcName} acting: {decision.WorldAction}" );
+						break;
+
+					case DecisionAction.Defer:
+						Log.Info( $"[NLP] {npcName} deferring: {decision.Reason}" );
+						break;
+
+					case DecisionAction.AskForClarification:
+						if ( decision.ResponseIntent != null )
+						{
+							var responseText = SpeechGenerator.Generate( decision.ResponseIntent );
+							Log.Info( $"[NLP] {npcName} → {msg.From}: \"{responseText}\" (clarification)" );
+							SpatialBlackboard.PostMessage( npcName, msg.From, "nlp_reply", responseText );
+						}
+						break;
+				}
+
+				// Also process through BlackboardProtocol for CLAIM/RELEASE intents
+				BlackboardProtocol.ProcessIntent( intent );
 			}
 		}
 
@@ -185,7 +215,7 @@ namespace Lute.NLP
 			var sb = $"[ConversationManager] {_npcs.Count} NPC(s) registered:";
 			foreach ( var e in _npcs.Values )
 			{
-				sb += $"\n  {e.Name} ({e.Role}) — turns={e.TurnCount}, beliefs={e.Beliefs.Npcs.Count} npc(s), {e.Beliefs.Resources.Count} resource(s)";
+				sb += $"\n  {e.Name} ({e.Role}) — turns={e.TurnCount}, lastMsg={e.LastProcessedMessageId}, beliefs={e.Beliefs.Npcs.Count} npc(s), {e.Beliefs.Resources.Count} resource(s)";
 			}
 			return sb;
 		}
@@ -196,6 +226,8 @@ namespace Lute.NLP
 			public BeliefModel Beliefs { get; set; }
 			public string Role { get; set; }
 			public int TurnCount { get; set; }
+			/// <summary> Highest MessageId this NPC has processed (exactly-once consumption). </summary>
+			public long LastProcessedMessageId { get; set; }
 		}
 	}
 }

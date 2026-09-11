@@ -631,19 +631,27 @@ Respond strictly with valid JSON matching this schema (no other text):
 
 		/// <summary>
 		/// Send a message from one NPC to another through the NLP pipeline.
+		/// This only posts the message — the recipient processes it on
+		/// their next ProcessIncoming() tick. Use nlp_tick to manually
+		/// trigger processing for testing.
 		/// Usage: nlp_say "BuilderNPC_0" "BuilderNPC_1" "I claim the north_site"
 		/// </summary>
 		[ConCmd( "nlp_say" )]
 		public static void NlpSayCommand( string from, string to, string text )
 		{
-			var response = ConversationManager.Send( from, to, text );
+			ConversationManager.Send( from, to, text );
+		}
 
-			// Also process through BlackboardProtocol for CLAIM/RELEASE intents
-			var intent = NlpParser.Parse( text, sender: from, target: to );
-			BlackboardProtocol.ProcessIntent( intent );
-
-			if ( response != null )
-				Log.Info( $"[nlp_say] Response: \"{response}\"" );
+		/// <summary>
+		/// Manually trigger message processing for a specific NPC.
+		/// In live gameplay, each NPC's update loop calls this automatically.
+		/// For console testing, use this to process pending messages.
+		/// Usage: nlp_tick "BuilderNPC_1"
+		/// </summary>
+		[ConCmd( "nlp_tick" )]
+		public static void NlpTickCommand( string npcName )
+		{
+			ConversationManager.ProcessIncoming( npcName );
 		}
 
 		/// <summary>
@@ -654,8 +662,6 @@ Respond strictly with valid JSON matching this schema (no other text):
 		public static void NlpBroadcastCommand( string from, string text )
 		{
 			ConversationManager.Broadcast( from, text );
-			var intent = NlpParser.Parse( text, sender: from );
-			BlackboardProtocol.ProcessIntent( intent );
 		}
 
 		/// <summary>

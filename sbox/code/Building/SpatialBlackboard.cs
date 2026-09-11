@@ -38,16 +38,23 @@ namespace Lute.Building
 	/// A spatial message posted to the blackboard. NPCs use these to
 	/// share coordinate updates, warnings, and coordination signals
 	/// without direct references to each other.
+	///
+	/// Messages have a monotonic <see cref="MessageId"/> so each NPC can
+	/// track which messages it has already processed. This ensures
+	/// exactly-once delivery — no duplicate processing.
 	/// </summary>
 	public struct SpatialMessage
 	{
+		/// <summary> Monotonic message ID (global sequence). Used for exactly-once consumption. </summary>
+		public long MessageId;
+
 		/// <summary> NPC that posted the message. </summary>
 		public string From;
 
 		/// <summary> Target NPC name, or empty for broadcast. </summary>
 		public string To;
 
-		/// <summary> Message type: "position", "warning", "request", "done", "help". </summary>
+		/// <summary> Message type: "position", "warning", "request", "done", "help", "nlp_message", "nlp_reply". </summary>
 		public string Type;
 
 		/// <summary> Text content of the message. </summary>
@@ -88,6 +95,12 @@ namespace Lute.Building
 		private const float CleanupInterval = 5.0f; // seconds
 		private const float DefaultClaimExpiry = 300.0f; // 5 minutes
 		private const float MessageExpiry = 60.0f; // 1 minute
+
+		/// <summary> Monotonic message sequence counter. Never resets. </summary>
+		private static long _messageSeq;
+
+		/// <summary> Monotonic claim ID counter. Deterministic (no Guid). </summary>
+		private static long _claimSeq;
 
 		/// <summary> Current game time (updated by Update). </summary>
 		public static float CurrentTime { get; private set; }
@@ -162,7 +175,7 @@ namespace Lute.Building
 			}
 
 			// No overlap — register the claim
-			var claimId = $"{npcName}_{Guid.NewGuid():N}";
+			var claimId = $"{npcName}_{_claimSeq++}";
 			_claims[claimId] = new SpatialClaim
 			{
 				Id = claimId,
@@ -224,12 +237,15 @@ namespace Lute.Building
 
 		/// <summary>
 		/// Post a spatial message to the blackboard. Other NPCs can
-		/// read it via GetMessages.
+		/// read it via GetMessages or GetUnprocessedMessages.
+		/// Each message gets a monotonic MessageId for exactly-once
+		/// consumption.
 		/// </summary>
 		public static void PostMessage( string from, string to, string type, string content, Vector3? position = null )
 		{
 			_messages.Add( new SpatialMessage
 			{
+				MessageId = ++_messageSeq,
 				From = from,
 				To = to,
 				Type = type,
@@ -241,6 +257,20 @@ namespace Lute.Building
 			// Cap message history
 			if ( _messages.Count > 100 )
 				_messages.RemoveAt( 0 );
+		}
+
+		/// <summary>
+		/// Get messages addressed to a specific NPC (or broadcast) that
+		/// have a MessageId greater than <paramref name="lastProcessedId"/>.
+		/// This is the exactly-once consumption API — each NPC tracks
+		/// the highest MessageId it has processed and passes it here.
+		/// </summary>
+		public static List<SpatialMessage> GetUnprocessedMessages( string npcName, long lastProcessedId )
+		{
+			return _messages
+				.Where( m => m.MessageId > lastProcessedId &&
+					   ( m.To == npcName || string.IsNullOrEmpty( m.To ) ) )
+				.ToList();
 		}
 
 		/// <summary>
@@ -291,6 +321,8 @@ namespace Lute.Building
 			_messages.Clear();
 			CurrentTime = 0;
 			_lastCleanup = 0;
+			_messageSeq = 0;
+			_claimSeq = 0;
 		}
 
 		/// <summary> Get a summary of the blackboard state (for console/debug). </summary>

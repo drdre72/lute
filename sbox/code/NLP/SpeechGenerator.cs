@@ -193,11 +193,19 @@ namespace Lute.NLP
 			if ( options.Length == 1 )
 				return options[0];
 
-			// Deterministic hash-based selection
+			// Deterministic hash-based selection — excludes timestamp
+			// so the same semantic intent always picks the same template.
 			int hash = 0;
-			var key = $"{intent.Type}_{intent.Subject}_{intent.Timestamp}";
+			var key = $"{intent.Type}_{intent.Topic}_{intent.Subject}";
 			foreach ( var ch in key )
 				hash = (hash * 31 + ch) & 0x7FFFFFFF;
+
+			// Include parameter values in the hash for more variation
+			foreach ( var kvp in intent.Parameters.OrderBy( k => k.Key ) )
+			{
+				foreach ( var ch in kvp.Value )
+					hash = (hash * 31 + ch) & 0x7FFFFFFF;
+			}
 
 			return options[hash % options.Length];
 		}

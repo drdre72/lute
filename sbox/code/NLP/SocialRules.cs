@@ -8,28 +8,22 @@ namespace Lute.NLP
 	/// <summary>
 	/// Deterministic social rules engine. Given an incoming
 	/// <see cref="Intent"/> and the receiver's <see cref="BeliefModel"/>,
-	/// decides what <see cref="Intent"/> to respond with (if any).
+	/// decides what <see cref="ResponseDecision"/> to make.
 	///
-	/// Rules are simple and deterministic — no fuzzy logic, no
-	/// probability. The same (intent, beliefs) pair always produces
-	/// the same response. Rules are organized by intent type:
+	/// The decision can be:
+	/// - Speak: produce a verbal response (only when communication is useful)
+	/// - Act: take a physical action (move, deliver, build)
+	/// - Ignore: the message doesn't warrant a response
+	/// - Defer: acknowledge but delay
+	/// - AskForClarification: the message was ambiguous
 	///
-	/// - Greet → Greet (reciprocate)
-	/// - Farewell → Farewell (reciprocate)
-	/// - Request → Accept if trust >= threshold, else Reject
-	/// - Offer → Accept if it helps current goal, else Acknowledge
-	/// - Claim → Acknowledge + update beliefs
-	/// - Release → Acknowledge + update beliefs
-	/// - Warn → Acknowledge + adjust trust up (they warned us)
-	/// - Inform → Acknowledge + update beliefs
-	/// - Ask → Inform if we know, else Acknowledge
-	/// - Volunteer → Assign if we have work, else Acknowledge
-	/// - Assign → Accept if trust high, else Decline
-	/// - Report → Acknowledge + adjust trust based on report
-	/// - Thank → Acknowledge (modest)
-	/// - Apologize → Acknowledge + adjust trust up (they apologized)
-	/// - Propose → Counter if trust high, else Reject
-	/// - Counter → Accept if reasonable, else Counter or Reject
+	/// Key principle (per professor feedback): NPCs need a reason to speak.
+	/// The decision is NOT "did I receive a message?" → "respond". It's:
+	///   Did this message change anything relevant to me?
+	///     → Does responding advance one of my goals?
+	///       → Can I act instead of talk?
+	///         → ACT
+	/// Only talk when communication is actually useful.
 	///
 	/// Trust thresholds:
 	/// - Accept request: trust >= 10
@@ -39,7 +33,6 @@ namespace Lute.NLP
 	/// </summary>
 	public static class SocialRules
 	{
-		// ── Trust thresholds ──
 		const int TrustAcceptRequest = 10;
 		const int TrustAcceptAssign = 20;
 		const int TrustAcceptPropose = 30;
@@ -47,12 +40,12 @@ namespace Lute.NLP
 
 		/// <summary>
 		/// Evaluate an incoming intent against the receiver's beliefs and
-		/// produce a response intent (or null to stay silent).
+		/// produce a <see cref="ResponseDecision"/>.
 		/// </summary>
-		public static Intent Evaluate( Intent incoming, BeliefModel beliefs )
+		public static ResponseDecision Evaluate( Intent incoming, BeliefModel beliefs )
 		{
 			if ( incoming == null || beliefs == null )
-				return null;
+				return new ResponseDecision { Action = DecisionAction.Ignore, Reason = "null input" };
 
 			// Record the interaction in memory
 			beliefs.RecordMemory( incoming.Sender, incoming, wasInitiator: false );
@@ -61,7 +54,7 @@ namespace Lute.NLP
 			UpdateBeliefsFromIncoming( incoming, beliefs );
 
 			// Decide response based on intent type
-			Intent response = incoming.Type switch
+			var decision = incoming.Type switch
 			{
 				IntentType.Greet => HandleGreet( incoming, beliefs ),
 				IntentType.Farewell => HandleFarewell( incoming, beliefs ),
@@ -82,100 +75,157 @@ namespace Lute.NLP
 				IntentType.Assign => HandleAssign( incoming, beliefs ),
 				IntentType.Decline => HandleDecline( incoming, beliefs ),
 				IntentType.Report => HandleReport( incoming, beliefs ),
-				IntentType.Acknowledge => null, // no response needed
-				_ => null,
+				IntentType.Acknowledge => HandleAcknowledge( incoming, beliefs ),
+				_ => new ResponseDecision { Action = DecisionAction.Ignore, Reason = "unknown intent type" },
 			};
 
-			// If we have a response, record it as outgoing
-			if ( response != null )
+			// If we have a response intent, set sender/target
+			if ( decision.ResponseIntent != null )
 			{
-				response.Sender = beliefs.SelfName;
-				response.Target = incoming.Sender;
-				response.Timestamp = SpatialBlackboard.CurrentTime;
-				beliefs.RecordMemory( incoming.Sender, response, wasInitiator: true );
+				decision.ResponseIntent.Sender = beliefs.SelfName;
+				decision.ResponseIntent.Target = incoming.Sender;
+				decision.ResponseIntent.Timestamp = SpatialBlackboard.CurrentTime;
+				beliefs.RecordMemory( incoming.Sender, decision.ResponseIntent, wasInitiator: true );
 			}
 
-			return response;
+			return decision;
 		}
 
 		/// <summary>
 		/// Update beliefs based on the incoming intent, before deciding
-		/// a response. This is how NPCs learn about the world from what
-		/// others say.
+		/// a response.
 		/// </summary>
 		static void UpdateBeliefsFromIncoming( Intent incoming, BeliefModel beliefs )
 		{
 			switch ( incoming.Type )
 			{
 				case IntentType.Claim:
-					// Someone is claiming a site/resource — record it
 					if ( !string.IsNullOrEmpty( incoming.Subject ) )
 						beliefs.SetSiteClaim( incoming.Subject, incoming.Sender );
 					break;
 
 				case IntentType.Release:
-					// Someone is releasing a site/resource — mark available
 					if ( !string.IsNullOrEmpty( incoming.Subject ) )
 						beliefs.SetSiteClaim( incoming.Subject, "" );
 					break;
 
 				case IntentType.Inform:
-					// Information about a site being claimed/released
 					if ( incoming.Topic == IntentTopic.Site && incoming.Parameters.TryGetValue( "claimed_by", out var claimer ) )
 						beliefs.SetSiteClaim( incoming.Subject, claimer );
 					break;
 
 				case IntentType.Warn:
-					// Someone warned us — they're looking out for us, trust up
 					beliefs.AdjustTrust( incoming.Sender, +2 );
 					break;
 
 				case IntentType.Apologize:
-					// Apology — small trust boost
 					beliefs.AdjustTrust( incoming.Sender, +1 );
 					break;
 
 				case IntentType.Thank:
-					// They're thanking us — we did something good
 					beliefs.AdjustTrust( incoming.Sender, +1 );
 					break;
 
 				case IntentType.Report:
-					// They reported completing something — trust up
 					beliefs.AdjustTrust( incoming.Sender, +1 );
 					break;
 			}
 		}
 
 		// ── Individual intent handlers ──
+		// Each returns a ResponseDecision. The key change from the old
+		// system: most messages are Ignored unless they're relevant to
+		// the NPC's goals. NPCs don't acknowledge everything.
 
-		static Intent HandleGreet( Intent incoming, BeliefModel beliefs )
+		static ResponseDecision HandleGreet( Intent incoming, BeliefModel beliefs )
 		{
-			return Intent.Simple( IntentType.Greet, IntentTopic.None, "", beliefs.SelfName, incoming.Sender );
-		}
-
-		static Intent HandleFarewell( Intent incoming, BeliefModel beliefs )
-		{
-			return Intent.Simple( IntentType.Farewell, IntentTopic.None, "", beliefs.SelfName, incoming.Sender );
-		}
-
-		static Intent HandleRequest( Intent incoming, BeliefModel beliefs )
-		{
-			int trust = beliefs.GetTrust( incoming.Sender );
-			if ( trust >= TrustAcceptRequest )
+			// Greetings are social — reciprocate, but only if we haven't
+			// recently greeted this NPC (avoid greeting loops).
+			var recent = beliefs.GetRecentWith( incoming.Sender, 3 );
+			foreach ( var m in recent )
 			{
-				// We trust them enough — accept
-				beliefs.AdjustTrust( incoming.Sender, +1 );
-				return Intent.Simple( IntentType.Accept, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender );
+				if ( m.IntentType == IntentType.Greet )
+					return new ResponseDecision { Action = DecisionAction.Ignore, Reason = "already greeted recently" };
 			}
 
-			// Not enough trust — reject politely
-			return Intent.Simple( IntentType.Reject, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender );
+			return new ResponseDecision
+			{
+				Action = DecisionAction.Speak,
+				ResponseIntent = Intent.Simple( IntentType.Greet, IntentTopic.None, "", beliefs.SelfName, incoming.Sender ),
+				Reason = "reciprocate greeting",
+			};
 		}
 
-		static Intent HandleOffer( Intent incoming, BeliefModel beliefs )
+		static ResponseDecision HandleFarewell( Intent incoming, BeliefModel beliefs )
 		{
-			// Accept offers if they relate to our current goal
+			return new ResponseDecision
+			{
+				Action = DecisionAction.Speak,
+				ResponseIntent = Intent.Simple( IntentType.Farewell, IntentTopic.None, "", beliefs.SelfName, incoming.Sender ),
+				Reason = "reciprocate farewell",
+			};
+		}
+
+		static ResponseDecision HandleRequest( Intent incoming, BeliefModel beliefs )
+		{
+			int trust = beliefs.GetTrust( incoming.Sender );
+
+			// Can we fulfill this request? Check if we have the resource.
+			bool canFulfill = incoming.Topic switch
+			{
+				IntentTopic.Material => beliefs.CurrentGoal != "build" || HasSpareMaterial( beliefs, incoming.Subject ),
+				IntentTopic.Site => beliefs.IsSiteAvailable( incoming.Subject ),
+				IntentTopic.Task => true, // always consider tasks
+				_ => false,
+			};
+
+			if ( trust >= TrustAcceptRequest && canFulfill )
+			{
+				beliefs.AdjustTrust( incoming.Sender, +1 );
+
+				// If it's a material request and we can spare it, ACT (deliver)
+				// rather than just speaking.
+				if ( incoming.Topic == IntentTopic.Material )
+				{
+					return new ResponseDecision
+					{
+						Action = DecisionAction.SpeakAndAct,
+						ResponseIntent = Intent.Simple( IntentType.Accept, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender ),
+						WorldAction = $"deliver:{incoming.Subject}",
+						Reason = $"trusted ({trust}), can fulfill — will deliver",
+					};
+				}
+
+				return new ResponseDecision
+				{
+					Action = DecisionAction.Speak,
+					ResponseIntent = Intent.Simple( IntentType.Accept, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender ),
+					Reason = $"trusted ({trust} >= {TrustAcceptRequest})",
+				};
+			}
+
+			if ( !canFulfill )
+			{
+				return new ResponseDecision
+				{
+					Action = DecisionAction.Speak,
+					ResponseIntent = Intent.Simple( IntentType.Reject, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender ),
+					Reason = "cannot fulfill request",
+				};
+			}
+
+			// Not enough trust — reject
+			return new ResponseDecision
+			{
+				Action = DecisionAction.Speak,
+				ResponseIntent = Intent.Simple( IntentType.Reject, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender ),
+				Reason = $"trust too low ({trust} < {TrustAcceptRequest})",
+			};
+		}
+
+		static ResponseDecision HandleOffer( Intent incoming, BeliefModel beliefs )
+		{
+			// Accept offers only if they help our current goal
 			bool helpsGoal = incoming.Topic switch
 			{
 				IntentTopic.Material => beliefs.CurrentGoal == "build",
@@ -184,156 +234,288 @@ namespace Lute.NLP
 				_ => false,
 			};
 
-			if ( helpsGoal )
-			{
-				beliefs.AdjustTrust( incoming.Sender, +1 );
-				return Intent.Simple( IntentType.Accept, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender );
-			}
+			if ( !helpsGoal )
+				return new ResponseDecision { Action = DecisionAction.Ignore, Reason = "offer not relevant to current goal" };
 
-			return Intent.Simple( IntentType.Acknowledge, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender );
-		}
-
-		static Intent HandleAccept( Intent incoming, BeliefModel beliefs )
-		{
-			// They accepted our proposal — trust up, acknowledge
 			beliefs.AdjustTrust( incoming.Sender, +1 );
-			return null; // no response needed — they accepted, we're done
+			return new ResponseDecision
+			{
+				Action = DecisionAction.Speak,
+				ResponseIntent = Intent.Simple( IntentType.Accept, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender ),
+				Reason = "offer helps current goal",
+			};
 		}
 
-		static Intent HandleReject( Intent incoming, BeliefModel beliefs )
+		static ResponseDecision HandleAccept( Intent incoming, BeliefModel beliefs )
 		{
-			// They rejected — trust down slightly
-			beliefs.AdjustTrust( incoming.Sender, -1 );
-			return null; // no response needed
+			// They accepted — trust up, no response needed
+			beliefs.AdjustTrust( incoming.Sender, +1 );
+			return new ResponseDecision { Action = DecisionAction.Ignore, Reason = "they accepted, no response needed" };
 		}
 
-		static Intent HandlePropose( Intent incoming, BeliefModel beliefs )
+		static ResponseDecision HandleReject( Intent incoming, BeliefModel beliefs )
+		{
+			// They rejected — trust down slightly, no response needed
+			beliefs.AdjustTrust( incoming.Sender, -1 );
+			return new ResponseDecision { Action = DecisionAction.Ignore, Reason = "they rejected, no response needed" };
+		}
+
+		static ResponseDecision HandlePropose( Intent incoming, BeliefModel beliefs )
 		{
 			int trust = beliefs.GetTrust( incoming.Sender );
+
 			if ( trust >= TrustAcceptPropose )
 			{
-				// High trust — accept the proposal
 				beliefs.AdjustTrust( incoming.Sender, +1 );
-				return Intent.Simple( IntentType.Accept, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender );
-			}
-
-			if ( trust >= TrustAcceptCounter )
-			{
-				// Medium trust — counter-propose
-				return Intent.Simple( IntentType.Counter, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender );
-			}
-
-			// Low trust — reject
-			return Intent.Simple( IntentType.Reject, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender );
-		}
-
-		static Intent HandleCounter( Intent incoming, BeliefModel beliefs )
-		{
-			int trust = beliefs.GetTrust( incoming.Sender );
-			if ( trust >= TrustAcceptCounter )
-			{
-				beliefs.AdjustTrust( incoming.Sender, +1 );
-				return Intent.Simple( IntentType.Accept, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender );
-			}
-
-			return Intent.Simple( IntentType.Reject, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender );
-		}
-
-		static Intent HandleInform( Intent incoming, BeliefModel beliefs )
-		{
-			// Acknowledge the information
-			return Intent.Simple( IntentType.Acknowledge, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender );
-		}
-
-		static Intent HandleAsk( Intent incoming, BeliefModel beliefs )
-		{
-			// If we know about the subject, inform. Otherwise acknowledge.
-			if ( !string.IsNullOrEmpty( incoming.Subject ) && beliefs.Resources.ContainsKey( incoming.Subject ) )
-			{
-				var r = beliefs.Resources[incoming.Subject];
-				return new Intent
+				return new ResponseDecision
 				{
-					Type = IntentType.Inform,
-					Topic = incoming.Topic,
-					Subject = incoming.Subject,
-					Sender = beliefs.SelfName,
-					Target = incoming.Sender,
-					Parameters = new Dictionary<string, string>
-					{
-						["available"] = r.IsAvailable.ToString(),
-						["claimed_by"] = r.ClaimedBy,
-					},
+					Action = DecisionAction.Speak,
+					ResponseIntent = Intent.Simple( IntentType.Accept, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender ),
+					Reason = $"high trust ({trust} >= {TrustAcceptPropose})",
 				};
 			}
 
-			return Intent.Simple( IntentType.Acknowledge, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender );
-		}
-
-		static Intent HandleWarn( Intent incoming, BeliefModel beliefs )
-		{
-			// Acknowledge the warning
-			return Intent.Simple( IntentType.Acknowledge, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender );
-		}
-
-		static Intent HandleThank( Intent incoming, BeliefModel beliefs )
-		{
-			// Modest acknowledgment
-			return Intent.Simple( IntentType.Acknowledge, IntentTopic.None, "", beliefs.SelfName, incoming.Sender );
-		}
-
-		static Intent HandleApologize( Intent incoming, BeliefModel beliefs )
-		{
-			// Accept the apology
-			return Intent.Simple( IntentType.Acknowledge, IntentTopic.None, "", beliefs.SelfName, incoming.Sender );
-		}
-
-		static Intent HandleClaim( Intent incoming, BeliefModel beliefs )
-		{
-			// Acknowledge their claim — we've already updated beliefs
-			return Intent.Simple( IntentType.Acknowledge, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender );
-		}
-
-		static Intent HandleRelease( Intent incoming, BeliefModel beliefs )
-		{
-			// Acknowledge the release
-			return Intent.Simple( IntentType.Acknowledge, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender );
-		}
-
-		static Intent HandleVolunteer( Intent incoming, BeliefModel beliefs )
-		{
-			// If we have work to assign, assign it
-			if ( beliefs.CurrentGoal == "build" || beliefs.CurrentGoal == "coordinate" )
+			if ( trust >= TrustAcceptCounter )
 			{
-				beliefs.AdjustTrust( incoming.Sender, +2 );
-				return Intent.Simple( IntentType.Assign, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender );
+				return new ResponseDecision
+				{
+					Action = DecisionAction.Speak,
+					ResponseIntent = Intent.Simple( IntentType.Counter, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender ),
+					Reason = $"medium trust ({trust} >= {TrustAcceptCounter}) — counter",
+				};
 			}
 
-			return Intent.Simple( IntentType.Acknowledge, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender );
+			return new ResponseDecision
+			{
+				Action = DecisionAction.Speak,
+				ResponseIntent = Intent.Simple( IntentType.Reject, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender ),
+				Reason = $"low trust ({trust} < {TrustAcceptCounter})",
+			};
 		}
 
-		static Intent HandleAssign( Intent incoming, BeliefModel beliefs )
+		static ResponseDecision HandleCounter( Intent incoming, BeliefModel beliefs )
 		{
 			int trust = beliefs.GetTrust( incoming.Sender );
+
+			if ( trust >= TrustAcceptCounter )
+			{
+				beliefs.AdjustTrust( incoming.Sender, +1 );
+				return new ResponseDecision
+				{
+					Action = DecisionAction.Speak,
+					ResponseIntent = Intent.Simple( IntentType.Accept, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender ),
+					Reason = $"trust sufficient for counter ({trust} >= {TrustAcceptCounter})",
+				};
+			}
+
+			return new ResponseDecision
+			{
+				Action = DecisionAction.Speak,
+				ResponseIntent = Intent.Simple( IntentType.Reject, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender ),
+				Reason = $"trust too low for counter ({trust} < {TrustAcceptCounter})",
+			};
+		}
+
+		static ResponseDecision HandleInform( Intent incoming, BeliefModel beliefs )
+		{
+			// Information is useful — but we don't need to acknowledge
+			// every piece of information. Only respond if it's relevant.
+			bool relevant = incoming.Topic switch
+			{
+				IntentTopic.Site => beliefs.CurrentGoal == "build",
+				IntentTopic.Safety => true, // safety info is always relevant
+				IntentTopic.Task => beliefs.CurrentGoal == "build",
+				_ => false,
+			};
+
+			if ( !relevant )
+				return new ResponseDecision { Action = DecisionAction.Ignore, Reason = "information not relevant" };
+
+			return new ResponseDecision
+			{
+				Action = DecisionAction.Speak,
+				ResponseIntent = Intent.Simple( IntentType.Acknowledge, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender ),
+				Reason = "relevant information acknowledged",
+			};
+		}
+
+		static ResponseDecision HandleAsk( Intent incoming, BeliefModel beliefs )
+		{
+			// If we know about the subject, inform. Otherwise stay silent.
+			if ( !string.IsNullOrEmpty( incoming.Subject ) && beliefs.Resources.ContainsKey( incoming.Subject ) )
+			{
+				var r = beliefs.Resources[incoming.Subject];
+				return new ResponseDecision
+				{
+					Action = DecisionAction.Speak,
+					ResponseIntent = new Intent
+					{
+						Type = IntentType.Inform,
+						Topic = incoming.Topic,
+						Subject = incoming.Subject,
+						Sender = beliefs.SelfName,
+						Target = incoming.Sender,
+						Parameters = new Dictionary<string, string>
+						{
+							["available"] = r.IsAvailable.ToString(),
+							["claimed_by"] = r.ClaimedBy,
+						},
+					},
+					Reason = "we know about this subject",
+				};
+			}
+
+			// Don't know — stay silent rather than acknowledging uselessly
+			return new ResponseDecision { Action = DecisionAction.Ignore, Reason = "we don't know about this subject" };
+		}
+
+		static ResponseDecision HandleWarn( Intent incoming, BeliefModel beliefs )
+		{
+			// Warnings are relevant — but we don't need to say "acknowledged".
+			// Just update beliefs (already done) and stay silent, or
+			// take action if it's a safety concern.
+			if ( incoming.Topic == IntentTopic.Safety )
+			{
+				return new ResponseDecision
+				{
+					Action = DecisionAction.Act,
+					WorldAction = $"check_safety:{incoming.Subject}",
+					Reason = "safety warning — will check",
+				};
+			}
+
+			return new ResponseDecision { Action = DecisionAction.Ignore, Reason = "warning noted, no action needed" };
+		}
+
+		static ResponseDecision HandleThank( Intent incoming, BeliefModel beliefs )
+		{
+			// Don't respond to thanks — it creates thank/acknowledge loops
+			return new ResponseDecision { Action = DecisionAction.Ignore, Reason = "no response to thanks" };
+		}
+
+		static ResponseDecision HandleApologize( Intent incoming, BeliefModel beliefs )
+		{
+			// Don't respond to apologies — the trust adjustment is enough
+			return new ResponseDecision { Action = DecisionAction.Ignore, Reason = "apology noted, no response needed" };
+		}
+
+		static ResponseDecision HandleClaim( Intent incoming, BeliefModel beliefs )
+		{
+			// Someone claimed a site — we've updated beliefs. No need to
+			// acknowledge unless it conflicts with our plans.
+			if ( beliefs.CurrentGoal == "build" && !beliefs.IsSiteAvailable( incoming.Subject ) )
+			{
+				// Check if we were planning to use this site
+				if ( beliefs.Resources.TryGetValue( incoming.Subject, out var r ) && r.IsAvailable == false )
+				{
+					return new ResponseDecision
+					{
+						Action = DecisionAction.Speak,
+						ResponseIntent = Intent.Simple( IntentType.Inform, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender ),
+						Reason = "site we wanted is now claimed",
+					};
+				}
+			}
+
+			return new ResponseDecision { Action = DecisionAction.Ignore, Reason = "claim noted, no conflict" };
+		}
+
+		static ResponseDecision HandleRelease( Intent incoming, BeliefModel beliefs )
+		{
+			// Someone released a site — if we need a site, this is relevant.
+			if ( beliefs.CurrentGoal == "build" )
+			{
+				return new ResponseDecision
+				{
+					Action = DecisionAction.Act,
+					WorldAction = $"consider_site:{incoming.Subject}",
+					Reason = "site released — may want to claim it",
+				};
+			}
+
+			return new ResponseDecision { Action = DecisionAction.Ignore, Reason = "release noted, not looking for sites" };
+		}
+
+		static ResponseDecision HandleVolunteer( Intent incoming, BeliefModel beliefs )
+		{
+			// Someone volunteered for work — if we have work to assign
+			if ( beliefs.CurrentGoal == "coordinate" || beliefs.CurrentGoal == "build" )
+			{
+				beliefs.AdjustTrust( incoming.Sender, +2 );
+				return new ResponseDecision
+				{
+					Action = DecisionAction.Speak,
+					ResponseIntent = Intent.Simple( IntentType.Assign, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender ),
+					Reason = "have work to assign",
+				};
+			}
+
+			return new ResponseDecision { Action = DecisionAction.Ignore, Reason = "no work to assign" };
+		}
+
+		static ResponseDecision HandleAssign( Intent incoming, BeliefModel beliefs )
+		{
+			int trust = beliefs.GetTrust( incoming.Sender );
+
 			if ( trust >= TrustAcceptAssign )
 			{
 				beliefs.AdjustTrust( incoming.Sender, +1 );
-				return Intent.Simple( IntentType.Accept, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender );
+				return new ResponseDecision
+				{
+					Action = DecisionAction.SpeakAndAct,
+					ResponseIntent = Intent.Simple( IntentType.Accept, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender ),
+					WorldAction = $"accept_task:{incoming.Subject}",
+					Reason = $"trusted assignment ({trust} >= {TrustAcceptAssign})",
+				};
 			}
 
-			return Intent.Simple( IntentType.Decline, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender );
+			return new ResponseDecision
+			{
+				Action = DecisionAction.Speak,
+				ResponseIntent = Intent.Simple( IntentType.Decline, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender ),
+				Reason = $"trust too low for assignment ({trust} < {TrustAcceptAssign})",
+			};
 		}
 
-		static Intent HandleDecline( Intent incoming, BeliefModel beliefs )
+		static ResponseDecision HandleDecline( Intent incoming, BeliefModel beliefs )
 		{
-			// They declined — slight trust down
 			beliefs.AdjustTrust( incoming.Sender, -1 );
-			return null;
+			return new ResponseDecision { Action = DecisionAction.Ignore, Reason = "they declined, no response needed" };
 		}
 
-		static Intent HandleReport( Intent incoming, BeliefModel beliefs )
+		static ResponseDecision HandleReport( Intent incoming, BeliefModel beliefs )
 		{
-			// Acknowledge the report
-			return Intent.Simple( IntentType.Acknowledge, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender );
+			// Reports are useful — but we don't need to acknowledge every one.
+			// Only respond if it affects our plans.
+			if ( incoming.Topic == IntentTopic.Task && beliefs.CurrentGoal == "coordinate" )
+			{
+				return new ResponseDecision
+				{
+					Action = DecisionAction.Speak,
+					ResponseIntent = Intent.Simple( IntentType.Acknowledge, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender ),
+					Reason = "task report relevant to coordination",
+				};
+			}
+
+			return new ResponseDecision { Action = DecisionAction.Ignore, Reason = "report noted, no response needed" };
+		}
+
+		static ResponseDecision HandleAcknowledge( Intent incoming, BeliefModel beliefs )
+		{
+			// Never respond to acknowledgments — it creates acknowledge loops
+			return new ResponseDecision { Action = DecisionAction.Ignore, Reason = "no response to acknowledgments" };
+		}
+
+		/// <summary>
+		/// Check if this NPC has spare material of the given type.
+		/// In the full system, this checks the NPC's inventory. For now,
+		/// builders always have spare material if they're not building.
+		/// </summary>
+		static bool HasSpareMaterial( BeliefModel beliefs, string material )
+		{
+			// Simplified: if we're building, we need our materials.
+			// If we're idle or coordinating, we can spare.
+			return beliefs.CurrentGoal != "build" || beliefs.CurrentGoal == "coordinate";
 		}
 	}
 }
