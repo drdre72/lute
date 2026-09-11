@@ -1,0 +1,37 @@
+# Pillar 1A & 1B — State Verification & Scene Telemetry
+# Build automated non-visual verification: collision probes, gate clearance,
+# object counts, material coverage, component completeness.
+# Work through one item at a time. Build and test after each.
+
+## 1A: Collision & Traversal Probe Automation (agent/collision_probes.py)
+
+- [x] Create agent/collision_probes.py with shared MCP call helper (reuse vision_lib.call pattern)
+- [x] Implement gate_clearance_check: raycast at 3 heights (0.5m, 1.0m, 1.8m) across each of the 4 gate entrances, verify no collision hit (clearance for NPC traversal)
+- [x] Implement wall_thickness_check: raycast through each curtain wall at midpoint, verify hit distance matches expected wall thickness (2m = 78.7 units)
+- [x] Implement floor_solidity_check: downward raycast from above each stall/house/well position, verify hit at plaza top z (~99.4 units), not buried or floating
+- [x] Implement tower_alignment_check: raycast vertically through each tower base, verify tower extends from foundation top to expected tower height
+- [x] Implement bridge_traversal_check: raycast along bridge surface at 0.5m height, verify continuous walkable surface across moat
+- [x] Add summary report function: print PASS/FAIL for each probe category, save JSON to scrap/collision_report.json
+- [x] Test all probes against live play mode, verify results match visual inspection
+
+## 1B: Scene Graph Telemetry Revision (agent/scene_telemetry.py)
+
+- [x] Create agent/scene_telemetry.py — Python replacement for sbox_verify.ps1's scene dump (faster, more structured, cross-platform)
+- [x] Implement object_count_audit: query all market objects via MCP find_game_objects, verify counts match expected (4 gates, 8 towers, 16 stalls, 8 workbenches, 8 houses, 1 well with 4 posts + rim + water + roof, ~440 merlons)
+- [x] Implement material_coverage_check: for each ModelRenderer component, verify it has a MaterialOverride or valid model material (flag any using dev/primary_white or missing material)
+- [x] Implement component_completeness_check: verify all solid objects have BoxCollider (flag any missing), verify all lights have LightComponent, verify terrain has Terrain + TerrainStorage
+- [x] implement spatial_bounds_check: verify all market objects are within expected bounds (plaza: +/-60m from center, walls: +/-140m, moat: +/-170m), flag any out-of-bounds objects
+- [x] Implement hierarchy_validation: verify market objects are children of the MarketRoot GameObject, flag any orphaned objects
+- [x] Add summary report function: print PASS/WARN/FAIL for each check, save JSON to scrap/telemetry_report.json
+- [x] Test against live play mode, verify results match sbox_verify.ps1 output
+
+## Findings from initial run
+
+- [ ] FIX: Gate components (GateCeiling, GateJamb, GateLintel) missing BoxColliders — 16 objects need collision added in LuteMonumentBuilder.cs
+- [ ] FIX: WellRim missing BoxCollider — players can walk through the well rim
+
+## Integration
+
+- [ ] Add --collision flag to texture_inspect.py to run collision probes as part of the macro pass
+- [ ] Add --telemetry flag to texture_inspect.py to run scene telemetry as part of the macro pass
+- [ ] Update AGENTS.md with new verification scripts and usage examples

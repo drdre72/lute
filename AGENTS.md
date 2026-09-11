@@ -24,6 +24,22 @@ every session.
   server (see "Closing the vision gap: MCP spatial probing" below). Casts
   rays, finds objects, reports positions as text — the closest thing to
   "eyes" for a vision-less agent.
+- `agent/collision_probes.py` — automated non-visual collision and traversal
+  verification. Raycasts at 3 heights across gates, through walls, down
+  through towers, and along bridges. Reports PASS/FAIL per probe category,
+  saves JSON to `scrap/collision_report.json`. Run after geometry changes:
+  ```powershell
+  python agent\collision_probes.py              # all probes
+  python agent\collision_probes.py --only gates # just gate clearance
+  ```
+- `agent/scene_telemetry.py` — structured scene graph verification. Audits
+  object counts, material coverage, component completeness (BoxCollider
+  presence), spatial bounds, and hierarchy. Saves JSON to
+  `scrap/telemetry_report.json`. Run after geometry changes:
+  ```powershell
+  python agent\scene_telemetry.py               # all checks
+  python agent\scene_telemetry.py --only counts # just object count audit
+  ```
 - `agent/scrape_apis.py` — scrapes the S&Box engine source for API
   signatures and writes `docs_cache/api_signatures.md`. Run after pulling
   a new engine snapshot. **Read `docs_cache/api_signatures.md` before
