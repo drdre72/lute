@@ -1,3 +1,5 @@
+using Lute.Building;
+
 /// <summary>
 /// Builds the Lute Sanctuary Realm — the Temple of Time.
 /// This is a separate scene/realm where players materialize via the Time Portal
@@ -46,8 +48,9 @@ public sealed class LuteWorld : Component
 		BuildAcropolis( root );
 		BuildBuilderNpc( root );
 		BuildWatchtower( root );
+		BuildTestStructure( root );
 
-		Log.Info( "Lute: Sanctuary built (world ground + monument + portal + temple floor + hex chamber + builder NPC + watchtower)." );
+		Log.Info( "Lute: Sanctuary built (world ground + monument + portal + temple floor + hex chamber + builder NPC + watchtower + test structure)." );
 		return root;
 	}
 
@@ -372,6 +375,43 @@ public sealed class LuteWorld : Component
 
 		Log.Info( $"Lute: BuilderNpc spawned at {go.WorldPosition} (parent={parent.Name})." );
 		Log.Info( $"Lute: BuilderNpc first-person camera 'Eyes' at local z=64, FOV=90." );
+	}
+
+	/// <summary>
+	/// Spawns a test NPCBuilder near the sanctuary to verify the room-
+	/// subdivided building grammar end-to-end. Three structures side by
+	/// side at WealthFactor 1.0, 2.0, 3.0 so the agent can compare the
+	/// room-subdivision tiers via logs/MCP.
+	/// </summary>
+	void BuildTestStructure( GameObject parent )
+	{
+		const float M = 39.37f;
+
+		float[] wealthTiers = { 1.0f, 2.0f, 3.0f };
+		for ( int i = 0; i < wealthTiers.Length; i++ )
+		{
+			var go = Scene.CreateObject( true );
+			go.Name = $"TestStructure_W{wealthTiers[i]:F1}";
+			go.SetParent( parent );
+
+			// Place 40m south of the temple center, spaced 15m apart along X.
+			go.WorldPosition = new Vector3( (i - 1) * 15f * M, -40f * M, 0f );
+			go.WorldRotation = Rotation.Identity;
+
+			var builder = go.AddComponent<NPCBuilder>();
+			builder.WealthFactor = wealthTiers[i];
+			builder.BaseWidth = 4;
+			builder.BaseHeight = 4;
+			builder.CellSize = 100f;       // ~2.54m cells
+			builder.WallHeight = 200f;     // ~5.08m walls
+			builder.FloorThickness = 10f;  // ~0.25m floors
+			builder.BuildInterval = 0.2f;  // fast for testing
+			builder.WallMaterial = "materials/dev/gray_75.vmat";
+			builder.FloorMaterial = "materials/dev/gray_50.vmat";
+			builder.LayoutSeed = 1000 + i; // deterministic per tier
+
+			Log.Info( $"Lute: TestStructure {i} (wealth={wealthTiers[i]:F1}) spawned at {go.WorldPosition}." );
+		}
 	}
 
 	/// <summary> Creates a GameObject with a ModelRenderer using a primitive model. </summary>

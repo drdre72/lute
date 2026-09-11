@@ -90,7 +90,7 @@
     },
     {
       "id": 9,
-      "description": "Create agent/scene_telemetry.py — Python replacement for sbox_verify.ps1's scene dump (faster, more structured, cross-platform)",
+      "description": "Create agent/scene_telemetry.py \u2014 Python replacement for sbox_verify.ps1's scene dump (faster, more structured, cross-platform)",
       "priority": "normal",
       "state": "completed",
       "depends": [],
@@ -178,7 +178,7 @@
     },
     {
       "id": 17,
-      "description": "FIX: Gate components (GateCeiling, GateJamb, GateLintel) missing BoxColliders — 16 objects need collision added in LuteMonumentBuilder.cs",
+      "description": "FIX: Gate components (GateCeiling, GateJamb, GateLintel) missing BoxColliders \u2014 16 objects need collision added in LuteMonumentBuilder.cs",
       "priority": "normal",
       "state": "completed",
       "depends": [],
@@ -189,7 +189,7 @@
     },
     {
       "id": 18,
-      "description": "FIX: WellRim missing BoxCollider — players can walk through the well rim",
+      "description": "FIX: WellRim missing BoxCollider \u2014 players can walk through the well rim",
       "priority": "normal",
       "state": "completed",
       "depends": [],
@@ -288,7 +288,7 @@
     },
     {
       "id": 27,
-      "description": "Create agent/task_queue.py — persistent task queue with JSON state on disk",
+      "description": "Create agent/task_queue.py \u2014 persistent task queue with JSON state on disk",
       "priority": "normal",
       "state": "completed",
       "depends": [],
@@ -365,7 +365,7 @@
     },
     {
       "id": 34,
-      "description": "Create agent/context_manager.py — track and budget context usage",
+      "description": "Create agent/context_manager.py \u2014 track and budget context usage",
       "priority": "normal",
       "state": "completed",
       "depends": [],
@@ -431,18 +431,18 @@
     },
     {
       "id": 40,
-      "description": "Implement Fire (Ignis!) — fireball projectile + burn DoT",
+      "description": "Implement Fire (Ignis!) \u2014 fireball projectile + burn DoT",
       "priority": "normal",
       "state": "skipped",
       "depends": [],
       "notes": "[3A: Spell Effects (SpellType.cs already defines 8 schools)]",
       "created": "2026-09-10T22:52:46",
       "updated": "2026-09-10T22:55:40",
-      "block_reason": "Back burner — gameplay loop deferred"
+      "block_reason": "Back burner \u2014 gameplay loop deferred"
     },
     {
       "id": 41,
-      "description": "Implement Ice (Glacies!) — frost bolt + slow debuff",
+      "description": "Implement Ice (Glacies!) \u2014 frost bolt + slow debuff",
       "priority": "normal",
       "state": "skipped",
       "depends": [],
@@ -453,7 +453,7 @@
     },
     {
       "id": 42,
-      "description": "Implement Earth (Terra!) — rock wall barrier",
+      "description": "Implement Earth (Terra!) \u2014 rock wall barrier",
       "priority": "normal",
       "state": "skipped",
       "depends": [],
@@ -464,7 +464,7 @@
     },
     {
       "id": 43,
-      "description": "Implement Wind (Ventus!) — knockback gust",
+      "description": "Implement Wind (Ventus!) \u2014 knockback gust",
       "priority": "normal",
       "state": "skipped",
       "depends": [],
@@ -475,7 +475,7 @@
     },
     {
       "id": 44,
-      "description": "Implement Lightning (Fulmen!) — chain lightning",
+      "description": "Implement Lightning (Fulmen!) \u2014 chain lightning",
       "priority": "normal",
       "state": "skipped",
       "depends": [],
@@ -486,7 +486,7 @@
     },
     {
       "id": 45,
-      "description": "Implement Arcane (Aedifico!) — temporary structure",
+      "description": "Implement Arcane (Aedifico!) \u2014 temporary structure",
       "priority": "normal",
       "state": "skipped",
       "depends": [],
@@ -497,7 +497,7 @@
     },
     {
       "id": 46,
-      "description": "Implement Shadow (Umbra!) — stealth/invisibility",
+      "description": "Implement Shadow (Umbra!) \u2014 stealth/invisibility",
       "priority": "normal",
       "state": "skipped",
       "depends": [],
@@ -508,7 +508,7 @@
     },
     {
       "id": 47,
-      "description": "Implement Heal (Sancto!) — self heal + HoT",
+      "description": "Implement Heal (Sancto!) \u2014 self heal + HoT",
       "priority": "normal",
       "state": "skipped",
       "depends": [],
@@ -552,7 +552,7 @@
     },
     {
       "id": 51,
-      "description": "Create PlayerStats component — HP, MP, attributes, skills",
+      "description": "Create PlayerStats component \u2014 HP, MP, attributes, skills",
       "priority": "normal",
       "state": "completed",
       "depends": [],
@@ -607,7 +607,7 @@
     },
     {
       "id": 56,
-      "description": "Create NPCController component — basic AI state machine",
+      "description": "Create NPCController component \u2014 basic AI state machine",
       "priority": "normal",
       "state": "pending",
       "depends": [],
@@ -651,7 +651,7 @@
     },
     {
       "id": 60,
-      "description": "Create agent/ingest_asset.py — automated FBX import + .vmdl generation",
+      "description": "Create agent/ingest_asset.py \u2014 automated FBX import + .vmdl generation",
       "priority": "normal",
       "state": "pending",
       "depends": [],
@@ -750,7 +750,7 @@
     },
     {
       "id": 69,
-      "description": "Create agent/asset_pipeline.py — end-to-end: FBX → .vmdl → .vmat → verify",
+      "description": "Create agent/asset_pipeline.py \u2014 end-to-end: FBX \u2192 .vmdl \u2192 .vmat \u2192 verify",
       "priority": "normal",
       "state": "pending",
       "depends": [],
@@ -791,8 +791,20 @@
       "created": "2026-09-10T22:52:46",
       "updated": null,
       "block_reason": null
+    },
+    {
+      "id": 73,
+      "description": "Implement BuildingGrammar + NPCBuilder + StructurePersistence (room-subdivided builds, cancellation-safe loop, save/load)",
+      "priority": "high",
+      "state": "completed",
+      "depends": [],
+      "notes": "[3C: NPC Foundation]",
+      "created": "2026-09-10T23:03:06",
+      "updated": null,
+      "block_reason": null,
+      "completed_at": "2026-09-10T23:05:00"
     }
   ],
   "current_task": null,
-  "next_id": 73
+  "next_id": 74
 }

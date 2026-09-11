@@ -95,6 +95,10 @@
 
 ## 3C: NPC Foundation
 
+- [x] Implement BuildingGrammar (BSP room subdivision, wealth-scaled)
+- [x] Implement NPCBuilder (cancellation-safe build loop, MeshComponent collision)
+- [x] Implement StructurePersistence (save/load pair, instant rebuild)
+- [x] Wire test structures into LuteWorld (3 wealth tiers, verified)
 - [ ] Create NPCController component — basic AI state machine
 - [ ] Implement NPC spawning from scene markers
 - [ ] Implement NPC pathfinding (if NavMesh available) or simple steering
