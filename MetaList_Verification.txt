@@ -27,11 +27,101 @@
 
 ## Findings from initial run
 
-- [ ] FIX: Gate components (GateCeiling, GateJamb, GateLintel) missing BoxColliders — 16 objects need collision added in LuteMonumentBuilder.cs
-- [ ] FIX: WellRim missing BoxCollider — players can walk through the well rim
+- [x] FIX: Gate components (GateCeiling, GateJamb, GateLintel) missing BoxColliders — 16 objects need collision added in LuteMonumentBuilder.cs
+- [x] FIX: WellRim missing BoxCollider — players can walk through the well rim
 
 ## Integration
 
 - [x] Add --collision flag to texture_inspect.py to run collision probes as part of the macro pass
 - [x] Add --telemetry flag to texture_inspect.py to run scene telemetry as part of the macro pass
 - [x] Update AGENTS.md with new verification scripts and usage examples
+
+## Vision Pipeline Upgrades (commit 32bc25f)
+
+- [x] #1 Screenshot diffing against baselines (img_diff + update_baseline in vision_lib.py, --diff / --save-baselines flags)
+- [x] #5 Pre-push git hook (agent/pre-push.sh, installed to .git/hooks/pre-push)
+- [x] #2 Qwen3-VL grounding capability (ask_grounding + project_world_to_screen in vision_lib.py, grounding_targets in macro viewpoints)
+- [x] #3 Visual grid overlay (overlay_grid in vision_lib.py, --grid flag)
+- [x] #4 Lighting/time-of-day sweep (agent/lighting_sweep.py, --lighting flag)
+
+---
+
+# Pillar 2 — Micro-Task Queue & Context Sustainability
+
+## 2A: Task Queue System
+
+- [x] Create agent/task_queue.py — persistent task queue with JSON state on disk
+- [x] Implement task states: pending, in_progress, completed, blocked, skipped
+- [x] Implement task priorities: critical, high, normal, low
+- [x] Implement task dependencies: task can declare it depends on another task
+- [x] Implement checklist_next / checklist_complete helpers (read/write MetaList checkboxes)
+- [x] Add --add, --next, --complete, --list, --show commands
+- [x] Save state to .devin-context/task_queue.json
+
+## 2B: Context Window Sustainability
+
+- [ ] Create agent/context_manager.py — track and budget context usage
+- [ ] Implement context budget: track tokens/chars per file read, tool output, conversation
+- [ ] Implement context pruning: summarize old tool outputs, drop stale file reads
+- [ ] Implement context checkpoint: save key findings to persistent memory file
+- [ ] Add --budget, --checkpoint, --prune commands
+- [ ] Save state to .devin-context/context_state.json
+
+---
+
+# Pillar 3 — Core Gameplay Loop Integration
+
+## 3A: Spell Effects (SpellType.cs already defines 8 schools)
+
+- [ ] Implement Fire (Ignis!) — fireball projectile + burn DoT
+- [ ] Implement Ice (Glacies!) — frost bolt + slow debuff
+- [ ] Implement Earth (Terra!) — rock wall barrier
+- [ ] Implement Wind (Ventus!) — knockback gust
+- [ ] Implement Lightning (Fulmen!) — chain lightning
+- [ ] Implement Arcane (Aedifico!) — temporary structure
+- [ ] Implement Shadow (Umbra!) — stealth/invisibility
+- [ ] Implement Heal (Sancto!) — self heal + HoT
+- [ ] Add spell cooldowns and mana costs
+- [ ] Add spell impact VFX (particles via SceneSystem.Particles)
+- [ ] Add spell impact SFX
+
+## 3B: Player Stats & Progression
+
+- [ ] Create PlayerStats component — HP, MP, attributes, skills
+- [ ] Implement deterministic progression (zero-RNG, opposing attribute web)
+- [ ] Implement soul retrieval mechanic (death = lose progress, retrieve at body)
+- [ ] Add XP/level thresholds
+- [ ] Add attribute allocation on level up
+
+## 3C: NPC Foundation
+
+- [ ] Create NPCController component — basic AI state machine
+- [ ] Implement NPC spawning from scene markers
+- [ ] Implement NPC pathfinding (if NavMesh available) or simple steering
+- [ ] Implement NPC interaction (talk, trade, quest)
+
+---
+
+# Pillar 4 — Automated Asset & PBR Pipelines
+
+## 4A: FBX/OBJ Ingestion
+
+- [ ] Create agent/ingest_asset.py — automated FBX import + .vmdl generation
+- [ ] Auto-detect import scale from FBX UnitScaleFactor
+- [ ] Auto-generate .vmdl with MaterialGroupList fallback
+- [ ] Auto-assign collision (concave vs convex based on mesh complexity)
+- [ ] Verify imported model bounds via model.Bounds
+
+## 4B: PBR Material Generation
+
+- [ ] Expand generate_textures.py to 5-channel PBR (albedo, normal, rough, metal, AO)
+- [ ] Add material tiling auto-detection from UV layout
+- [ ] Add material variant generation (mossy, weathered, pristine)
+- [ ] Auto-generate .vmat files with correct PBR shader setup
+
+## 4C: Asset-to-Material Orchestration
+
+- [ ] Create agent/asset_pipeline.py — end-to-end: FBX → .vmdl → .vmat → verify
+- [ ] Auto-match model material slots to generated PBR materials
+- [ ] Run texture_inspect.py --diff on new assets to verify tiling
+- [ ] Auto-fix tiling if diff + VLM detect scale issues
