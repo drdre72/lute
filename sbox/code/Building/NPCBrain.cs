@@ -759,6 +759,17 @@ Respond strictly with valid JSON matching this schema (no other text):
 		}
 
 		/// <summary>
+		/// Run the village art pass — replaces primitives with castle_kit models.
+		/// Call after village is complete. Logs all micro-adjustments.
+		/// Usage: village_artpass
+		/// </summary>
+		[ConCmd( "village_artpass" )]
+		public static void VillageArtPassCommand()
+		{
+			VillageArtPass.RunArtPass();
+		}
+
+		/// <summary>
 		/// Load and test a castle_kit model. Triggers asset compilation.
 		/// Usage: castle_test wall
 		/// </summary>
