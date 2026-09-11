@@ -561,6 +561,12 @@ namespace Lute.Building
 
 			task.TotalPieces = bp.Pieces.Count;
 
+			// Validate the blueprint before placing pieces.
+			// In reconstruct mode we skip validation (the blueprint was
+			// already validated when first built).
+			if ( !_reconstructMode )
+				BlueprintValidator.ValidateAndLog( bp, task.Name );
+
 			for ( int i = 0; i < bp.Pieces.Count; i++ )
 			{
 				token.ThrowIfCancellationRequested();
