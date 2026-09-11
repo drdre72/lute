@@ -282,24 +282,26 @@ namespace Lute.Building
 			var scaleAdj = 1f;
 			if ( modelSize.x > 0 && modelSize.y > 0 )
 			{
-				// Use the larger of X/Y to determine scale (buildings are roughly square)
+				// Use the larger of X/Y to determine scale
 				var targetFootprint = MathF.Max( targetSize.x, targetSize.y );
 				var modelFootprint = MathF.Max( modelSize.x, modelSize.y );
 				if ( modelFootprint > 0 )
 				{
 					scaleAdj = targetFootprint / modelFootprint;
+					// For walls, add 10% to close gaps between segments
+					if ( taskType.StartsWith( "wall_" ) )
+						scaleAdj *= 1.1f;
 					// Clamp to reasonable range
 					scaleAdj = Math.Clamp( scaleAdj, 0.01f, 10f );
 				}
 			}
 
-			// Calculate position offset to center the model on the building center
-			var posOffset = modelCenter * scaleAdj;
-			var newPos = center - posOffset;
-			// Keep the model grounded (use the lowest piece's Z)
-			newPos.z = minPos.z;
+			// Calculate position: place model so its base (mins.z) sits at ground level
+			// The model bounds mins.z is typically 0, so we just use minPos.z
+			var newPos = center;
+			newPos.z = minPos.z - (modelBounds.Mins.z * scaleAdj);
 
-			var needsAdjust = MathF.Abs( scaleAdj - 1f ) > 0.01f || posOffset.Length > 1f;
+			var needsAdjust = MathF.Abs( scaleAdj - 1f ) > 0.01f;
 
 			// Spawn the new model
 			var newGo = Game.ActiveScene.CreateObject( true );
@@ -357,6 +359,28 @@ namespace Lute.Building
 
 			var propCount = Math.Min( buildingTasks.Count, 20 );
 
+			// Calculate building bounding boxes for collision avoidance
+			var buildingBounds = new List<(Vector3 min, Vector3 max)>();
+			foreach ( var taskName in buildingTasks )
+			{
+				var pieces = taskGroups[taskName];
+				var min = new Vector3( float.MaxValue, float.MaxValue, float.MaxValue );
+				var max = new Vector3( float.MinValue, float.MinValue, float.MinValue );
+				foreach ( var p in pieces )
+				{
+					if ( p == null || !p.IsValid ) continue;
+					min = Vector3.Min( min, p.WorldPosition );
+					max = Vector3.Max( max, p.WorldPosition );
+				}
+				if ( min.x < float.MaxValue )
+				{
+					// Add margin around building
+					var margin = 200f; // 5m margin
+					buildingBounds.Add( (min - new Vector3(margin, margin, 0),
+										max + new Vector3(margin, margin, 0)));
+				}
+			}
+
 			for ( int i = 0; i < propCount; i++ )
 			{
 				var taskName = buildingTasks[rng.Next( buildingTasks.Count )];
@@ -371,16 +395,42 @@ namespace Lute.Building
 				var model = Sandbox.Model.Load( propName );
 				if ( model == null ) continue;
 
+				// Find a position OUTSIDE all building bounds
+				var propPos = targetPiece.WorldPosition;
+				for ( int attempt = 0; attempt < 10; attempt++ )
+				{
+					// Place further away from the building center
+					var angle = (float)(rng.NextDouble() * Math.PI * 2);
+					var dist = 600f + (float)rng.NextDouble() * 400f; // 15-25m away
+					var offset = new Vector3(
+						(float)Math.Cos( angle ) * dist,
+						(float)Math.Sin( angle ) * dist,
+						0 );
+					var candidate = targetPiece.WorldPosition + offset;
+
+					// Check if this position is outside all building bounds
+					var inside = false;
+					foreach ( var (bmin, bmax) in buildingBounds )
+					{
+						if ( candidate.x >= bmin.x && candidate.x <= bmax.x &&
+							 candidate.y >= bmin.y && candidate.y <= bmax.y )
+						{
+							inside = true;
+							break;
+						}
+					}
+
+					if ( !inside )
+					{
+						propPos = candidate;
+						break;
+					}
+				}
+
 				var go = Game.ActiveScene.CreateObject( true );
 				go.Name = $"Prop_{propName.Split( '/' ).Last().Replace( ".vmdl", "" )}_{i}";
 				go.SetParent( villageRoot );
-
-				// Position near the building with a small offset
-				var offset = new Vector3(
-					(float)(rng.NextDouble() * 200 - 100),
-					(float)(rng.NextDouble() * 200 - 100),
-					0 );
-				go.WorldPosition = targetPiece.WorldPosition + offset;
+				go.WorldPosition = propPos;
 				go.WorldRotation = Rotation.FromYaw( (float)(rng.NextDouble() * 360 ) );
 				go.WorldScale = propScale;
 
