@@ -296,10 +296,15 @@ namespace Lute.Building
 				}
 			}
 
-			// Calculate position: place model so its base (mins.z) sits at ground level
-			// The model bounds mins.z is typically 0, so we just use minPos.z
+			// Calculate position: place model so its base sits at ground level.
+			// The model bounds mins.z is typically 0, so we use minPos.z.
+			// Subtract a small overlap to ensure no visible gap between
+			// the wall visual mesh and the ground.
 			var newPos = center;
 			newPos.z = minPos.z - (modelBounds.Mins.z * scaleAdj);
+			// Lower by 100 units (~2.5m) to overlap ground and hide any gap
+			// between the model's visual bottom and its collision bottom
+			newPos.z -= 100f;
 
 			var needsAdjust = MathF.Abs( scaleAdj - 1f ) > 0.01f;
 
