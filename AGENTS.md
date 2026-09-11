@@ -8,6 +8,41 @@ S&Box C# API is new enough that models will hallucinate outdated Garry's Mod
 Read this before writing S&Box code so you don't re-discover the same APIs
 every session.
 
+## GOVERNING RULE — NPC Intelligence
+
+NPCs MUST NOT use an LLM for gameplay behavior or conversation.
+
+NPC intelligence is deterministic.
+
+NPC communication uses:
+- NLP parsing
+- semantic intents
+- world state
+- goals
+- needs
+- beliefs
+- memory
+- social state
+- blackboard state
+- deterministic decision rules
+
+LLMs may be used by development tools or offline content-generation
+pipelines, but never by an NPC during runtime.
+
+DECEPTION IS DISABLED DURING THE CURRENT CONSTRUCTION PHASE.
+
+Deception-related interfaces may exist behind a feature flag so that
+the system can be enabled later for gameplay.
+
+The LLM is the architect/developer tool. The NPCs are the inhabitants
+of the world. These are separate AI systems:
+- Development AI (LLM): Architecture, blueprints, assets, design, analysis
+- Gameplay AI (Deterministic): NPC agents, NLP, goals, memory, blackboard,
+  planning, construction
+
+If you can compile Lute with the LLM components completely absent and the
+NPC simulation still works, the architecture is correct.
+
 ## Project layout
 
 - `PRD.md` — product/design spec (game design, not engine-specific). Read

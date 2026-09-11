@@ -6,22 +6,24 @@ using Sandbox;
 
 namespace Lute.Building
 {
+	using Lute.NLP;
+
 	/// <summary>
-	/// Conversation mode for NPC-to-NPC text exchange via the NLP brain.
-	/// This is intentionally latent — it exists as infrastructure but doesn't
-	/// drive gameplay until a use case emerges (e.g. NPCs negotiating build
-	/// sites, coordinating tasks, or generating quest dialogue).
+	/// Conversation mode for NPC-to-NPC text exchange via the deterministic
+	/// NLP pipeline. NPCs communicate through NlpParser → SocialRules →
+	/// BlackboardProtocol, NOT through an LLM.
 	///
 	/// Conversation flow:
 	/// 1. NPC A posts a message to the SpatialBlackboard addressed to NPC B
 	/// 2. NPC B's NPCConversation picks it up on the next tick
-	/// 3. NPC B's NPCBrain processes it through the LLM
-	/// 4. The LLM response is posted back to the blackboard for NPC A
-	/// 5. Both sides can apply critiques to their own task queues
+	/// 3. NPC B's NlpParser parses the message into an Intent
+	/// 4. SocialRules evaluates the intent and produces a ResponseDecision
+	/// 5. If the decision is to speak, SpeechGenerator produces a reply
+	/// 6. The reply is posted back to the blackboard for NPC A
+	/// 7. BlackboardProtocol processes any CLAIM/RELEASE intents
 	///
-	/// This mirrors the "Partner NPCs (Multi-Agent Sync)" critique source
-	/// from the design notes — NPCs coordinate by exchanging text messages
-	/// that the LLM translates into structured BuildingCritique payloads.
+	/// The LLM-based NPCBrain is NOT used in the runtime conversation path.
+	/// It remains as an optional dev tool for offline content generation.
 	/// </summary>
 	public sealed class NPCConversation : Component
 	{
@@ -104,7 +106,7 @@ namespace Lute.Building
 
 		protected override void OnUpdate()
 		{
-			if ( !ConversationEnabled || Brain == null )
+			if ( !ConversationEnabled )
 				return;
 
 			_checkTimer += Time.Delta;
@@ -120,7 +122,7 @@ namespace Lute.Building
 				if ( msg.Type == "conversation_start" || msg.Type == "conversation_reply" )
 				{
 					_lastMessageTime = msg.Timestamp;
-					_ = HandleIncomingMessage( msg );
+					HandleIncomingMessage( msg );
 				}
 				else if ( msg.Type == "conversation_end" )
 				{
@@ -132,10 +134,11 @@ namespace Lute.Building
 		}
 
 		/// <summary>
-		/// Handle an incoming conversation message. Sends it through the
-		/// NPCBrain's LLM to generate a response, then posts the reply.
+		/// Handle an incoming conversation message using the deterministic
+		/// NLP pipeline (NlpParser → SocialRules → BlackboardProtocol).
+		/// No LLM is used in this path.
 		/// </summary>
-		async Task HandleIncomingMessage( SpatialMessage msg )
+		void HandleIncomingMessage( SpatialMessage msg )
 		{
 			_turnCount++;
 			Log.Info( $"[NPCConversation:{NpcName}] Turn {_turnCount}/{MaxTurns} from {msg.From}: \"{msg.Content}\"" );
@@ -146,20 +149,39 @@ namespace Lute.Building
 				return;
 			}
 
-			// Process through the LLM brain — the LLM generates both a
-			// conversational reply and optionally a BuildingCritique
-			if ( Brain != null )
-			{
-				// The critique path: LLM may modify our task queue based on
-				// what the other NPC said (e.g. "move your wall 200 units east")
-				await Brain.SubmitCritique( msg.From, msg.Content );
+			// ── Deterministic NLP path (no LLM) ──
+			// 1. Parse the incoming message into an Intent
+			var incomingIntent = NlpParser.Parse( msg.Content, sender: msg.From, target: NpcName );
+			Log.Info( $"[NPCConversation:{NpcName}] Parsed intent: {incomingIntent.Summary}" );
 
-				// Generate a conversational reply
-				// For now, post a simple acknowledgment. The full LLM reply
-				// path would use a separate prompt that asks for a natural
-				// language response rather than a BuildingCritique.
-				Reply( msg.From, $"Acknowledged: {msg.Content}" );
+			// 2. Process blackboard operations (CLAIM/RELEASE)
+			BlackboardProtocol.ProcessIntent( incomingIntent );
+
+			// 3. Evaluate the intent through SocialRules to get a ResponseDecision
+			var beliefs = new BeliefModel( NpcName );
+			var decision = SocialRules.Evaluate( incomingIntent, beliefs );
+
+			// 4. If the decision is to speak, generate and post a reply
+			if ( decision.Action == DecisionAction.Speak && decision.ResponseIntent != null )
+			{
+				var replyText = SpeechGenerator.Generate( decision.ResponseIntent );
+				Reply( msg.From, replyText );
+
+				// Process the response intent's blackboard operations too
+				BlackboardProtocol.ProcessIntent( decision.ResponseIntent );
 			}
+			else if ( decision.Action == DecisionAction.AskForClarification )
+			{
+				Reply( msg.From, "I didn't understand. Can you clarify?" );
+			}
+			else if ( decision.Action == DecisionAction.Act )
+			{
+				// The decision is to act rather than speak — the NPC will
+				// take a physical action (move, build, etc.) through the
+				// construction system, not through conversation.
+				Log.Info( $"[NPCConversation:{NpcName}] Decision: Act ({decision.Reason})" );
+			}
+			// Ignore and Defer: no reply
 		}
 
 		/// <summary> Get conversation status for debugging. </summary>

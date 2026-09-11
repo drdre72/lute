@@ -76,6 +76,27 @@ namespace Lute.NLP
 				IntentType.Decline => HandleDecline( incoming, beliefs ),
 				IntentType.Report => HandleReport( incoming, beliefs ),
 				IntentType.Acknowledge => HandleAcknowledge( incoming, beliefs ),
+
+				// Extended construction coordination intents
+				IntentType.RequestHelp => HandleRequest( incoming, beliefs ),
+				IntentType.OfferHelp => HandleOffer( incoming, beliefs ),
+				IntentType.AcceptHelp => HandleAccept( incoming, beliefs ),
+				IntentType.DeclineHelp => HandleReject( incoming, beliefs ),
+				IntentType.ReportProblem => HandleWarn( incoming, beliefs ),
+				IntentType.ReportCompletion => HandleReport( incoming, beliefs ),
+				IntentType.ClaimResource => HandleClaim( incoming, beliefs ),
+				IntentType.ReleaseResource => HandleRelease( incoming, beliefs ),
+				IntentType.RequestResource => HandleRequest( incoming, beliefs ),
+				IntentType.OfferResource => HandleOffer( incoming, beliefs ),
+				IntentType.RequestTask => HandleVolunteer( incoming, beliefs ),
+				IntentType.OfferTask => HandleAssign( incoming, beliefs ),
+				IntentType.AssignTask => HandleAssign( incoming, beliefs ),
+				IntentType.AcceptTask => HandleAccept( incoming, beliefs ),
+				IntentType.ReportLocation => HandleInform( incoming, beliefs ),
+				IntentType.ReportAvailability => HandleVolunteer( incoming, beliefs ),
+				IntentType.Agree => HandleAccept( incoming, beliefs ),
+				IntentType.Disagree => HandleReject( incoming, beliefs ),
+
 				_ => new ResponseDecision { Action = DecisionAction.Ignore, Reason = "unknown intent type" },
 			};
 

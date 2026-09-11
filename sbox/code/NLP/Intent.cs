@@ -60,6 +60,68 @@ namespace Lute.NLP
 		Report,
 		/// <summary>Acknowledge a message without committing. </summary>
 		Acknowledge,
+
+		// ── Extended intents (professor Phase 1 feedback) ──
+		// These add finer-grained construction coordination semantics
+		// while keeping the original intents for backward compatibility.
+
+		/// <summary>Request help with a task or problem. </summary>
+		RequestHelp,
+		/// <summary>Offer help to another NPC. </summary>
+		OfferHelp,
+		/// <summary>Accept an offer of help. </summary>
+		AcceptHelp,
+		/// <summary>Decline an offer of help. </summary>
+		DeclineHelp,
+
+		/// <summary>Report a problem or blocker. </summary>
+		ReportProblem,
+		/// <summary>Report task completion. </summary>
+		ReportCompletion,
+
+		/// <summary>Claim a resource (material, tool, area). </summary>
+		ClaimResource,
+		/// <summary>Release a previously claimed resource. </summary>
+		ReleaseResource,
+
+		/// <summary>Request a resource from another NPC. </summary>
+		RequestResource,
+		/// <summary>Offer a resource to another NPC. </summary>
+		OfferResource,
+
+		/// <summary>Request a task assignment. </summary>
+		RequestTask,
+		/// <summary>Offer a task to another NPC. </summary>
+		OfferTask,
+
+		/// <summary>Assign a task to another NPC. </summary>
+		AssignTask,
+		/// <summary>Accept a task assignment. </summary>
+		AcceptTask,
+
+		/// <summary>Report current location. </summary>
+		ReportLocation,
+		/// <summary>Report availability for work. </summary>
+		ReportAvailability,
+
+		/// <summary>Agree with a statement or proposal. </summary>
+		Agree,
+		/// <summary>Disagree with a statement or proposal. </summary>
+		Disagree,
+
+		// ============================================================
+		// FUTURE GAMEPLAY SYSTEM — CURRENTLY DISABLED
+		//
+		// Deception, lying, misinformation, concealment and manipulation
+		// are intentionally unavailable during construction simulation.
+		//
+		// Construction NPCs are cooperative agents.
+		//
+		// DO NOT ENABLE THESE INTENTS UNTIL THE GAMEPLAY/SOCIAL PHASE.
+		// ============================================================
+		// Lie,
+		// Mislead,
+		// ConcealInformation,
 	}
 
 	/// <summary>
