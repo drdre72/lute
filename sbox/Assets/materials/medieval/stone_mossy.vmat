@@ -1,0 +1,21 @@
+Layer0
+{
+    shader "shaders/complex.shader"
+    g_flAmbientOcclusionDirectDiffuse "0.100"
+    g_flAmbientOcclusionDirectSpecular "0.000"
+    TextureAmbientOcclusion "materials/medieval/stone_ao.png"
+    g_flModelTintAmount "1.000"
+    g_vColorTint "[1.000000 1.000000 1.000000 0.000000]"
+    TextureColor "materials/medieval/stone_color_mossy.png"
+    g_bFogEnabled "1"
+    g_flMetalness "1.000"
+    TextureMetalness "materials/medieval/stone_metal.png"
+    TextureNormal "materials/medieval/stone_normal.png"
+    g_flRoughnessScaleFactor "1.000"
+    TextureRoughness "materials/medieval/stone_rough_mossy.png"
+    g_nScaleTexCoordUByModelScaleAxis "0"
+    g_nScaleTexCoordVByModelScaleAxis "0"
+    g_vTexCoordOffset "[0.000 0.000]"
+    g_vTexCoordScale "[30.000 30.000]"
+    g_vTexCoordScrollSpeed "[0.000 0.000]"
+}

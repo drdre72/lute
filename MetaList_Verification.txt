@@ -113,22 +113,22 @@
 
 ## 4A: FBX/OBJ Ingestion
 
-- [ ] Create agent/ingest_asset.py — automated FBX import + .vmdl generation
-- [ ] Auto-detect import scale from FBX UnitScaleFactor
-- [ ] Auto-generate .vmdl with MaterialGroupList fallback
-- [ ] Auto-assign collision (concave vs convex based on mesh complexity)
-- [ ] Verify imported model bounds via model.Bounds
+- [x] Create agent/ingest_asset.py — automated FBX import + .vmdl generation
+- [x] Auto-detect import scale from FBX UnitScaleFactor
+- [x] Auto-generate .vmdl with MaterialGroupList fallback
+- [x] Auto-assign collision (concave vs convex based on mesh complexity)
+- [x] Verify imported model bounds via model.Bounds
 
 ## 4B: PBR Material Generation
 
-- [ ] Expand generate_textures.py to 5-channel PBR (albedo, normal, rough, metal, AO)
-- [ ] Add material tiling auto-detection from UV layout
-- [ ] Add material variant generation (mossy, weathered, pristine)
-- [ ] Auto-generate .vmat files with correct PBR shader setup
+- [x] Expand generate_textures.py to 5-channel PBR (albedo, normal, rough, metal, AO)
+- [x] Add material tiling auto-detection from UV layout
+- [x] Add material variant generation (mossy, weathered, pristine)
+- [x] Auto-generate .vmat files with correct PBR shader setup
 
 ## 4C: Asset-to-Material Orchestration
 
-- [ ] Create agent/asset_pipeline.py — end-to-end: FBX → .vmdl → .vmat → verify
-- [ ] Auto-match model material slots to generated PBR materials
-- [ ] Run texture_inspect.py --diff on new assets to verify tiling
-- [ ] Auto-fix tiling if diff + VLM detect scale issues
+- [x] Create agent/asset_pipeline.py — end-to-end: FBX → .vmdl → .vmat → verify
+- [x] Auto-match model material slots to generated PBR materials
+- [x] Run texture_inspect.py --diff on new assets to verify tiling
+- [x] Auto-fix tiling if diff + VLM detect scale issues
