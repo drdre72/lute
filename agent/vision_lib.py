@@ -97,6 +97,144 @@ def ask_vision(img_bytes, question, model=MODEL):
         return f'[VISION ERROR: {e}]'
 
 
+def ask_grounding(img_bytes, question, model=MODEL):
+    """Ask Qwen3-VL to locate an object and return a bounding box.
+
+    Uses Qwen3-VL's native <box> tag format: the model returns
+    <box>(x1,y1),(x2,y2)</box> with coordinates normalized to 0-1000.
+
+    Returns a dict with:
+      - found: bool
+      - box: (x1, y1, x2, y2) in 640x360 pixel coords, or None
+      - raw: the full text response
+    """
+    from PIL import Image
+    import re
+
+    img = Image.open(io.BytesIO(img_bytes)).convert('RGB')
+    img = img.resize((640, 360))
+    buf = io.BytesIO()
+    img.save(buf, format='JPEG', quality=90)
+    img_b64 = base64.b64encode(buf.getvalue()).decode()
+
+    # Ask for <box> format specifically, plus a fallback JSON
+    full_prompt = (
+        f"{question}\n\n"
+        "Output the bounding box using <box>(x1,y1),(x2,y2)</box> format "
+        "where coordinates are normalized to 0-1000. "
+        "If the object is not visible, say 'not found'."
+    )
+    payload = {
+        'model': model,
+        'messages': [{
+            'role': 'user',
+            'content': [
+                {'type': 'image_url', 'image_url': {'url': f'data:image/jpeg;base64,{img_b64}'}},
+                {'type': 'text', 'text': full_prompt}
+            ]
+        }],
+        'max_tokens': 300, 'temperature': 0.1
+    }
+    req = urllib.request.Request(VISION,
+        data=json.dumps(payload).encode(),
+        headers={'Content-Type': 'application/json'}, method='POST')
+    try:
+        r = urllib.request.urlopen(req, timeout=120)
+        result = json.loads(r.read().decode())
+        raw = result['choices'][0]['message']['content']
+    except Exception as e:
+        return {'found': False, 'box': None, 'raw': f'[VISION ERROR: {e}]'}
+
+    # Parse <box>(x1,y1),(x2,y2)</box> — normalized 0-1000
+    boxes = re.findall(r'<box>\s*\((\d+),(\d+)\),\s*\((\d+),(\d+)\)\s*</box>', raw)
+    if boxes:
+        x1, y1, x2, y2 = [int(v) for v in boxes[0]]
+        # Convert from 0-1000 normalized to 640x360 pixel coords
+        px1 = int(x1 * 640 / 1000)
+        py1 = int(y1 * 360 / 1000)
+        px2 = int(x2 * 640 / 1000)
+        py2 = int(y2 * 360 / 1000)
+        return {'found': True, 'box': (px1, py1, px2, py2),
+                'box_norm': (x1, y1, x2, y2), 'raw': raw}
+
+    # Fallback: try JSON format {"x":, "y":, "width":, "height":}
+    try:
+        # Extract JSON from the response
+        json_match = re.search(r'\{[^}]+\}', raw)
+        if json_match:
+            j = json.loads(json_match.group())
+            if 'found' in j and j['found'] is False:
+                return {'found': False, 'box': None, 'raw': raw}
+            if 'x' in j and 'y' in j:
+                x, y = int(j['x']), int(j['y'])
+                w = int(j.get('width', 50))
+                h = int(j.get('height', 50))
+                return {'found': True, 'box': (x, y, x + w, y + h), 'raw': raw}
+    except (json.JSONDecodeError, ValueError, KeyError):
+        pass
+
+    if 'not found' in raw.lower():
+        return {'found': False, 'box': None, 'raw': raw}
+
+    return {'found': False, 'box': None, 'raw': raw}
+
+
+def project_world_to_screen(world_pos, cam_pos, cam_angles, img_w=640, img_h=360):
+    """Project a 3D world position to approximate screen pixel coordinates.
+
+    This is a rough projection — not a full view matrix — but sufficient
+    for cross-checking Qwen's bounding box against where an object should
+    appear given Merlyn's known camera position and angles.
+
+    Args:
+        world_pos: (x, y, z) world position of the target object
+        cam_pos: (x, y, z) camera world position
+        cam_angles: (pitch, yaw, roll) camera angles in degrees
+        img_w, img_h: image dimensions
+
+    Returns:
+        (px, py) approximate screen pixel, or None if behind camera
+    """
+    import math
+    dx = world_pos[0] - cam_pos[0]
+    dy = world_pos[1] - cam_pos[1]
+    dz = world_pos[2] - cam_pos[2]
+
+    # Camera looks along -Y by default (yaw=0 = looking south/north)
+    # Apply yaw rotation
+    yaw_rad = math.radians(cam_angles[1])
+    # Rotate world delta into camera space
+    cx = dx * math.cos(yaw_rad) - dy * math.sin(yaw_rad)
+    cy = dx * math.sin(yaw_rad) + dy * math.cos(yaw_rad)
+    cz = dz
+
+    # Apply pitch rotation
+    pitch_rad = math.radians(cam_angles[0])
+    cy_pitched = cy * math.cos(pitch_rad) + cz * math.sin(pitch_rad)
+    cz_pitched = -cy * math.sin(pitch_rad) + cz * math.cos(pitch_rad)
+
+    # In camera space, camera looks along -Y (forward)
+    # If cy_pitched > 0, object is behind camera
+    if cy_pitched >= 0:
+        return None
+
+    # Perspective projection
+    fov = 60  # approximate FOV in degrees
+    f = 1.0 / math.tan(math.radians(fov / 2))
+    dist = -cy_pitched  # distance forward (positive)
+    if dist < 1:
+        return None
+
+    sx = (cx * f / dist)  # -1 to 1
+    sy = (cz_pitched * f / dist)  # -1 to 1
+
+    # Map to pixel coordinates
+    px = int((sx + 1) * 0.5 * img_w)
+    py = int((1 - (sy + 1) * 0.5) * img_h)  # flip Y (screen Y goes down)
+
+    return (px, py)
+
+
 def _safe_print(text):
     """Print text safely on Windows (replace non-CP1252 chars)."""
     try:
@@ -131,6 +269,104 @@ def pixel_check(img_bytes):
         'dominant_pct': dominant_pct,
         'top3': [(c[:3], cnt / total) for c, cnt in top3],
     }
+
+
+# ── Screenshot diffing against a known-good baseline ──
+# Baselines are stored in scrap/baselines/<name>.png. On the first run
+# (no baseline exists), the capture becomes the baseline and the diff
+# is skipped. On subsequent runs, MSE is computed between the current
+# capture and the baseline. If MSE is below a threshold, the frame is
+# considered "unchanged" and the VLM call can be skipped entirely.
+# If MSE is above a higher threshold, something changed and the VLM
+# should inspect. Between the two thresholds is "marginal" — fall
+# through to the VLM but flag it.
+
+BASELINE_DIR = os.path.join(SCRAP, 'baselines')
+DIFF_SAME = 50.0       # MSE below this = essentially identical, skip VLM
+DIFF_CHANGED = 200.0   # MSE above this = clearly changed, VLM should inspect
+
+
+def img_diff(img_bytes, baseline_name):
+    """Compare a screenshot against a saved baseline.
+
+    Returns (mse, status, baseline_path) where:
+      - mse: mean squared error (0.0 = identical, higher = more different)
+      - status: 'same' (skip VLM), 'changed' (VLM should inspect),
+                'marginal' (VLM but flag), 'no_baseline' (first run,
+                baseline saved)
+      - baseline_path: path to the baseline file (or None)
+    """
+    from PIL import Image
+    import numpy as np
+
+    os.makedirs(BASELINE_DIR, exist_ok=True)
+    baseline_path = os.path.join(BASELINE_DIR, f'{baseline_name}.png')
+
+    img = Image.open(io.BytesIO(img_bytes)).convert('RGB')
+    img_resized = img.resize((320, 180))  # small for fast diff
+
+    if not os.path.exists(baseline_path):
+        # First run — save as baseline
+        img_resized.save(baseline_path)
+        return 0.0, 'no_baseline', baseline_path
+
+    baseline = Image.open(baseline_path).convert('RGB').resize((320, 180))
+    arr_cur = np.asarray(img_resized, dtype=np.float32)
+    arr_base = np.asarray(baseline, dtype=np.float32)
+    mse = float(np.mean((arr_cur - arr_base) ** 2))
+
+    if mse < DIFF_SAME:
+        status = 'same'
+    elif mse > DIFF_CHANGED:
+        status = 'changed'
+    else:
+        status = 'marginal'
+
+    return mse, status, baseline_path
+
+
+def update_baseline(img_bytes, baseline_name):
+    """Save or overwrite the baseline for a viewpoint.
+    Call this after a VLM verdict of 'appropriate' or 'ok' to lock in
+    a known-good capture for future diffing."""
+    from PIL import Image
+    os.makedirs(BASELINE_DIR, exist_ok=True)
+    baseline_path = os.path.join(BASELINE_DIR, f'{baseline_name}.png')
+    img = Image.open(io.BytesIO(img_bytes)).convert('RGB')
+    img.resize((320, 180)).save(baseline_path)
+    return baseline_path
+
+
+def overlay_grid(img_bytes, spacing=100, color=(128, 128, 128, 80)):
+    """Burn a light pixel-space grid onto a screenshot before sending
+    to the VLM. VLMs are known to make better spatial judgments
+    ("is this centered," "is this offset left") with gridlines to
+    reference rather than judging raw pixel position.
+
+    Args:
+        img_bytes: original screenshot bytes
+        spacing: grid line spacing in pixels (in the 640x360 resized image)
+        color: (R, G, B, A) — light gray, semi-transparent by default
+
+    Returns: new image bytes with grid overlay
+    """
+    from PIL import Image, ImageDraw
+    img = Image.open(io.BytesIO(img_bytes)).convert('RGBA')
+    # Resize to the size Qwen will see
+    img = img.resize((640, 360))
+    overlay = Image.new('RGBA', (640, 360), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+    # Vertical lines
+    for x in range(0, 640, spacing):
+        draw.line([(x, 0), (x, 360)], fill=color, width=1)
+    # Horizontal lines
+    for y in range(0, 360, spacing):
+        draw.line([(0, y), (640, y)], fill=color, width=1)
+    # Composite grid over image
+    result = Image.alpha_composite(img, overlay).convert('RGB')
+    buf = io.BytesIO()
+    result.save(buf, format='PNG')
+    return buf.getvalue()
 
 
 class VisionLib:

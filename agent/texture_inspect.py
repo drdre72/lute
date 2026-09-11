@@ -21,11 +21,18 @@ Usage:
     python agent/texture_inspect.py --collision   # also run collision/traversal probes
     python agent/texture_inspect.py --telemetry   # also run scene graph telemetry
     python agent/texture_inspect.py --collision --telemetry  # full verification suite
+    python agent/texture_inspect.py --diff        # skip VLM on frames matching baseline
+    python agent/texture_inspect.py --diff --save-baselines  # establish baselines
+    python agent/texture_inspect.py --grid       # overlay pixel grid for VLM spatial judgment
+    python agent/texture_inspect.py --lighting   # sweep noon/dusk/night mood verification
+    python agent/texture_inspect.py --collision --telemetry --lighting  # full suite
 """
 import sys, os, json, time, re, argparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from vision_lib import VisionLib, vantage, save_img, ask_vision, pixel_check
+from vision_lib import (VisionLib, vantage, save_img, ask_vision, pixel_check,
+                        img_diff, update_baseline, ask_grounding,
+                        project_world_to_screen, overlay_grid)
 
 # ── Market geometry (must match LuteMonumentBuilder.cs) ──
 # NeutralMarket root is at (15748, 15748, 0) in the live scene.
@@ -149,6 +156,12 @@ MACRO_VIEWPOINTS = [
             "Light gray surfaces are stone, not snow."
         ),
         "discrepancy_keywords": ["missing", "rotated", "displaced", "not concentric", "gap"],
+        # Grounding targets: (label, world_pos) — VLM locates these,
+        # we cross-check against projected screen position
+        "grounding_targets": [
+            ("central plaza", (CX, CY, FOUND_TOP)),
+            ("outer wall", (CX + WALL_HALF, CY + WALL_HALF, FOUND_TOP + WALL_H * 0.5)),
+        ],
     },
     {
         "name": "south_gate_approach",
@@ -165,6 +178,10 @@ MACRO_VIEWPOINTS = [
             "or the gate entrance is blocked or absent."
         ),
         "discrepancy_keywords": ["missing", "floating", "misplaced", "blocked", "absent"],
+        "grounding_targets": [
+            ("bridge", (CX, CY - MOAT_HALF + 200, FOUND_TOP)),
+            ("watchtower", (CX + 10 * M, CY - WALL_HALF, FOUND_TOP + TOWER_H * 0.5)),
+        ],
     },
     {
         "name": "plaza_interior",
@@ -181,6 +198,10 @@ MACRO_VIEWPOINTS = [
             "Light gray ground is stone flagstone, not snow or ice."
         ),
         "discrepancy_keywords": ["floating", "buried", "missing", "absent", "snow", "ice"],
+        "grounding_targets": [
+            ("central well", (CX, CY, FOUND_TOP + 50)),
+            ("market stalls", (CX + 15 * M, CY, FOUND_TOP + 60)),
+        ],
     },
 ]
 
@@ -346,8 +367,12 @@ def compute_new_tiling(current_u, current_v, verdict, ratio_u, ratio_v):
     return max(1.0, min(200.0, new_u)), max(1.0, min(200.0, new_v))
 
 
-def inspect_one(vl, vp, rubric):
-    """Capture and inspect one viewpoint. Returns (verdict_dict, img_path)."""
+def inspect_one(vl, vp, rubric, use_diff=False, save_baseline=False,
+                use_grid=False):
+    """Capture and inspect one viewpoint. Returns (verdict_dict, img_path).
+    If use_diff is True, compare against a saved baseline and skip the
+    VLM call when the frame is essentially unchanged.
+    If use_grid is True, overlay a pixel grid before the VLM call."""
     name, tx, ty, tz, dist, hoff, yaw, skey = vp
     r = RUBRIC.get(skey, {})
     pos, angles = vantage(tx, ty, tz, dist, hoff, yaw)
@@ -370,20 +395,42 @@ def inspect_one(vl, vp, rubric):
         return {"verdict": "not_visible", "size": "", "ratio": 1.0, "notes": "frame rejected"}, path
     print(f"  Pixel: bright={stats['bright_pct']:.0%} mid={stats['mid_pct']:.0%} dark={stats['dark_pct']:.0%}")
 
+    # Screenshot diff pre-filter — skip VLM on unchanged frames
+    if use_diff:
+        mse, diff_status, base_path = img_diff(img, f"tex_{name}")
+        print(f"  Diff: MSE={mse:.1f} status={diff_status}")
+        if diff_status == 'same':
+            print("  >> SKIP VLM (frame matches baseline)")
+            return {"verdict": "appropriate", "size": "(baseline match)",
+                    "ratio_u": 1.0, "ratio_v": 1.0,
+                    "notes": f"diff MSE={mse:.1f}, skipped VLM"}, path
+        if diff_status == 'no_baseline':
+            print("  >> No baseline — saving and proceeding to VLM")
+
     prompt = make_prompt(r, name, dist)
-    answer = ask_vision(img, prompt)
+    vlm_img = overlay_grid(img) if use_grid else img
+    answer = ask_vision(vlm_img, prompt)
     print(f"  Qwen: {answer[:200]}")
     verdict = parse_verdict(answer)
     print(f"  >> {verdict['verdict']}  size={verdict['size']}  "
           f"U={verdict['ratio_u']:.2f} V={verdict['ratio_v']:.2f}  notes={verdict['notes']}")
+
+    # Save/update baseline on a passing verdict
+    if save_baseline and verdict["verdict"] == "appropriate":
+        update_baseline(img, f"tex_{name}")
+        print(f"  >> Baseline updated for tex_{name}")
+
     return verdict, path
 
 
-def inspect_macro(vl, wp):
+def inspect_macro(vl, wp, use_diff=False, save_baseline=False,
+                  use_grid=False):
     """Run a macro (overview) inspection pass. Returns a report entry.
     Unlike micro passes, this doesn't check texture scale — it checks
     structural integrity by scanning Qwen's free-text response for
-    discrepancy keywords (floating, missing, displaced, etc.)."""
+    discrepancy keywords (floating, missing, displaced, etc.).
+    If use_diff is True, skip the VLM call when the frame matches baseline.
+    If use_grid is True, overlay a pixel grid before the VLM call."""
     name = wp["name"]
     tx, ty, tz = wp["target"]
     dist = wp["distance"]
@@ -416,7 +463,20 @@ def inspect_macro(vl, wp):
                 "discrepancies": [], "notes": "frame rejected", "image": path}
     print(f"  Pixel: bright={stats['bright_pct']:.0%} mid={stats['mid_pct']:.0%} dark={stats['dark_pct']:.0%}")
 
-    answer = ask_vision(img, prompt)
+    # Screenshot diff pre-filter
+    if use_diff:
+        mse, diff_status, base_path = img_diff(img, f"macro_{name}")
+        print(f"  Diff: MSE={mse:.1f} status={diff_status}")
+        if diff_status == 'same':
+            print("  >> SKIP VLM (frame matches baseline)")
+            return {"viewpoint": name, "scale": "macro", "verdict": "ok",
+                    "discrepancies": [], "notes": f"diff MSE={mse:.1f}, skipped VLM",
+                    "image": path}
+        if diff_status == 'no_baseline':
+            print("  >> No baseline — saving and proceeding to VLM")
+
+    vlm_img = overlay_grid(img) if use_grid else img
+    answer = ask_vision(vlm_img, prompt)
     print(f"  Qwen: {answer[:300]}")
 
     # Scan for discrepancy keywords in Qwen's response.
@@ -443,9 +503,60 @@ def inspect_macro(vl, wp):
     verdict = "ok" if not found else "discrepancy"
     print(f"  >> {verdict}  discrepancies: {found if found else 'none'}")
 
+    # ── Grounding check: ask Qwen to locate key objects, cross-check
+    # against projected screen position from known world coordinates.
+    # This is a stronger signal than parsing adjectives from prose.
+    grounding_results = []
+    for label, world_pos in wp.get("grounding_targets", []):
+        g = ask_grounding(img, f"Locate the {label} in this image.")
+        if g["found"] and g["box"]:
+            bx1, by1, bx2, by2 = g["box"]
+            box_cx = (bx1 + bx2) // 2
+            box_cy = (by1 + by2) // 2
+            # Project where the object SHOULD be on screen
+            # Parse camera position from the vantage call above
+            cam_pos_tup = tuple(float(v) for v in pos.split(","))
+            # Parse angles (pitch, yaw, roll) from the angles string
+            cam_ang_tup = tuple(float(v) for v in angles.split(","))
+            expected = project_world_to_screen(world_pos, cam_pos_tup, cam_ang_tup)
+            if expected:
+                ex, ey = expected
+                # Distance between VLM box center and projected position
+                dist_px = int(((box_cx - ex) ** 2 + (box_cy - ey) ** 2) ** 0.5)
+                # PASS if within 150px (rough, given approximate projection)
+                g_passed = dist_px < 150
+                grounding_results.append({
+                    "target": label, "found": True,
+                    "vlm_box": g["box"], "vlm_center": (box_cx, box_cy),
+                    "projected": (ex, ey), "dist_px": dist_px,
+                    "passed": g_passed,
+                })
+                status = "PASS" if g_passed else "CHECK"
+                print(f"  [ground-{status}] {label}: vlm=({box_cx},{box_cy}) "
+                      f"proj=({ex},{ey}) dist={dist_px}px")
+            else:
+                grounding_results.append({
+                    "target": label, "found": True,
+                    "vlm_box": g["box"], "projected": None,
+                    "passed": False, "reason": "behind camera",
+                })
+                print(f"  [ground-?] {label}: found by VLM but projection behind camera")
+        else:
+            grounding_results.append({
+                "target": label, "found": False, "passed": False,
+                "reason": "not found by VLM",
+            })
+            print(f"  [ground-FAIL] {label}: not found by VLM")
+
+    # Save/update baseline on a passing verdict
+    if save_baseline and verdict == "ok":
+        update_baseline(img, f"macro_{name}")
+        print(f"  >> Baseline updated for macro_{name}")
+
     return {
         "viewpoint": name, "scale": "macro", "verdict": verdict,
         "discrepancies": found, "vlm_response": answer,
+        "grounding": grounding_results,
         "notes": ", ".join(found) if found else "no discrepancies detected",
         "image": path,
     }
@@ -461,6 +572,14 @@ def main():
                         help="Run collision/traversal probes as part of the macro pass")
     parser.add_argument("--telemetry", action="store_true",
                         help="Run scene graph telemetry as part of the macro pass")
+    parser.add_argument("--diff", action="store_true",
+                        help="Screenshot diff against baselines — skip VLM on unchanged frames")
+    parser.add_argument("--save-baselines", action="store_true",
+                        help="Save/update baselines after a passing VLM verdict")
+    parser.add_argument("--grid", action="store_true",
+                        help="Overlay pixel grid on screenshots before VLM (visual prompting)")
+    parser.add_argument("--lighting", action="store_true",
+                        help="Run lighting/time-of-day sweep (noon/dusk/night mood verification)")
     args = parser.parse_args()
 
     viewpoints = VIEWPOINTS
@@ -472,6 +591,10 @@ def main():
     print(f"Macro pass: {'disabled' if args.no_macro else 'enabled'}")
     print(f"Collision probes: {'enabled' if args.collision else 'disabled'}")
     print(f"Scene telemetry: {'enabled' if args.telemetry else 'disabled'}")
+    print(f"Screenshot diff: {'enabled' if args.diff else 'disabled'}")
+    print(f"Save baselines: {'enabled' if args.save_baselines else 'disabled'}")
+    print(f"Grid overlay: {'enabled' if args.grid else 'disabled'}")
+    print(f"Lighting sweep: {'enabled' if args.lighting else 'disabled'}")
 
     vl = VisionLib()
     report = []
@@ -482,7 +605,9 @@ def main():
         print("  MACRO PASS (structural overview)")
         print(f"{'='*60}")
         for wp in MACRO_VIEWPOINTS:
-            entry = inspect_macro(vl, wp)
+            entry = inspect_macro(vl, wp, use_diff=args.diff,
+                                  save_baseline=args.save_baselines,
+                                  use_grid=args.grid)
             entry["type"] = "macro"
             report.append(entry)
             if entry["verdict"] == "discrepancy":
@@ -530,6 +655,22 @@ def main():
             report.append({"type": "telemetry", "check": "scene_telemetry",
                            "passed": False, "error": str(e)})
 
+    # ── Lighting sweep: time-of-day mood verification ──
+    if args.lighting:
+        print(f"\n{'='*60}")
+        print("  LIGHTING SWEEP (time-of-day mood verification)")
+        print(f"{'='*60}")
+        try:
+            from lighting_sweep import sweep_one, TIME_STATES, restore_default_light
+            for state in TIME_STATES:
+                entry = sweep_one(vl, state, use_grid=args.grid)
+                report.append(entry)
+            restore_default_light()
+        except Exception as e:
+            print(f"  Lighting sweep failed: {e}")
+            report.append({"type": "lighting", "verdict": "not_visible",
+                           "error": str(e)})
+
     # ── Micro pass: texture scale inspection ──
     for iteration in range(args.max_iter if args.fix else 1):
         print(f"\n{'='*60}")
@@ -542,7 +683,10 @@ def main():
         for vp in viewpoints:
             name, *_, skey = vp
             rubric = RUBRIC.get(skey, {})
-            verdict, img_path = inspect_one(vl, vp, rubric)
+            verdict, img_path = inspect_one(vl, vp, rubric,
+                                             use_diff=args.diff,
+                                             save_baseline=args.save_baselines,
+                                             use_grid=args.grid)
 
             entry = {
                 "type": "micro",
@@ -637,6 +781,11 @@ def main():
             passed = r.get("passed", False)
             status = "PASS" if passed else "FAIL"
             print(f"  {status:12s} {r['check']:20s} {'(' + rtype + ')':14s}")
+        elif rtype == "lighting":
+            verdict = r.get("verdict", "?")
+            status = {"ok": "OK", "mood_mismatch": "MOOD MISMATCH",
+                      "not_visible": "?"}.get(verdict, "?")
+            print(f"  {status:14s} {r.get('state', '?'):10s} {'(lighting)':14s} {r.get('notes', '')}")
         elif rtype == "macro":
             verdict = r.get("verdict", "?")
             status = {"ok": "OK", "discrepancy": "DISCREPANCY",
