@@ -175,9 +175,10 @@ public sealed class LuteMonumentBuilder : Component
 	void BuildPlazaFloor( GameObject root )
 	{
 		// plane_large.vmdl base = 100000×100000. Scale to 2×PlazaHalfWidth.
+		// Raised 1 unit above ground to prevent z-fighting with WorldGround.
 		float s = (PlazaHalfWidth * 2f) / 100000f;
 		var floor = CreatePrimitive( root, "PlazaFloor", "models/dev/plane_large.vmdl",
-			Vector3.Zero, Rotation.Identity, new Vector3( s, s, 1f ),
+			new Vector3( 0, 0, 1f ), Rotation.Identity, new Vector3( s, s, 1f ),
 			material: MatPlaza );
 		AddBoxCollider( floor, new Vector3( 100000f, 100000f, 1f ) );
 	}
@@ -318,7 +319,7 @@ public sealed class LuteMonumentBuilder : Component
 
 		for ( int side = 0; side < 4; side++ )
 		{
-			var pos = EdgeCenter( midRadius, side );
+			var pos = EdgeCenter( midRadius, side ) + new Vector3( 0, 0, 1f );
 			var rot = new Angles( 0, EdgeYaw( side ), 0 );
 			var seg = CreatePrimitive( root, $"InnerRingFloor_{side}",
 				"models/dev/box.vmdl",
@@ -594,36 +595,74 @@ public sealed class LuteMonumentBuilder : Component
 		}
 	}
 
-	/// <summary> 3.4: Moat — 4 straight segments + 4 corners, sunk below ground. </summary>
+	/// <summary> 3.4: Moat — dark basin (box) + flat water surface (plane). </summary>
 	void BuildMoat( GameObject root )
 	{
 		float moatWidth = MoatOuterHalfWidth - WallOuterHalfWidth;
 		float segLen = MoatOuterHalfWidth * 2f;
 		float midRadius = (WallOuterHalfWidth + MoatOuterHalfWidth) * 0.5f;
 
-		// 4 straight segments
+		// Dark basin — box sunk below ground (sides + bottom, no water shader)
+		var basinColor = new Color( 0.15f, 0.15f, 0.18f );
 		for ( int side = 0; side < 4; side++ )
 		{
 			var pos = EdgeCenter( midRadius, side ) + new Vector3( 0, 0, -MoatDepth * 0.5f );
 			var rot = new Angles( 0, EdgeYaw( side ), 0 );
 
-			CreatePrimitive( root, $"Moat_{side}",
+			CreatePrimitive( root, $"MoatBasin_{side}",
 				"models/dev/box.vmdl",
 				pos, rot,
 				new Vector3( segLen / 50f, moatWidth / 50f, MoatDepth / 50f ),
-				material: MatWater );
+				tint: basinColor );
 		}
 
-		// 4 corners
+		// 4 corner basins
 		float cornerSize = moatWidth;
 		float cornerScale = cornerSize / 50f;
 		for ( int corner = 0; corner < 4; corner++ )
 		{
 			var pos = CornerPos( midRadius, corner ) + new Vector3( 0, 0, -MoatDepth * 0.5f );
-			CreatePrimitive( root, $"MoatCorner_{corner}",
+			CreatePrimitive( root, $"MoatBasinCorner_{corner}",
 				"models/dev/box.vmdl",
 				pos, Rotation.Identity,
 				new Vector3( cornerScale, cornerScale, MoatDepth / 50f ),
+				tint: basinColor );
+		}
+
+		// Flat water surface — plane_large.vmdl at water level (z = -0.1 to avoid z-fight with basin top)
+		// plane_large.vmdl base = 100000×100000. Split per edge with bridge gaps.
+		float bridgeGap = 8f * M;  // gap for bridges
+		for ( int side = 0; side < 4; side++ )
+		{
+			var edgeMid = EdgeCenter( midRadius, side );
+			float halfLen = (segLen - bridgeGap) * 0.5f;
+			for ( int half = 0; half < 2; half++ )
+			{
+				float along = (half == 0 ? -1f : 1f) * (halfLen * 0.5f + bridgeGap * 0.5f);
+				var offsetVec = side == 0 || side == 2
+					? new Vector3( along, 0, 0 )
+					: new Vector3( 0, along, 0 );
+
+				float pScale = halfLen / 100000f;
+				float wScale = moatWidth / 100000f;
+				CreatePrimitive( root, $"MoatWater_{side}_{half}",
+					"models/dev/plane_large.vmdl",
+					edgeMid + offsetVec + new Vector3( 0, 0, -0.1f ),
+					new Angles( 0, EdgeYaw( side ), 0 ),
+					new Vector3( pScale, wScale, 1f ),
+					material: MatWater );
+			}
+		}
+
+		// Corner water planes
+		for ( int corner = 0; corner < 4; corner++ )
+		{
+			var pos = CornerPos( midRadius, corner ) + new Vector3( 0, 0, -0.1f );
+			float cScale = cornerSize / 100000f;
+			CreatePrimitive( root, $"MoatWaterCorner_{corner}",
+				"models/dev/plane_large.vmdl",
+				pos, Rotation.Identity,
+				new Vector3( cScale, cScale, 1f ),
 				material: MatWater );
 		}
 	}
