@@ -325,5 +325,53 @@ Respond strictly with valid JSON matching this schema (no other text):
 				Log.Info( $"  - {t.Name} ({t.TaskType}) style={styleName} wealth={t.WealthFactor:F1}" );
 			}
 		}
+
+		/// <summary>
+		/// Console command to show the spatial blackboard state.
+		/// Usage: village_blackboard
+		/// </summary>
+		[ConCmd( "village_blackboard" )]
+		public static void BlackboardStatusCommand()
+		{
+			Log.Info( $"[blackboard] {SpatialBlackboard.GetSummary()}" );
+
+			// Show active NPCs and positions
+			var positions = SpatialBlackboard.GetAllPositions();
+			if ( positions.Count > 0 )
+			{
+				Log.Info( "[blackboard] Active NPCs:" );
+				foreach ( var kvp in positions )
+					Log.Info( $"  - {kvp.Key} at {kvp.Value}" );
+			}
+
+			// Show active claims
+			var claims = SpatialBlackboard.GetClaims();
+			if ( claims.Count > 0 )
+			{
+				Log.Info( "[blackboard] Active claims:" );
+				foreach ( var c in claims )
+					Log.Info( $"  - {c.Owner}: {c.Activity} at {c.Position} r={c.Radius:F0}" );
+			}
+
+			// Show recent messages
+			var messages = SpatialBlackboard.GetAllMessages( SpatialBlackboard.CurrentTime - 60f );
+			if ( messages.Count > 0 )
+			{
+				Log.Info( "[blackboard] Recent messages:" );
+				foreach ( var m in messages )
+					Log.Info( $"  - [{m.From}->{m.To}] {m.Type}: {m.Content}" );
+			}
+		}
+
+		/// <summary>
+		/// Console command to post a spatial message to the blackboard.
+		/// Usage: village_say "VillageBuilderNPC" "NPC_Beta" "I'm building a wall at the north gate"
+		/// </summary>
+		[ConCmd( "village_say" )]
+		public static void SayCommand( string fromNpc, string toNpc, string message )
+		{
+			SpatialBlackboard.PostMessage( fromNpc, toNpc, "manual", message );
+			Log.Info( $"[village_say] {fromNpc} -> {toNpc}: {message}" );
+		}
 	}
 }
