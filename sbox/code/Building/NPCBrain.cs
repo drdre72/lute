@@ -571,6 +571,17 @@ Respond strictly with valid JSON matching this schema (no other text):
 			Log.Info( $"[monument_grammar] Pieces: {bp.PieceCount}, hash: {bp.Hash[..8]}, saved to {filename}." );
 		}
 
+		/// <summary>
+		/// Console command to show the AuthorityPipeline state: recent
+		/// AI proposals and their validation/approval/execution status.
+		/// Usage: authority_status
+		/// </summary>
+		[ConCmd( "authority_status" )]
+		public static void AuthorityStatusCommand()
+		{
+			Log.Info( $"[authority_status] {AuthorityPipeline.Summary( 20 )}" );
+		}
+
 		static int CountElements( ArchitecturalElement el )
 		{
 			int n = 1;
