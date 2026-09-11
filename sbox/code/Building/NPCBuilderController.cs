@@ -11,21 +11,35 @@ namespace Lute.Building
 	/// floor to validate collision the same way Merlyn does.
 	///
 	/// Movement uses the proven <see cref="PlayerController"/> + Rigidbody
-	/// velocity pattern from <see cref="LuteBuilderNpc.AgentTick"/> — no
-	/// NavMesh yet (task #58), just direct steering toward a world target.
+	/// velocity pattern from <see cref="LuteBuilderNpc.AgentTick"/>. When a
+	/// sibling <see cref="NavMeshAgent"/> is present and the scene's NavMesh
+	/// is enabled/loaded, the agent pathfinds to the target and its
+	/// <see cref="NavMeshAgent.WishVelocity"/> is fed into
+	/// <see cref="PlayerController.WishVelocity"/> (so PlayerController still
+	/// owns the physics step and GroundObject). Otherwise it falls back to
+	/// direct steering toward the world target.
 	/// </summary>
 	public sealed class NPCBuilderController : Component
 	{
 		[RequireComponent] public PlayerController Controller { get; set; }
+		[RequireComponent] public NavMeshAgent NavAgent { get; set; }
 
 		/// <summary> The sibling builder whose site we walk to and inspect. </summary>
 		[Property] public NPCBuilder Builder { get; set; }
 
-		/// <summary> Move speed in units/sec (~5 m/s). </summary>
+		/// <summary> Move speed in units/sec (~5 m/s). Used as NavMeshAgent.MaxSpeed fallback. </summary>
 		[Property] public float WalkSpeed { get; set; } = 5f * 39.37f;
 
 		/// <summary> Stop distance from a walk target (units). </summary>
 		[Property] public float StopRadius { get; set; } = 80f;
+
+		/// <summary>
+		/// When true, use the sibling <see cref="NavMeshAgent"/> for pathfinding
+		/// (feeds NavAgent.WishVelocity into PlayerController.WishVelocity). When
+		/// the NavMesh isn't enabled/loaded or the agent isn't ready, falls back
+		/// to direct steering toward the target. Toggled automatically each tick.
+		/// </summary>
+		[Property] public bool UseNavMesh { get; set; } = true;
 
 		/// <summary> NPC state for the build-and-inspect sequence. </summary>
 		public enum NpcState
@@ -154,8 +168,13 @@ namespace Lute.Building
 		}
 
 		/// <summary>
-		/// Steer toward a world position using Rigidbody velocity, facing
-		/// the heading. Mirrors <see cref="LuteBuilderNpc.AgentTick"/>.
+		/// Steer toward a world position. When a sibling <see cref="NavMeshAgent"/>
+		/// is present and the scene NavMesh is enabled/loaded, uses pathfinding:
+		/// calls <see cref="NavMeshAgent.MoveTo"/> and feeds the agent's
+		/// <see cref="NavMeshAgent.WishVelocity"/> into
+		/// <see cref="PlayerController.WishVelocity"/> (so PlayerController still
+		/// owns the physics step and GroundObject). Otherwise falls back to direct
+		/// steering toward the target. Faces the heading in both cases.
 		/// </summary>
 		void SteerToward( Vector3 target )
 		{
@@ -170,13 +189,83 @@ namespace Lute.Building
 			// owns the movement, runs its physics step, and populates
 			// GroundObject. Direct Rigidbody.Velocity overrides cancel
 			// vertical physics and keep the body floating above the floor.
-			Controller.WishVelocity = toTarget.Normal * WalkSpeed;
+			if ( UseNavMesh && TrySteerWithNavMesh( target ) )
+			{
+				// NavMesh drove WishVelocity this tick.
+			}
+			else
+			{
+				Controller.WishVelocity = toTarget.Normal * WalkSpeed;
+			}
 
 			if ( _logTimer > 1f )
 			{
 				_logTimer = 0f;
-				Log.Info( $"Lute: NPCBuilderController '{GameObject.Name}' walking — pos={WorldPosition}, dist={dist:F1} ({dist / 39.37f:F2} m), grounded={Controller.GroundObject.IsValid()}." );
+				Log.Info( $"Lute: NPCBuilderController '{GameObject.Name}' walking — pos={WorldPosition}, dist={dist:F1} ({dist / 39.37f:F2} m), grounded={Controller.GroundObject.IsValid()}, navmesh={_usingNavMesh}." );
 			}
+		}
+
+		/// <summary>
+		/// Try to steer using the sibling NavMeshAgent. Returns true if the
+		/// agent is active and drove <see cref="PlayerController.WishVelocity"/>
+		/// this tick; false if the caller should fall back to direct steering.
+		/// </summary>
+		bool _usingNavMesh;
+		bool _navMeshReadyLogged;
+		bool _navMeshDiagLogged;
+		bool TrySteerWithNavMesh( Vector3 target )
+		{
+			_usingNavMesh = false;
+
+			var nav = NavAgent;
+			if ( nav is null || !nav.Enabled )
+				return false;
+
+			// Scene.NavMesh must be enabled. If the scene has NavMesh
+			// disabled, the agent's internal handle is null and MoveTo is
+			// a no-op — we fall back to direct steering.
+			var sceneNav = Scene?.NavMesh;
+			if ( sceneNav is null || !sceneNav.IsEnabled )
+				return false;
+
+			// One-time diagnostic: log whether the navmesh has generated
+			// around the agent and the target. GetClosestPoint returns null
+			// if the query is uninitialized or no poly is within radius.
+			if ( !_navMeshDiagLogged )
+			{
+				_navMeshDiagLogged = true;
+				var agentHit = sceneNav.GetClosestPoint( WorldPosition, 512f );
+				var targetHit = sceneNav.GetClosestPoint( target, 512f );
+				Log.Info( $"Lute: NPCBuilderController '{GameObject.Name}' NavMesh diag — enabled={sceneNav.IsEnabled}, agentPos={WorldPosition} → closest={agentHit}, targetPos={target} → closest={targetHit}." );
+			}
+
+			nav.SetAgentPosition( WorldPosition );
+			nav.MoveTo( target );
+
+			// Feed the agent's desired velocity into PlayerController. If the
+			// agent hasn't planned a path yet (or the target is unreachable),
+			// WishVelocity is zero — fall back to direct steering so the NPC
+			// still makes progress.
+			var wish = nav.WishVelocity;
+			if ( wish.LengthSquared < 1f )
+				return false;
+
+			// Clamp to WalkSpeed so the agent's crowd-derived velocity (which
+			// can momentarily exceed MaxSpeed during avoidance) doesn't outrun
+			// the PlayerController's grounded movement model.
+			if ( wish.Length > WalkSpeed )
+				wish = wish.Normal * WalkSpeed;
+
+			Controller.WishVelocity = wish;
+			_usingNavMesh = true;
+
+			if ( !_navMeshReadyLogged )
+			{
+				_navMeshReadyLogged = true;
+				Log.Info( $"Lute: NPCBuilderController '{GameObject.Name}' NavMesh steering active (agent pos={nav.AgentPosition}, target={target})." );
+			}
+
+			return true;
 		}
 
 		void Face( Vector3 target )
@@ -191,6 +280,9 @@ namespace Lute.Building
 			// Zero WishVelocity lets PlayerController apply its brakes and
 			// settle on the ground, keeping GroundObject valid.
 			Controller.WishVelocity = Vector3.Zero;
+
+			// Also stop the NavMesh agent so it doesn't keep requesting paths.
+			NavAgent?.Stop();
 		}
 
 		/// <summary>

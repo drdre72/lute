@@ -146,6 +146,19 @@ namespace Lute.Npc
 			controller.UseAnimatorControls = true;
 			controller.Renderer = bodyRenderer;
 
+			// NavMeshAgent — drives pathfinding. UpdatePosition/UpdateRotation
+			// are false because PlayerController + Rigidbody own the transform;
+			// the controller reads NavMeshAgent.WishVelocity and feeds it into
+			// PlayerController.WishVelocity (the proven grounding-safe pattern).
+			// Falls back to direct steering if NavMesh isn't enabled/loaded.
+			var navAgent = go.AddComponent<NavMeshAgent>();
+			navAgent.Height = 64f;
+			navAgent.Radius = 16f;
+			navAgent.MaxSpeed = 5f * 39.37f;
+			navAgent.Acceleration = 5f * 39.37f;
+			navAgent.UpdatePosition = false;
+			navAgent.UpdateRotation = false;
+
 			// The controller.
 			var npc = go.AddComponent<NPCBuilderController>();
 			npc.Builder = builder;

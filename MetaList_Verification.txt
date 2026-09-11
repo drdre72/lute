@@ -99,9 +99,11 @@
 - [x] Implement NPCBuilder (cancellation-safe build loop, MeshComponent collision)
 - [x] Implement StructurePersistence (save/load pair, instant rebuild)
 - [x] Wire test structures into LuteWorld (3 wealth tiers, verified)
-- [ ] Create NPCController component — basic AI state machine
-- [ ] Implement NPC spawning from scene markers
-- [ ] Implement NPC pathfinding (if NavMesh available) or simple steering
+- [x] Create NPCController component — basic AI state machine (NPCBuilderController, commit a5a611f)
+- [x] Optimize NPCBuilder floor collision — single footprint BoxCollider (commit e1578c0)
+- [x] Implement NPC spawning from scene markers (SpawnMarker + NPCSpawner, commit d760714)
+- [x] Fix PlayerController grounding — WishVelocity + spawn at z=4 (commit d760714)
+- [x] Implement NPC pathfinding — NavMeshAgent + NavMesh.Generate in LuteGame (commit pending)
 - [ ] Implement NPC interaction (talk, trade, quest)
 
 ---

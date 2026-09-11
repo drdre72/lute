@@ -1,3 +1,6 @@
+using System;
+using System.Threading.Tasks;
+
 /// <summary>
 /// Lute game manager. Root component for the Lute MMORPG.
 /// Handles game lifecycle and (eventually) the Time Portal spawn loop,
@@ -20,6 +23,21 @@ public sealed class LuteGame : Component
 		Instance = this;
 		Log.Info( "Lute: Game manager started." );
 
+		// Enable the scene's NavMesh. The scene file may serialize the
+		// IsEnabled property under either "Enabled" or "IsEnabled", and
+		// neither key has reliably stuck across editor versions — so we
+		// force it on here. Setting IsEnabled=true calls NavMesh.Init(),
+		// but in game mode Scene.Nav_Update() won't auto-call NavMesh.Load()
+		// (that only happens in editor), so we also kick off generation
+		// explicitly. NavMesh.Generate() builds tiles from the world's
+		// static colliders (PlazaFloor, walls, etc.).
+		if ( Scene.NavMesh is not null && !Scene.NavMesh.IsEnabled )
+		{
+			Scene.NavMesh.IsEnabled = true;
+			Log.Info( "Lute: NavMesh enabled by LuteGame (was disabled in scene)." );
+			_ = GenerateNavMeshAsync();
+		}
+
 		// Build the Sanctuary Realm (Temple of Time).
 		var world = Components.GetOrCreate<LuteWorld>();
 		var sanctuary = world.Build();
@@ -40,5 +58,25 @@ public sealed class LuteGame : Component
 	protected override void OnDestroy()
 	{
 		if ( Instance == this ) Instance = null;
+	}
+
+	/// <summary>
+	/// Generate the NavMesh from the scene's static colliders. Called
+	/// fire-and-forget after enabling the NavMesh in <see cref="OnStart"/>.
+	/// NavMesh.Generate is async — it builds tiles across multiple frames.
+	/// The builder NPCs' NavMeshAgent components will pick up the generated
+	/// mesh once tiles are ready; until then they fall back to direct steering.
+	/// </summary>
+	async Task GenerateNavMeshAsync()
+	{
+		try
+		{
+			var generated = await Scene.NavMesh.Generate( Scene.PhysicsWorld );
+			Log.Info( $"Lute: NavMesh generation {(generated ? "complete" : "failed")}." );
+		}
+		catch ( Exception ex )
+		{
+			Log.Warning( $"Lute: NavMesh generation threw: {ex.Message}" );
+		}
 	}
 }
