@@ -63,6 +63,7 @@ public sealed class LuteMonumentBuilder : Component
 		BuildGatehouses( root );
 		BuildBridges( root );
 		BuildMoat( root );
+		BuildMarketTerrain( root );
 		BuildWatchtowers( root );
 		BuildTowerBattlements( root );
 		BuildLighting( root );
@@ -180,7 +181,7 @@ public sealed class LuteMonumentBuilder : Component
 		var floor = CreatePrimitive( root, "PlazaFloor", "models/dev/plane_large.vmdl",
 			new Vector3( 0, 0, 1f ), Rotation.Identity, new Vector3( s, s, 1f ),
 			material: MatPlaza );
-		AddBoxCollider( floor, new Vector3( 100000f, 100000f, 1f ) );
+		AddBoxCollider( floor, new Vector3( PlazaHalfWidth * 2f, PlazaHalfWidth * 2f, 1f ) );
 	}
 
 	/// <summary> 3.1: Central well/fountain — stone rim, water surface, wooden roof posts. </summary>
@@ -634,6 +635,138 @@ public sealed class LuteMonumentBuilder : Component
 				pos, Rotation.Identity,
 				new Vector3( cornerScale, cornerScale, basinH / 50f ),
 				material: MatWater );
+		}
+	}
+
+	/// <summary> 3.5: Market terrain — local terrain patch with a berm ring
+	/// surrounding the moat. Ground rises gradually from flat terrain to a
+	/// ~3ft peak just outside the moat, then drops steeply into the moat
+	/// channel. This hides the floating moat box and blends the transition
+	/// from the 3km WorldGround box to the market area. </summary>
+	void BuildMarketTerrain( GameObject root )
+	{
+		// Terrain patch: 500m square, centered on the market.
+		float terrainSizeM = 500f;
+		float terrainSize = terrainSizeM * M;
+		int res = 512;
+
+		// TerrainHeight: 5m gives enough range for 3ft berm + moat depth.
+		float terrainHeightM = 5f;
+		float terrainHeight = terrainHeightM * M;
+
+		// Base of the terrain sits 1m below ground (z = -1m) so the
+		// heightmap can represent both the moat bottom (z=-3m) and the
+		// berm peak (z=+0.91m). Ground level (z=0) is at heightmap 1/5.
+		float baseZ = -1f * M;
+
+		var go = Scene.CreateObject( true );
+		go.Name = "MarketTerrain";
+		go.SetParent( root );
+		// Terrain is centered on the market (root is at Center already).
+		// Local position (0,0,baseZ) puts the terrain square centered on root.
+		go.WorldPosition = Center + new Vector3( 0, 0, baseZ );
+
+		var terrain = go.AddComponent<Terrain>();
+		terrain.Enabled = false; // force a clean enable cycle
+		terrain.Enabled = true;  // OnEnabled() -> Create()
+
+		var storage = new TerrainStorage();
+		storage.SetResolution( res );
+		storage.TerrainSize = terrainSize;
+		storage.TerrainHeight = terrainHeight;
+
+		GenerateBermHeightmap( storage, res, terrainSize, terrainHeight );
+
+		terrain.Storage = storage; // triggers Create() internally
+		terrain.Create();         // ensure Create runs
+		terrain.SyncGPUTexture();
+		terrain.UpdateCollision(
+			Terrain.SyncFlags.Height,
+			new RectInt( 0, 0, res, res ) );
+
+		Log.Info( "Lute: market terrain berm generated." );
+
+		// Diagnostic: sample a few heightmap values to verify they're written.
+		// bermOuterM=200m, worldPerTexel=terrainSize/res=19685/512=38.4 units/texel
+		// 200m = 7874 units, so edgeOffset = 7874/38.4 = ~205 texels from center
+		int midX = res / 2;
+		int midY = res / 2;
+		int moatOffset = 175;  // ~170m
+		int midBerm = 190;     // ~185m (middle of berm)
+		int edgeOffset = 205;  // ~200m (outer edge)
+		Log.Info( $"Lute: terrain diag — center={storage.HeightMap[midY * res + midX]}, " +
+			$"moatEdge={storage.HeightMap[midY * res + (midX + moatOffset)]}, " +
+			$"midBerm={storage.HeightMap[midY * res + (midX + midBerm)]}, " +
+			$"bermOuter={storage.HeightMap[midY * res + (midX + edgeOffset)]}, " +
+			$"arrayLen={storage.HeightMap.Length}" );
+	}
+
+	/// <summary>
+	/// Fills the terrain heightmap with a flat surface everywhere except
+	/// a berm ring just outside the moat. The berm rises gradually from
+	/// flat ground to ~3ft at the moat edge, then drops steeply into the
+	/// moat channel.
+	/// </summary>
+	void GenerateBermHeightmap( TerrainStorage storage, int res, float terrainSize, float terrainHeight )
+	{
+		// Heights in meters (relative to z=0 ground level).
+		const float groundHeightM = 1f;       // z=0 (base is at z=-1m, so 1m up)
+		const float bermPeakM = 1.91f;        // z=0.91m (~3ft above ground)
+
+		// Distances in meters from market center.
+		const float moatOuterM = 170f;        // MoatOuterHalfWidth
+		const float bermWidthM = 30f;         // berm extends 30m outside moat
+		const float bermOuterM = moatOuterM + bermWidthM; // 200m
+
+		float halfSize = terrainSize * 0.5f;
+		float worldPerTexel = terrainSize / res;
+		float heightScale = (float)ushort.MaxValue;
+		float metersPerHeightUnit = terrainHeight / M; // meters per full ushort range
+
+		for ( int y = 0; y < res; y++ )
+		{
+			for ( int x = 0; x < res; x++ )
+			{
+				// World position relative to terrain center (which is at market center).
+				float wx = x * worldPerTexel - halfSize;
+				float wy = y * worldPerTexel - halfSize;
+
+				// Distance from market center in meters.
+				float dxM = wx / M;
+				float dyM = wy / M;
+				float distM = MathF.Sqrt( dxM * dxM + dyM * dyM );
+
+				float heightM;
+
+				if ( distM <= moatOuterM )
+				{
+					// Inside the moat — flat at ground level (moat box sits on top).
+					heightM = groundHeightM;
+				}
+				else if ( distM >= bermOuterM )
+				{
+					// Flat ground far from the market.
+					heightM = groundHeightM;
+				}
+				else
+				{
+					// Berm zone: moatOuterM < distM < bermOuterM.
+					// t goes from 0 (at moat edge, peak) to 1 (at berm outer edge, ground).
+					float t = (distM - moatOuterM) / bermWidthM;
+
+					// Smooth ease-in-out for a gradual descent from peak to flat.
+					float smooth = t * t * (3f - 2f * t);
+
+					// Peak at moat edge (t=0), ground at outer edge (t=1).
+					heightM = bermPeakM + (groundHeightM - bermPeakM) * smooth;
+				}
+
+				// Convert meters to ushort: heightM is in meters above the
+				// terrain base (z=-1m). ushort.MaxValue = terrainHeight (inches).
+				float normalized = heightM * M / terrainHeight;
+				normalized = normalized.Clamp( 0f, 1f );
+				storage.HeightMap[y * res + x] = (ushort)( normalized * heightScale );
+			}
 		}
 	}
 
