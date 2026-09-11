@@ -10,172 +10,73 @@ namespace Lute.Building
 	/// finishes building with primitives, and replaces each primitive piece
 	/// with an appropriate Kenney Castle Kit model.
 	///
-	/// The swap accounts for collision/bounds differences between the
-	/// primitive (simple box/cylinder) and the actual model (detailed mesh
-	/// with PhysicsMeshFromRender collision). Each replacement:
-	///   1. Records the primitive's transform (pos, rot, scale)
-	///   2. Loads the target castle_kit model
-	///   3. Compares model bounds to primitive bounds
-	///   4. Calculates position/scale adjustments
-	///   5. Spawns the new model with adjusted transform
-	///   6. Removes the old primitive
-	///   7. Logs the adjustment for verification
+	/// The village builder creates pieces as GameObjects with MeshComponent
+	/// (PolygonMesh boxes) named "Village_{taskName}_{pieceIndex}".
 	///
-	/// This follows the original asset plan (Monument_Spec_Neutral_Market.md
-	/// section 4): "Pass 2 — art/detail: once the blockout plays correctly,
-	/// swap primitives for higher-fidelity or custom assets."
+	/// This pass:
+	///   1. Scans the MedievalVillage hierarchy for MeshComponent objects
+	///   2. Parses the task type from the object name
+	///   3. Selects an appropriate castle_kit model
+	///   4. Records the primitive's transform (pos, rot, scale)
+	///   5. Loads the target model and compares bounds
+	///   6. Calculates position/scale adjustments for collision fit
+	///   7. Spawns the new model with ModelRenderer + adjusted transform
+	///   8. Removes the old primitive
+	///   9. Logs adjustments for verification
 	/// </summary>
 	public static class VillageArtPass
 	{
-		/// <summary>
-		/// Maps village task types to castle_kit model sets.
-		/// Each task type gets a primary model and optional variants.
-		/// </summary>
-		static readonly Dictionary<string, ArtModelMapping> TaskTypeMap = new()
-		{
-			["wall"] = new ArtModelMapping
-			{
-				Primary = "models/castle_kit/wall.vmdl",
-				Variants = new[]
-				{
-					"models/castle_kit/wall.vmdl",
-					"models/castle_kit/wall-half.vmdl",
-					"models/castle_kit/wall-narrow.vmdl",
-					"models/castle_kit/wall-pillar.vmdl",
-				},
-				CornerModel = "models/castle_kit/wall-corner.vmdl",
-			},
-			["gate"] = new ArtModelMapping
-			{
-				Primary = "models/castle_kit/gate.vmdl",
-				Variants = new[]
-				{
-					"models/castle_kit/gate.vmdl",
-					"models/castle_kit/metal-gate.vmdl",
-				},
-				TowerModel = "models/castle_kit/tower-square.vmdl",
-			},
-			["road"] = new ArtModelMapping
-			{
-				Primary = "models/castle_kit/ground.vmdl",
-				Variants = new[]
-				{
-					"models/castle_kit/ground.vmdl",
-					"models/castle_kit/ground-hills.vmdl",
-				},
-			},
-			["well"] = new ArtModelMapping
-			{
-				Primary = "models/castle_kit/wall-corner.vmdl",
-				Variants = new[]
-				{
-					"models/castle_kit/wall-corner.vmdl",
-					"models/castle_kit/wall-narrow-corner.vmdl",
-				},
-			},
-			["market_square"] = new ArtModelMapping
-			{
-				Primary = "models/castle_kit/ground.vmdl",
-				Variants = new[] { "models/castle_kit/ground.vmdl" },
-			},
-			["cottage"] = new ArtModelMapping
-			{
-				Primary = "models/castle_kit/wall.vmdl",
-				Variants = new[]
-				{
-					"models/castle_kit/wall.vmdl",
-					"models/castle_kit/wall-half.vmdl",
-					"models/castle_kit/wall-narrow.vmdl",
-				},
-				RoofModel = "models/castle_kit/tower-square-roof.vmdl",
-				DoorModel = "models/castle_kit/door.vmdl",
-			},
-			["shop"] = new ArtModelMapping
-			{
-				Primary = "models/castle_kit/wall.vmdl",
-				Variants = new[]
-				{
-					"models/castle_kit/wall.vmdl",
-					"models/castle_kit/wall-half.vmdl",
-				},
-				RoofModel = "models/castle_kit/tower-square-roof.vmdl",
-				DoorModel = "models/castle_kit/door.vmdl",
-			},
-			["smithy"] = new ArtModelMapping
-			{
-				Primary = "models/castle_kit/wall.vmdl",
-				Variants = new[] { "models/castle_kit/wall.vmdl" },
-				RoofModel = "models/castle_kit/tower-square-roof.vmdl",
-				DoorModel = "models/castle_kit/door.vmdl",
-			},
-			["tavern"] = new ArtModelMapping
-			{
-				Primary = "models/castle_kit/wall.vmdl",
-				Variants = new[]
-				{
-					"models/castle_kit/wall.vmdl",
-					"models/castle_kit/wall-half.vmdl",
-				},
-				RoofModel = "models/castle_kit/tower-square-roof.vmdl",
-				DoorModel = "models/castle_kit/door.vmdl",
-			},
-			["chapel"] = new ArtModelMapping
-			{
-				Primary = "models/castle_kit/tower-square.vmdl",
-				Variants = new[]
-				{
-					"models/castle_kit/tower-square.vmdl",
-					"models/castle_kit/tower-square-arch.vmdl",
-				},
-				RoofModel = "models/castle_kit/tower-square-roof.vmdl",
-				DoorModel = "models/castle_kit/door.vmdl",
-			},
-			["storage"] = new ArtModelMapping
-			{
-				Primary = "models/castle_kit/wall-narrow.vmdl",
-				Variants = new[]
-				{
-					"models/castle_kit/wall-narrow.vmdl",
-					"models/castle_kit/wall-half.vmdl",
-				},
-				RoofModel = "models/castle_kit/tower-square-roof.vmdl",
-			},
-		};
+		static int _replaced;
+		static int _adjusted;
+		static int _failed;
+		static int _props;
+		static int _skipped;
 
 		/// <summary>
-		/// Maps piece types (from blueprints) to model selectors.
+		/// Maps task type keywords to castle_kit model paths.
 		/// </summary>
-		static readonly Dictionary<string, string> PieceTypeMap = new()
+		static string GetModelForTaskType( string taskType )
 		{
-			["WALL"] = "wall",
-			["DOOR"] = "door",
-			["ROOF"] = "roof",
-			["COLUMN"] = "column",
-			["FLOOR"] = "floor",
-		};
+			// Determine model based on task type keyword
+			if ( taskType.Contains( "wall" ) )
+				return "models/castle_kit/wall.vmdl";
+			if ( taskType.Contains( "gate" ) )
+				return "models/castle_kit/gate.vmdl";
+			if ( taskType.Contains( "tower" ) )
+				return "models/castle_kit/tower-square.vmdl";
+			if ( taskType.Contains( "road" ) || taskType.Contains( "market" ) )
+				return "models/castle_kit/ground.vmdl";
+			if ( taskType.Contains( "well" ) )
+				return "models/castle_kit/wall-corner.vmdl";
+			if ( taskType.Contains( "bridge" ) )
+				return "models/castle_kit/bridge-straight.vmdl";
+			if ( taskType.Contains( "stairs" ) )
+				return "models/castle_kit/stairs-stone.vmdl";
+			if ( taskType.Contains( "chapel" ) || taskType.Contains( "church" ) )
+				return "models/castle_kit/tower-square.vmdl";
+			if ( taskType.Contains( "cottage" ) || taskType.Contains( "shop" ) ||
+				 taskType.Contains( "smithy" ) || taskType.Contains( "tavern" ) ||
+				 taskType.Contains( "storage" ) || taskType.Contains( "barn" ) )
+				return "models/castle_kit/wall.vmdl";
+
+			return null;
+		}
 
 		/// <summary>
-		/// Prop models for set-dressing (scattered after main swap).
+		/// Prop models for set-dressing.
 		/// </summary>
 		static readonly string[] PropModels =
 		{
 			"models/castle_kit/flag.vmdl",
 			"models/castle_kit/flag-banner-long.vmdl",
-			"models/castle_kit/flag-banner-short.vmdl",
 			"models/castle_kit/tree-small.vmdl",
 			"models/castle_kit/tree-large.vmdl",
 			"models/castle_kit/rocks-small.vmdl",
 			"models/castle_kit/rocks-large.vmdl",
 		};
 
-		static int _replaced;
-		static int _adjusted;
-		static int _failed;
-		static int _props;
-
 		/// <summary>
-		/// Run the art pass on the village. Call after village is complete.
-		/// Usage: village_artpass
+		/// Run the art pass on the village.
 		/// </summary>
 		public static void RunArtPass()
 		{
@@ -183,10 +84,10 @@ namespace Lute.Building
 			_adjusted = 0;
 			_failed = 0;
 			_props = 0;
+			_skipped = 0;
 
 			Log.Info( "[VillageArtPass] Starting art pass..." );
 
-			// Find the village root
 			var villageRoot = FindVillageRoot();
 			if ( villageRoot == null )
 			{
@@ -194,23 +95,71 @@ namespace Lute.Building
 				return;
 			}
 
-			var children = villageRoot.Children.ToList();
-			Log.Info( $"[VillageArtPass] Village root has {children.Count} child objects" );
+			// Collect all children with MeshComponent
+			var allChildren = villageRoot.Children.ToList();
+			var meshObjects = new List<GameObject>();
 
-			// Phase 1: Replace primitives with castle_kit models
-			foreach ( var child in children )
+			foreach ( var child in allChildren )
 			{
-				ReplacePrimitive( child );
+				CollectMeshObjects( child, meshObjects );
 			}
 
-			// Phase 2: Scatter props (flags, trees, rocks)
-			ScatterProps( villageRoot, children );
+			Log.Info( $"[VillageArtPass] Found {meshObjects.Count} mesh objects in village" );
 
-			Log.Info( $"[VillageArtPass] Art pass complete:" );
+			if ( meshObjects.Count == 0 )
+			{
+				Log.Warning( "[VillageArtPass] No mesh objects found! Checking direct children..." );
+				foreach ( var child in allChildren.Take( 5 ) )
+					Log.Info( $"  Child: '{child.Name}' has MeshComponent: {child.GetComponent<Sandbox.MeshComponent>() != null}" );
+				return;
+			}
+
+			// Group by task type for organized replacement
+			var byType = new Dictionary<string, List<GameObject>>();
+			foreach ( var obj in meshObjects )
+			{
+				var taskType = ParseTaskType( obj.Name );
+				if ( !byType.ContainsKey( taskType ) )
+					byType[taskType] = new List<GameObject>();
+				byType[taskType].Add( obj );
+			}
+
+			Log.Info( "[VillageArtPass] Objects by type:" );
+			foreach ( var kvp in byType.OrderBy( k => k.Key ) )
+				Log.Info( $"  {kvp.Key}: {kvp.Value.Count} pieces" );
+
+			// Replace each primitive with a castle_kit model
+			foreach ( var obj in meshObjects.ToList() )
+			{
+				ReplacePrimitive( obj );
+			}
+
+			// Scatter props
+			ScatterProps( villageRoot, meshObjects );
+
+			Log.Info( "[VillageArtPass] Art pass complete:" );
 			Log.Info( $"  Replaced: {_replaced} primitives with castle_kit models" );
 			Log.Info( $"  Adjusted: {_adjusted} transforms for collision fit" );
+			Log.Info( $"  Skipped:  {_skipped} (no matching model)" );
 			Log.Info( $"  Failed:   {_failed} replacements" );
 			Log.Info( $"  Props:    {_props} set-dressing props scattered" );
+		}
+
+		static void CollectMeshObjects( GameObject obj, List<GameObject> list )
+		{
+			if ( obj == null || !obj.Enabled )
+				return;
+
+			var mesh = obj.GetComponent<Sandbox.MeshComponent>();
+			if ( mesh != null )
+			{
+				list.Add( obj );
+				return;
+			}
+
+			// Recurse into children
+			foreach ( var child in obj.Children.ToList() )
+				CollectMeshObjects( child, list );
 		}
 
 		static GameObject FindVillageRoot()
@@ -220,67 +169,94 @@ namespace Lute.Building
 				?.FirstOrDefault( o => o.Name == "MedievalVillage" );
 		}
 
-		static void ReplacePrimitive( GameObject obj )
+		/// <summary>
+		/// Parse the task type from a Village piece name.
+		/// Names are like "Village_cottage_7_3436" or "Village_Wall_N_10_5".
+		/// Returns the task type keyword (lowercase).
+		/// </summary>
+		static string ParseTaskType( string name )
 		{
-			if ( obj == null || !obj.Enabled )
-				return;
+			if ( string.IsNullOrEmpty( name ) )
+				return "unknown";
 
-			var mr = obj.GetComponent<Sandbox.ModelRenderer>();
-			if ( mr == null )
+			// Remove "Village_" prefix if present
+			var cleaned = name.StartsWith( "Village_" ) ? name.Substring( 8 ) : name;
+
+			// Take the first segment before the first digit
+			var parts = cleaned.Split( '_' );
+			var typePart = "";
+			foreach ( var p in parts )
 			{
-				// Check children recursively
-				foreach ( var child in obj.Children.ToList() )
-					ReplacePrimitive( child );
-				return;
+				if ( p.Length > 0 && char.IsDigit( p[0] ) )
+					break;
+				typePart += (typePart.Length > 0 ? "_" : "") + p;
 			}
 
-			// Determine what kind of primitive this is based on name/parent
-			var modelName = DetermineReplacementModel( obj );
-			if ( modelName == null )
+			return typePart.ToLowerInvariant();
+		}
+
+		static void ReplacePrimitive( GameObject obj )
+		{
+			if ( obj == null || !obj.IsValid )
 				return;
+
+			var taskType = ParseTaskType( obj.Name );
+			var modelPath = GetModelForTaskType( taskType );
+			if ( modelPath == null )
+			{
+				_skipped++;
+				return;
+			}
 
 			// Record original transform
 			var origPos = obj.WorldPosition;
 			var origRot = obj.WorldRotation;
 			var origScale = obj.WorldScale;
+			var parent = obj.Parent;
 
 			// Load the target model
-			var model = Sandbox.Model.Load( modelName );
+			var model = Sandbox.Model.Load( modelPath );
 			if ( model == null )
 			{
-				Log.Warning( $"[VillageArtPass] Failed to load '{modelName}' for '{obj.Name}'" );
+				Log.Warning( $"[VillageArtPass] Failed to load '{modelPath}' for '{obj.Name}'" );
 				_failed++;
 				return;
 			}
 
-			// Calculate adjustment based on bounds difference
+			// Get model bounds for adjustment calculation
 			var modelBounds = model.Bounds;
 			var modelSize = modelBounds.Size;
-			var origSize = origScale * 100f; // approximate primitive size
+			var modelCenter = modelBounds.Center;
 
-			// Calculate scale adjustment to fit the model into the primitive's footprint
+			// Get the original mesh size from the object's scale
+			// (PolygonMesh doesn't expose Bounds directly, but the
+			//  SpawnBox function creates boxes with known sizes and
+			//  the scale reflects the piece size)
+			var origMeshSize = origScale * 100f; // approximate
+
+			// Calculate uniform scale to fit model into primitive's footprint
 			var scaleAdj = 1f;
 			if ( modelSize.x > 0 && modelSize.y > 0 && modelSize.z > 0 )
 			{
-				// Don't stretch — use uniform scale based on the largest axis
-				var targetSize = MathF.Max( origSize.x, MathF.Max( origSize.y, origSize.z ) );
+				// Scale based on the largest axis to maintain proportions
+				var targetSize = MathF.Max( origMeshSize.x, MathF.Max( origMeshSize.y, origMeshSize.z ) );
 				var currentSize = MathF.Max( modelSize.x, MathF.Max( modelSize.y, modelSize.z ) );
 				if ( currentSize > 0 )
 					scaleAdj = targetSize / currentSize;
 			}
 
-			// Calculate position offset (center the model on the primitive's center)
-			var posOffset = modelBounds.Center * scaleAdj;
+			// Calculate position offset to center the model
+			var posOffset = modelCenter * scaleAdj;
 			var newPos = origPos - posOffset;
 
 			// Check if adjustment was needed
-			var needsAdjust = MathF.Abs( scaleAdj - 1f ) > 0.01f ||
-				posOffset.Length > 1f;
+			var needsAdjust = MathF.Abs( scaleAdj - 1f ) > 0.01f || posOffset.Length > 1f;
 
 			// Spawn the new model
 			var newGo = Game.ActiveScene.CreateObject( true );
 			newGo.Name = $"ArtPass_{obj.Name}";
-			newGo.SetParent( obj.Parent );
+			if ( parent != null )
+				newGo.SetParent( parent );
 			newGo.WorldPosition = newPos;
 			newGo.WorldRotation = origRot;
 			newGo.WorldScale = scaleAdj;
@@ -295,56 +271,13 @@ namespace Lute.Building
 			if ( needsAdjust )
 			{
 				_adjusted++;
-				Log.Info( $"[VillageArtPass] {obj.Name} → {modelName}" );
-				Log.Info( $"  pos: {origPos} → {newPos} (offset={posOffset})" );
-				Log.Info( $"  scale: {origScale} → {scaleAdj}" );
+				if ( _adjusted <= 20 ) // log first 20 adjustments
+				{
+					Log.Info( $"[VillageArtPass] {obj.Name} -> {modelPath}" );
+					Log.Info( $"  pos: {origPos} -> {newPos} (offset={posOffset})" );
+					Log.Info( $"  scale: {origScale} -> {scaleAdj}" );
+				}
 			}
-		}
-
-		static string DetermineReplacementModel( GameObject obj )
-		{
-			var name = obj.Name?.ToLowerInvariant() ?? "";
-
-			// Check name patterns to determine type
-			if ( name.Contains( "wall" ) || name.Contains( "wall_" ) )
-			{
-				if ( name.Contains( "corner" ) )
-					return "models/castle_kit/wall-corner.vmdl";
-				return "models/castle_kit/wall.vmdl";
-			}
-			if ( name.Contains( "tower" ) )
-			{
-				if ( name.Contains( "hex" ) )
-					return "models/castle_kit/tower-hexagon-base.vmdl";
-				return "models/castle_kit/tower-square.vmdl";
-			}
-			if ( name.Contains( "gate" ) )
-				return "models/castle_kit/gate.vmdl";
-			if ( name.Contains( "door" ) )
-				return "models/castle_kit/door.vmdl";
-			if ( name.Contains( "roof" ) )
-				return "models/castle_kit/tower-square-roof.vmdl";
-			if ( name.Contains( "column" ) || name.Contains( "pillar" ) )
-				return "models/castle_kit/wall-pillar.vmdl";
-			if ( name.Contains( "floor" ) || name.Contains( "road" ) )
-				return "models/castle_kit/ground.vmdl";
-			if ( name.Contains( "bridge" ) )
-				return "models/castle_kit/bridge-straight.vmdl";
-			if ( name.Contains( "stairs" ) )
-				return "models/castle_kit/stairs-stone.vmdl";
-			if ( name.Contains( "cottage" ) || name.Contains( "shop" ) ||
-				 name.Contains( "smithy" ) || name.Contains( "tavern" ) ||
-				 name.Contains( "storage" ) || name.Contains( "barn" ) )
-				return "models/castle_kit/wall.vmdl";
-			if ( name.Contains( "chapel" ) || name.Contains( "church" ) )
-				return "models/castle_kit/tower-square.vmdl";
-			if ( name.Contains( "well" ) )
-				return "models/castle_kit/wall-corner.vmdl";
-			if ( name.Contains( "market" ) )
-				return "models/castle_kit/ground.vmdl";
-
-			// If it has a ModelRenderer but we can't identify it, skip
-			return null;
 		}
 
 		static void ScatterProps( GameObject villageRoot, List<GameObject> buildings )
@@ -353,12 +286,12 @@ namespace Lute.Building
 				return;
 
 			var rng = new Random( 42 ); // deterministic seed
-			var propCount = Math.Min( buildings.Count / 3, 20 );
+			var propCount = Math.Min( buildings.Count / 5, 30 );
 
 			for ( int i = 0; i < propCount; i++ )
 			{
 				var targetBuilding = buildings[rng.Next( buildings.Count )];
-				if ( targetBuilding == null ) continue;
+				if ( targetBuilding == null || !targetBuilding.IsValid ) continue;
 
 				var propName = PropModels[rng.Next( PropModels.Length )];
 				var model = Sandbox.Model.Load( propName );
@@ -370,8 +303,8 @@ namespace Lute.Building
 
 				// Position near the target building with a small offset
 				var offset = new Vector3(
-					(float)(rng.NextDouble() * 200 - 100),
-					(float)(rng.NextDouble() * 200 - 100),
+					(float)(rng.NextDouble() * 300 - 150),
+					(float)(rng.NextDouble() * 300 - 150),
 					0 );
 				go.WorldPosition = targetBuilding.WorldPosition + offset;
 				go.WorldRotation = Rotation.FromYaw( (float)(rng.NextDouble() * 360 ) );
@@ -383,18 +316,5 @@ namespace Lute.Building
 				_props++;
 			}
 		}
-	}
-
-	/// <summary>
-	/// Maps a village task type to its castle_kit model set.
-	/// </summary>
-	public class ArtModelMapping
-	{
-		public string Primary;
-		public string[] Variants;
-		public string CornerModel;
-		public string TowerModel;
-		public string RoofModel;
-		public string DoorModel;
 	}
 }
