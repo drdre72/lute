@@ -62,6 +62,15 @@ namespace Lute.Npc
 		/// </summary>
 		[Property, Group( "Village" )] public bool FreshBuild { get; set; } = false;
 
+	/// <summary>
+	/// For village builder NPCs: how many builder NPCs to spawn for this
+	/// village. 1 = single-builder mode (default, original architecture).
+	/// Above 1 = multi-builder mode: tasks are partitioned across N builders
+	/// for parallel construction. Each builder gets its own VillageBuilder
+	/// component and its own NPC body.
+	/// </summary>
+	[Property, Group( "Village" )] public int BuilderCount { get; set; } = 1;
+
 		protected override void OnStart()
 		{
 			// Markers are invisible placeholders — disable rendering of the

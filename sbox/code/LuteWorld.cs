@@ -449,6 +449,7 @@ public sealed class LuteWorld : Component
 		marker.NpcName = "VillageBuilderNPC";
 		marker.VillageSeed = 42;     // deterministic village layout
 		marker.FreshBuild = false;   // resume from save if one exists
+		marker.BuilderCount = 2;     // multi-builder mode: 2 builders share the task list
 
 		Log.Info( $"Lute: VillageMarker placed at {markerGo.WorldPosition} (~400m SW of sanctuary). Village builder will construct a medieval village over ~8 hours with saves every 10 min." );
 	}

@@ -112,32 +112,52 @@ namespace Lute.Npc
 		{
 			const float M = 39.37f;
 			var center = marker.WorldPosition;
+			int count = marker.BuilderCount < 1 ? 1 : marker.BuilderCount;
 
-			// Village root GameObject with VillageBuilder orchestrator.
-			var villageGo = marker.Scene.CreateObject( true );
-			villageGo.Name = $"VillageRoot_{name}";
-			villageGo.SetParent( parent );
-			villageGo.WorldPosition = center;
+			Log.Info( $"Lute: NPCSpawner spawning {count} village builder(s) for village at {center}." );
 
-			var builder = villageGo.AddComponent<VillageBuilder>();
-			builder.Center = center;
-			builder.VillageSeed = marker.VillageSeed;
-			builder.FreshBuild = marker.FreshBuild;
-			builder.BuildInterval = 6.0f;     // ~6s per piece = 8-hour pace
-			builder.SaveInterval = 600f;       // save every 10 minutes
-			builder.CellSize = 100f;
-			builder.WallHeight = 200f;
-			builder.FloorThickness = 10f;
-			builder.WallMaterial = "materials/medieval/stone_wall.vmat";
-			builder.FloorMaterial = "materials/medieval/plaza.vmat";
-			builder.BuildingWallMaterial = "materials/medieval/wood.vmat";
-			builder.BuildingFloorMaterial = "materials/medieval/wood.vmat";
-			builder.GateMaterial = "materials/medieval/stone_tower.vmat";
+			for ( int i = 0; i < count; i++ )
+			{
+				var builderName = count > 1 ? $"{name}_{i}" : name;
 
-			// Body GameObject — citizen + colliders + Rigidbody + PlayerController.
-			// Spawn near the village center, offset so the controller walks in.
-			SpawnVillageCitizenBody( marker.Scene, parent, name,
-				center + new Vector3( 0f, 10f * M, 4f ), builder );
+				// Village root GameObject with VillageBuilder orchestrator.
+				var villageGo = marker.Scene.CreateObject( true );
+				villageGo.Name = $"VillageRoot_{builderName}";
+				villageGo.SetParent( parent );
+				villageGo.WorldPosition = center;
+
+				var builder = villageGo.AddComponent<VillageBuilder>();
+				builder.Center = center;
+				builder.VillageSeed = marker.VillageSeed;
+				builder.FreshBuild = marker.FreshBuild;
+				builder.BuildInterval = 6.0f;     // ~6s per piece = 8-hour pace
+				builder.SaveInterval = 600f;       // save every 10 minutes
+				builder.CellSize = 100f;
+				builder.WallHeight = 200f;
+				builder.FloorThickness = 10f;
+				builder.WallMaterial = "materials/medieval/stone_wall.vmat";
+				builder.FloorMaterial = "materials/medieval/plaza.vmat";
+				builder.BuildingWallMaterial = "materials/medieval/wood.vmat";
+				builder.BuildingFloorMaterial = "materials/medieval/wood.vmat";
+				builder.GateMaterial = "materials/medieval/stone_tower.vmat";
+
+				// Multi-builder partitioning: assign this builder its ID and total.
+				builder.BuilderId = i;
+				builder.TotalBuilders = count;
+
+				// Body GameObject — citizen + colliders + Rigidbody + PlayerController.
+				// Offset each builder so they don't stack on the same spot.
+				var offset = count > 1
+					? new Vector3( (i - (count - 1) / 2f) * 15f * M, 10f * M, 4f )
+					: new Vector3( 0f, 10f * M, 4f );
+				var bodyGo = SpawnVillageCitizenBody( marker.Scene, parent, builderName,
+					center + offset, builder );
+
+				// Assign a unique blackboard NPC name so positions/claims don't collide.
+				var controller = bodyGo.GetComponent<Lute.Building.VillageBuilderController>();
+				if ( controller is not null )
+					controller.NpcName = builderName;
+			}
 		}
 
 		/// <summary>

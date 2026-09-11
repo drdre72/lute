@@ -64,6 +64,24 @@ namespace Lute.Building
 		/// <summary> If true, clear any existing save and start fresh. </summary>
 		[Property] public bool FreshBuild { get; set; } = false;
 
+		/// <summary>
+		/// Multi-builder mode: which builder ID this instance is (0-based).
+		/// When TotalBuilders is 1 (default), this is ignored and the builder
+		/// processes all tasks (single-builder mode, the original architecture).
+		/// When TotalBuilders is above 1, this builder only processes tasks
+		/// whose index in Tasks satisfies idx mod TotalBuilders equals BuilderId.
+		/// Each builder needs its own VillageBuilder component and NPC controller.
+		/// </summary>
+		[Property] public int BuilderId { get; set; } = 0;
+
+		/// <summary>
+		/// Multi-builder mode: total number of builders sharing the task list.
+		/// Default 1 = single-builder mode (process all tasks). Set above 1
+		/// to partition tasks across N builders for parallel construction.
+		/// All builders sharing a village must agree on this value.
+		/// </summary>
+		[Property] public int TotalBuilders { get; set; } = 1;
+
 		/// <summary> The task currently being built (or null if idle). </summary>
 		public VillageBuildTask CurrentTask { get; private set; }
 
@@ -186,6 +204,13 @@ namespace Lute.Building
 					var task = Tasks[idx];
 					token.ThrowIfCancellationRequested();
 
+					// Multi-builder partitioning: in single-builder mode (TotalBuilders=1)
+					// this builder processes every task. In multi-builder mode, each
+					// builder only processes tasks whose index mod TotalBuilders equals
+					// its BuilderId. Other tasks are left for the other builders.
+					if ( TotalBuilders > 1 && idx % TotalBuilders != BuilderId )
+						continue;
+
 					if ( task.Status == 2 )
 						continue; // already complete — skip
 
@@ -208,7 +233,11 @@ namespace Lute.Building
 				CurrentTask = null;
 				CurrentTaskIndex = -1;
 				IsComplete = true;
-				Log.Info( $"Lute: VillageBuilder FINISHED — all {Tasks.Count} tasks complete. Total pieces: {_totalPiecesPlaced}. Time: {ElapsedTime/3600:F1} hours." );
+				int globalDone = Tasks.Count( t => t.Status == 2 );
+				if ( TotalBuilders > 1 )
+					Log.Info( $"Lute: VillageBuilder[{BuilderId}/{TotalBuilders}] finished its slice. Village: {globalDone}/{Tasks.Count} tasks complete. Pieces: {_totalPiecesPlaced}. Time: {ElapsedTime/3600:F1} hours." );
+				else
+					Log.Info( $"Lute: VillageBuilder FINISHED — all {Tasks.Count} tasks complete. Total pieces: {_totalPiecesPlaced}. Time: {ElapsedTime/3600:F1} hours." );
 				DoSave();
 			}
 			catch ( OperationCanceledException )
@@ -225,6 +254,11 @@ namespace Lute.Building
 		/// </summary>
 		void ReconstructCompletedTasks()
 		{
+			// In multi-builder mode, only builder 0 reconstructs geometry.
+			// Other builders skip this to avoid re-placing the same pieces.
+			if ( TotalBuilders > 1 && BuilderId != 0 )
+				return;
+
 			_reconstructMode = true;
 			var dummyToken = CancellationToken.None;
 			foreach ( var task in Tasks )
