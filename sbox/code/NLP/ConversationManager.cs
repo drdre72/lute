@@ -162,8 +162,22 @@ namespace Lute.NLP
 					continue;
 				}
 
-				// Parse the incoming text
+				// Parse the incoming text through the full NLP pipeline:
+				//   Tokenizer -> NlpParser -> ContextResolver
+				// The tokenizer normalizes and tags tokens, NlpParser produces
+				// the intent, and ContextResolver resolves pronouns/references
+				// using conversation context.
+				var tokenList = Tokenizer.Tokenize( msg.Content );
 				var intent = NlpParser.Parse( msg.Content, sender: msg.From, target: npcName );
+
+				// Resolve pronouns and references using conversation context
+				var context = new NpcContext
+				{
+					Name = npcName,
+					Beliefs = entry.Beliefs,
+					Personality = new NpcPersonality(),
+				};
+				ContextResolver.Resolve( intent, context );
 				Log.Info( $"[NLP] {npcName} received from {msg.From}: \"{msg.Content}\" → {intent.Summary}" );
 
 				// Evaluate through social rules — returns a decision

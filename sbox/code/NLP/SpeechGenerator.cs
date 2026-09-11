@@ -54,6 +54,27 @@ namespace Lute.NLP
 				IntentType.Decline => Pick( "I can't take that on.", "I'll have to pass.", "Not this time, sorry.", intent ),
 				IntentType.Report => GenerateReport( intent, subject, topic ),
 				IntentType.Acknowledge => Pick( "Understood.", "Acknowledged.", "Got it.", "Noted.", intent ),
+
+				// ── Extended construction coordination intents ──
+				IntentType.RequestHelp => GenerateRequestHelp( intent, subject, topic ),
+				IntentType.OfferHelp => GenerateOfferHelp( intent, subject, topic ),
+				IntentType.AcceptHelp => Pick( "I accept your help.", "Thank you, I could use that.", "Yes, please help.", intent ),
+				IntentType.DeclineHelp => Pick( "I don't need help right now.", "I can manage, thanks.", "No help needed at the moment.", intent ),
+				IntentType.ReportProblem => GenerateReportProblem( intent, subject, topic ),
+				IntentType.ReportCompletion => GenerateReportCompletion( intent, subject, topic ),
+				IntentType.ClaimResource => GenerateClaimResource( intent, subject, topic ),
+				IntentType.ReleaseResource => GenerateReleaseResource( intent, subject, topic ),
+				IntentType.RequestResource => GenerateRequestResource( intent, subject, topic ),
+				IntentType.OfferResource => GenerateOfferResource( intent, subject, topic ),
+				IntentType.RequestTask => GenerateRequestTask( intent, subject, topic ),
+				IntentType.OfferTask => GenerateOfferTask( intent, subject, topic ),
+				IntentType.AssignTask => GenerateAssignTask( intent, subject, topic ),
+				IntentType.AcceptTask => GenerateAcceptTask( intent, subject, topic ),
+				IntentType.ReportLocation => GenerateReportLocation( intent, subject, topic ),
+				IntentType.ReportAvailability => GenerateReportAvailability( intent, subject, topic ),
+				IntentType.Agree => Pick( "I agree.", "That's right.", "Correct.", intent ),
+				IntentType.Disagree => Pick( "I disagree.", "That's not right.", "I don't think so.", intent ),
+
 				_ => "Understood.",
 			};
 
@@ -167,6 +188,112 @@ namespace Lute.NLP
 			if ( topic == IntentTopic.Task )
 				return $"I've finished the {subject}. It's done.";
 			return $"Status report: {subject} complete.";
+		}
+
+		// ── Extended construction coordination generators ──
+
+		static string GenerateRequestHelp( Intent intent, string subject, IntentTopic topic )
+		{
+			if ( topic == IntentTopic.Task )
+				return $"I need help with the {subject}. Can you assist?";
+			if ( topic == IntentTopic.Site )
+				return $"I need help at the {subject}. Can you come?";
+			return $"I need help with {subject}.";
+		}
+
+		static string GenerateOfferHelp( Intent intent, string subject, IntentTopic topic )
+		{
+			if ( topic == IntentTopic.Task )
+				return $"I can help with the {subject} if you need.";
+			if ( topic == IntentTopic.Site )
+				return $"I'm available to help at the {subject}.";
+			return $"I'm offering to help with {subject}.";
+		}
+
+		static string GenerateReportProblem( Intent intent, string subject, IntentTopic topic )
+		{
+			if ( topic == IntentTopic.Safety )
+				return $"Problem: {subject} is a safety risk. We need to address it.";
+			if ( topic == IntentTopic.Task )
+				return $"I'm blocked on the {subject}. Can someone help?";
+			if ( topic == IntentTopic.Site )
+				return $"There's a problem at the {subject}. It needs attention.";
+			return $"Problem reported: {subject}.";
+		}
+
+		static string GenerateReportCompletion( Intent intent, string subject, IntentTopic topic )
+		{
+			if ( topic == IntentTopic.Task )
+				return $"Task complete: the {subject} is finished.";
+			if ( topic == IntentTopic.Site )
+				return $"The {subject} is done and ready.";
+			return $"Completed: {subject}.";
+		}
+
+		static string GenerateClaimResource( Intent intent, string subject, IntentTopic topic )
+		{
+			if ( topic == IntentTopic.Material )
+				return $"I'm claiming the {subject} for my task.";
+			return $"I claim {subject}.";
+		}
+
+		static string GenerateReleaseResource( Intent intent, string subject, IntentTopic topic )
+		{
+			if ( topic == IntentTopic.Material )
+				return $"I'm done with the {subject}. It's available now.";
+			return $"I release {subject}.";
+		}
+
+		static string GenerateRequestResource( Intent intent, string subject, IntentTopic topic )
+		{
+			if ( topic == IntentTopic.Material && intent.Parameters.TryGetValue( "amount", out var amount ) )
+				return $"I need {amount} {subject}. Can you spare any?";
+			return $"I need {subject}. Do you have any?";
+		}
+
+		static string GenerateOfferResource( Intent intent, string subject, IntentTopic topic )
+		{
+			if ( topic == IntentTopic.Material && intent.Parameters.TryGetValue( "amount", out var amount ) )
+				return $"I have {amount} {subject} to spare if you need them.";
+			return $"I'm offering {subject}. Do you need it?";
+		}
+
+		static string GenerateRequestTask( Intent intent, string subject, IntentTopic topic )
+		{
+			return $"I need a task. What should I build?";
+		}
+
+		static string GenerateOfferTask( Intent intent, string subject, IntentTopic topic )
+		{
+			if ( topic == IntentTopic.Task )
+				return $"Here's a task: build the {subject}. Can you take it?";
+			return $"I have a task for you: {subject}.";
+		}
+
+		static string GenerateAssignTask( Intent intent, string subject, IntentTopic topic )
+		{
+			if ( topic == IntentTopic.Task )
+				return $"You're assigned to build the {subject}. It's your job now.";
+			return $"I'm assigning you to {subject}.";
+		}
+
+		static string GenerateAcceptTask( Intent intent, string subject, IntentTopic topic )
+		{
+			if ( topic == IntentTopic.Task )
+				return $"I'll build the {subject}. I accept the task.";
+			return $"I accept {subject}.";
+		}
+
+		static string GenerateReportLocation( Intent intent, string subject, IntentTopic topic )
+		{
+			if ( intent.Parameters.TryGetValue( "position", out var pos ) )
+				return $"I'm at {pos}.";
+			return $"I'm at the {subject}.";
+		}
+
+		static string GenerateReportAvailability( Intent intent, string subject, IntentTopic topic )
+		{
+			return Pick( "I'm available for work.", "I'm free and ready to build.", "I can take a task now.", intent );
 		}
 
 		// ── Deterministic template picker ──

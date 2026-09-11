@@ -50,6 +50,32 @@ namespace Lute.NLP
 		/// <summary> Max memory entries to retain. </summary>
 		const int MaxMemory = 50;
 
+		// ── Conversation context (for entity/pronoun resolution) ──
+
+		/// <summary> The most recently referenced entity (for "it", "that" resolution). </summary>
+		public string LastReferencedEntity { get; set; }
+
+		/// <summary> The most recently referenced location (for "there", "here" resolution). </summary>
+		public string LastReferencedLocation { get; set; }
+
+		/// <summary> The NPC's current task (for entity keyword resolution). </summary>
+		public string CurrentTask { get; set; }
+
+		/// <summary> Recently referenced entities (for pronoun back-reference). </summary>
+		public List<string> RecentEntities { get; } = new();
+		const int MaxRecentEntities = 10;
+
+		/// <summary> Add an entity to the recent entities list. </summary>
+		public void AddRecentEntity( string entity )
+		{
+			if ( string.IsNullOrEmpty( entity ) )
+				return;
+			RecentEntities.Remove( entity );
+			RecentEntities.Insert( 0, entity );
+			if ( RecentEntities.Count > MaxRecentEntities )
+				RecentEntities.RemoveAt( RecentEntities.Count - 1 );
+		}
+
 		public BeliefModel( string selfName )
 		{
 			SelfName = selfName;
