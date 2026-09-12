@@ -69,12 +69,18 @@ namespace Lute.Building
 			var occupied = FindBlockingOccupancy( bounds, task.Id );
 			if ( occupied != null )
 			{
+				var ixMins = new Vector3( Math.Max( bounds.Mins.x, occupied.Bounds.Mins.x ), Math.Max( bounds.Mins.y, occupied.Bounds.Mins.y ), Math.Max( bounds.Mins.z, occupied.Bounds.Mins.z ) );
+				var ixMaxs = new Vector3( Math.Min( bounds.Maxs.x, occupied.Bounds.Maxs.x ), Math.Min( bounds.Maxs.y, occupied.Bounds.Maxs.y ), Math.Min( bounds.Maxs.z, occupied.Bounds.Maxs.z ) );
+				var ixSize = ixMaxs - ixMins;
+				Log.Info( $"Lute: ReservationConflict request={task.Id} name={task.BuildTask?.Name ?? "?"} type={task.BuildTask?.TaskType ?? "?"} bounds={bounds.Mins}:{bounds.Maxs} blocked_by={occupied.Source ?? occupied.Id} blocker_task={occupied.TaskId ?? "external"} kind=occupied intersection=({ixSize.x:F1},{ixSize.y:F1},{ixSize.z:F1})" );
 				ConstructionEventBus.Fire( ConstructionEventType.ReservationConflict,
 					taskId: task.Id, actor: npcName,
 					parameters: new()
 					{
 						{ "blocked_by", occupied.Source ?? occupied.Id },
+						{ "blocker_task", occupied.TaskId ?? "external" },
 						{ "reason", "occupied" },
+						{ "intersection", $"({ixSize.x:F1},{ixSize.y:F1},{ixSize.z:F1})" },
 					} );
 				return ReservationResult.Rejected( $"occupied by {occupied.Source ?? occupied.Id}", occupied.Source );
 			}
@@ -82,9 +88,14 @@ namespace Lute.Building
 			var blocker = FindBlockingClaim( bounds, task.Id );
 			if ( blocker.HasValue )
 			{
+				Log.Info( $"Lute: ReservationConflict request={task.Id} name={task.BuildTask?.Name ?? "?"} type={task.BuildTask?.TaskType ?? "?"} bounds={bounds.Mins}:{bounds.Maxs} blocked_by={blocker.Value.Owner ?? "unknown"} kind=reservation" );
 				ConstructionEventBus.Fire( ConstructionEventType.ReservationConflict,
 					taskId: task.Id, actor: npcName,
-					parameters: new() { { "blocked_by", blocker.Value.Owner ?? "unknown" } } );
+					parameters: new()
+					{
+						{ "blocked_by", blocker.Value.Owner ?? "unknown" },
+						{ "reason", "reservation" },
+					} );
 				return ReservationResult.Rejected( "reservation conflict", blocker.Value.Owner );
 			}
 
@@ -159,7 +170,11 @@ namespace Lute.Building
 			var blocked = FindBlockingOccupancy( bounds, taskId );
 			if ( blocked != null )
 			{
+				var ixMins = new Vector3( Math.Max( bounds.Mins.x, blocked.Bounds.Mins.x ), Math.Max( bounds.Mins.y, blocked.Bounds.Mins.y ), Math.Max( bounds.Mins.z, blocked.Bounds.Mins.z ) );
+				var ixMaxs = new Vector3( Math.Min( bounds.Maxs.x, blocked.Bounds.Maxs.x ), Math.Min( bounds.Maxs.y, blocked.Bounds.Maxs.y ), Math.Min( bounds.Maxs.z, blocked.Bounds.Maxs.z ) );
+				var ixSize = ixMaxs - ixMins;
 				reason = $"occupied by {blocked.Source ?? blocked.Id} (task {blocked.TaskId ?? "external"})";
+				Log.Info( $"Lute: PlacementConflict task={taskId} bounds={bounds.Mins}:{bounds.Maxs} blocked_by={blocked.Source ?? blocked.Id} blocker_task={blocked.TaskId ?? "external"} intersection=({ixSize.x:F1},{ixSize.y:F1},{ixSize.z:F1})" );
 				return false;
 			}
 			return true;

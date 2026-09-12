@@ -633,7 +633,23 @@ namespace Lute.Building
 		static BlackboardResult HandleComplete( BlackboardRequest req )
 		{
 			var task = ResolveTask( req.Key );
-			if ( task == null ) return BlackboardResult.Fail( $"task not found or ambiguous: {req.Key}" );
+			if ( task == null )
+				return BlackboardResult.Fail( $"task not found or ambiguous: {req.Key}" );
+
+			int builderId = FindBuilderByNpc( req.Actor );
+			if ( builderId < 0 )
+				return BlackboardResult.Fail( $"builder not registered: {req.Actor}" );
+
+			if ( task.AssignedBuilder != builderId )
+				return BlackboardResult.Fail( $"{req.Actor} does not own {task.Id}" );
+
+			if ( !_builders.TryGetValue( builderId, out var state ) ||
+				state.CurrentTaskId != task.Id )
+				return BlackboardResult.Fail( $"{task.Id} is not {req.Actor}'s current task" );
+
+			if ( task.Status != TaskStatus.InProgress )
+				return BlackboardResult.Fail( $"{task.Id} is not in progress" );
+
 			CompleteTask( task.Id );
 			return BlackboardResult.Ok();
 		}
