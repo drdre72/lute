@@ -68,11 +68,12 @@ namespace Lute.Building
 
 		/// <summary>
 		/// Runtime: per-brick placement tracking for structural queries.
-		/// Each entry is (row, col) of a placed brick. Used to compute
-		/// coverage, course continuity, and corner bonding without
-		/// scanning 5,100 GameObjects.
+		/// Each entry is a <see cref="BrickSlot"/> recording the grid position,
+		/// form (Full/Half), and orientation (Stretcher/Header) of a placed
+		/// brick. Used to compute coverage, course continuity, and corner
+		/// bonding without scanning 5,100 GameObjects.
 		/// </summary>
-		public HashSet<(int row, int col)> PlacedBricks = new();
+		public HashSet<BrickSlot> PlacedBricks = new();
 
 		/// <summary>
 		/// Runtime: the finalized wall mesh GameObject (after representation

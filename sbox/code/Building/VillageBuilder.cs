@@ -707,7 +707,7 @@ namespace Lute.Building
 								WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base );
 							task.PiecesPlaced = brickIdx + 1;
 							_totalPiecesPlaced++;
-							task.PlacedBricks.Add( (row, 0) );
+							task.PlacedBricks.Add( BrickSlot.HalfStretcher( 0, wythe, row ) );
 						}
 						brickIdx++;
 						ElapsedTime += BuildInterval;
@@ -726,7 +726,7 @@ namespace Lute.Building
 									WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base );
 								task.PiecesPlaced = brickIdx + 1;
 								_totalPiecesPlaced++;
-								task.PlacedBricks.Add( (row, col) );
+								task.PlacedBricks.Add( BrickSlot.Stretcher( col, wythe, row ) );
 							}
 							brickIdx++;
 							ElapsedTime += BuildInterval;
@@ -744,7 +744,7 @@ namespace Lute.Building
 									WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base );
 								task.PiecesPlaced = brickIdx + 1;
 								_totalPiecesPlaced++;
-								task.PlacedBricks.Add( (row, modulesX) );
+								task.PlacedBricks.Add( BrickSlot.HalfStretcher( modulesX, wythe, row ) );
 							}
 							brickIdx++;
 							ElapsedTime += BuildInterval;
@@ -766,7 +766,7 @@ namespace Lute.Building
 									WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base );
 								task.PiecesPlaced = brickIdx + 1;
 								_totalPiecesPlaced++;
-								task.PlacedBricks.Add( (row, col) );
+								task.PlacedBricks.Add( BrickSlot.Stretcher( col, wythe, row ) );
 							}
 							brickIdx++;
 							ElapsedTime += BuildInterval;
@@ -829,7 +829,7 @@ namespace Lute.Building
 
 		// Foundation: row 0 is even, has modulesX slots.
 		int foundationCount = 0;
-		for ( int col = 0; col < modulesX; col++ ) { if ( task.PlacedBricks.Contains( (0, col) ) ) foundationCount++; }
+		for ( int col = 0; col < modulesX; col++ ) { if ( task.PlacedBricks.Contains( BrickSlot.Stretcher( col, 0, 0 ) ) ) foundationCount++; }
 		q.FoundationSupported = foundationCount == modulesX;
 
 		q.CoursesContinuous = true;
@@ -839,9 +839,9 @@ namespace Lute.Building
 			bool foundGap = false;
 			for ( int col = 0; col < slots; col++ )
 			{
-				if ( !task.PlacedBricks.Contains( (row, col) ) && !foundGap )
+				if ( !task.PlacedBricks.Contains( BrickSlot.Stretcher( col, 0, row ) ) && !foundGap )
 				{
-					for ( int c2 = col + 1; c2 < slots; c2++ ) { if ( task.PlacedBricks.Contains( (row, c2) ) ) { foundGap = true; break; } }
+					for ( int c2 = col + 1; c2 < slots; c2++ ) { if ( task.PlacedBricks.Contains( BrickSlot.Stretcher( c2, 0, row ) ) ) { foundGap = true; break; } }
 				}
 			}
 			if ( foundGap ) { q.CoursesContinuous = false; break; }
@@ -850,7 +850,7 @@ namespace Lute.Building
 		// Top course: check all slots for the top row.
 		int topSlots = SlotsForRow( numRows - 1 );
 		int topCount = 0;
-		for ( int col = 0; col < topSlots; col++ ) { if ( task.PlacedBricks.Contains( (numRows - 1, col) ) ) topCount++; }
+		for ( int col = 0; col < topSlots; col++ ) { if ( task.PlacedBricks.Contains( BrickSlot.Stretcher( col, 0, numRows - 1 ) ) ) topCount++; }
 		q.TopCourseComplete = topCount == topSlots;
 
 		// Corner bonding: every row must have its first and last slot filled.
@@ -858,7 +858,7 @@ namespace Lute.Building
 		for ( int row = 0; row < numRows; row++ )
 		{
 			int slots = SlotsForRow( row );
-			if ( !task.PlacedBricks.Contains( (row, 0) ) || !task.PlacedBricks.Contains( (row, slots - 1) ) ) { q.RequiredCornersBonded = false; break; }
+			if ( !task.PlacedBricks.Contains( BrickSlot.Stretcher( 0, 0, row ) ) && !task.PlacedBricks.Contains( BrickSlot.HalfStretcher( 0, 0, row ) ) || !task.PlacedBricks.Contains( BrickSlot.Stretcher( slots - 1, 0, row ) ) && !task.PlacedBricks.Contains( BrickSlot.HalfStretcher( slots - 1, 0, row ) ) ) { q.RequiredCornersBonded = false; break; }
 		}
 
 		q.NoIllegalGap = q.CoursesContinuous;
@@ -869,8 +869,8 @@ namespace Lute.Building
 				bool rowHas = false, prevHas = false;
 				int slots = SlotsForRow( row );
 				int prevSlots = SlotsForRow( row - 1 );
-				for ( int col = 0; col < slots; col++ ) { if ( task.PlacedBricks.Contains( (row, col) ) ) rowHas = true; }
-				for ( int col = 0; col < prevSlots; col++ ) { if ( task.PlacedBricks.Contains( (row - 1, col) ) ) prevHas = true; }
+				for ( int col = 0; col < slots; col++ ) { if ( task.PlacedBricks.Contains( BrickSlot.Stretcher( col, 0, row ) ) ) rowHas = true; }
+				for ( int col = 0; col < prevSlots; col++ ) { if ( task.PlacedBricks.Contains( BrickSlot.Stretcher( col, 0, row - 1 ) ) ) prevHas = true; }
 				if ( rowHas && !prevHas ) { q.NoIllegalGap = false; break; }
 			}
 		}
@@ -1020,18 +1020,18 @@ namespace Lute.Building
 				// Left half
 				var pos = RotateLocal( new Vector3( -segLen * 0.5f + halfLen * 0.5f, yCenter, z ) );
 				SpawnBox( pos, new Vector3( brickLen * 0.5f, brickDepth, brickH ), WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base );
-				task.PlacedBricks.Remove( (topRow, 0) );
+				task.PlacedBricks.Remove( BrickSlot.HalfStretcher( 0, 0, topRow ) );
 				for ( int col = 1; col < modulesX; col++ )
 				{
 					float x = -segLen * 0.5f + BrickModuleX * 0.5f + col * BrickModuleX;
 					pos = RotateLocal( new Vector3( x, yCenter, z ) );
 				SpawnBox( pos, new Vector3( brickLen, brickDepth, brickH ), WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base );
-					task.PlacedBricks.Remove( (topRow, col) );
+					task.PlacedBricks.Remove( BrickSlot.Stretcher( col, 0, topRow ) );
 				}
 				// Right half
 				pos = RotateLocal( new Vector3( segLen * 0.5f - halfLen * 0.5f, yCenter, z ) );
 				SpawnBox( pos, new Vector3( brickLen * 0.5f, brickDepth, brickH ), WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base );
-				task.PlacedBricks.Remove( (topRow, modulesX) );
+				task.PlacedBricks.Remove( BrickSlot.HalfStretcher( modulesX, 0, topRow ) );
 			}
 			else
 			{
@@ -1040,7 +1040,7 @@ namespace Lute.Building
 					float x = -segLen * 0.5f + BrickModuleX * 0.5f + col * BrickModuleX;
 					var pos = RotateLocal( new Vector3( x, yCenter, z ) );
 					SpawnBox( pos, new Vector3( brickLen, brickDepth, brickH ), WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base );
-					task.PlacedBricks.Remove( (topRow, col) );
+					task.PlacedBricks.Remove( BrickSlot.Stretcher( col, 0, topRow ) );
 				}
 			}
 			task.WallState = WallSegmentState.Deconstructing;
