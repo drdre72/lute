@@ -52,6 +52,18 @@ public sealed class LuteWorld : Component
 		BuildTestStructure( root );
 		BuildVillage( root );
 
+		// Scan static world geometry and register it in the occupancy
+		// ledger so village construction reservations respect pre-existing
+		// structures (monument, temple, walls, acropolis, etc.).
+		try
+		{
+			Lute.Building.OccupancyScanner.ScanScene( Scene );
+		}
+		catch ( System.Exception ex )
+		{
+			Log.Warning( $"Lute: OccupancyScanner failed: {ex.Message}" );
+		}
+
 		// Spawn NPCs from all SpawnMarkers (both editor-placed and code-spawned
 		// by BuildTestStructure/BuildVillage above). Each marker is consumed after spawning.
 		NPCSpawner.SpawnAll( Scene, root );
