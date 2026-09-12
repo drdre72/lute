@@ -1,194 +1,145 @@
 # Brick Wall Construction — Current Issues & Workflow
 
-## What We're Building
+## Goal
 
-Individual brick GameObjects laid one at a time by 3 autonomous builder NPCs
-to construct a medieval village wall perimeter. Each brick is placed with a
-0.5s timer and a LAY animation (crouch down, place, stand up).
+Three autonomous village builders visibly lay individual wall bricks while the construction system remains deterministic and authoritative. Runtime NPC intelligence remains NLP/world-state driven; no runtime LLM inference is introduced.
 
-## Current Brick Dimensions
+## Current brick geometry
 
-- **Size**: 0.19m long x 0.1m thick x 0.04m tall (realistic brick)
-- **Mortar gap**: ~1cm between bricks
-- **Wall thickness**: 1 brick (0.1m) — no depth stacking
-- **Pattern**: Running bond (half-brick offset every other row)
-- **Pieces per 10m x 5m wall segment**: ~5000 bricks
-- **Build pace**: 0.5s per brick with LAY animation
-- **3 builders**: ~14 min per wall segment
+- Brick spacing: 0.20 m longitudinal, 0.05 m vertical
+- Brick physical size: ~0.19 m long × 0.10 m thick × 0.04 m tall
+- Mortar gap: ~0.01 m
+- Pattern: running bond with a half-brick offset every other row
+- Wall segment: 10 m long, ~5.08 m high (`WallHeight = 200` S&Box units)
+- Actual placements per segment: ~5,151 bricks with the current odd-row extra-brick rule
+- Build interval: 0.5 s per placed brick
 
-## Architecture
+## Root cause of the “large panels” report
 
-### SpawnBox (VillageBuilder.cs)
-- Uses `ModelRenderer` with `models/dev/box.vmdl` + `MaterialOverride`
-- `go.WorldScale = size` scales the 1x1x1 box to brick dimensions
-- `BoxCollider` added for collision
-- Material: `materials/medieval/brick_wall.vmat` (references stone textures
-  with `g_vTexCoordScale [10.000 10.000]`)
+**Status: FIX APPLIED ON `brick-wall-hardening`, runtime verification still required.**
 
-### BuildWallSegment (VillageBuilder.cs)
-- Calculates bricks per row, rows, total bricks
-- Loops row by row, placing each brick with `SpawnBox`
-- Running bond: offset every other row by half a brick
-- `await Task.DelaySeconds(BuildInterval)` between bricks (0.5s)
-- `MaybeSave()` called after each brick for periodic saves
+The previous implementation treated `models/dev/box.vmdl` as a 1×1×1 model:
 
-### Builder NPCs (NPCSpawner.cs)
-- 3 builder NPCs with citizen bodies, PlayerController, NavMeshAgent
-- Each has an "Eyes" child with CameraComponent for first-person vision
-- `FreshBuild = true` — always fresh, no instant reconstruction from save
-- `BuildInterval = 0.5f` — 0.5s per brick
-- `WallMaterial = "materials/medieval/brick_wall.vmat"`
+```csharp
+go.WorldScale = size;
+```
 
-### LAY Animation (VillageBuilderController.cs)
-- `PlayLayAnimation()` cycles citizen `duck` parameter
-- Sin wave: 0 (standing) -> 1 (crouched) -> 0 over 0.5s cycle
-- Matches the build pace so each brick has one crouch-and-rise gesture
+That assumption was inconsistent with the rest of the repository, where `box.vmdl` is treated as a 50×50×50 local-unit model. For a requested 7.48 × 3.94 × 1.57 unit brick, the old transform therefore rendered a box roughly 50 times larger in each axis than the requested world dimensions.
 
-## Current Issues
+This explains why MCP could report a transform scale matching the nominal brick dimensions while the user still saw huge slabs: transform scale was being mistaken for rendered world size.
 
-### 1. Walls appear as large panels, not individual bricks
-**Status**: UNRESOLVED
+### Applied fix
 
-The code correctly places individual brick-sized GameObjects (confirmed via
-MCP: scale 7.48 x 3.94 x 1.57 inches = 0.19m x 0.1m x 0.04m). 344 pieces
-confirmed for one wall segment. No large-scale panels found in inspection.
+`VillageBuilder.SpawnBox()` now uses one size contract for rendering, physics, and occupancy:
 
-However, the user reports seeing "aggressively large panels" in the editor.
-Possible causes:
-- Bricks are very small (0.19m) and from a distance look like a solid wall
-- Old walls from previous runs may still be in the scene (FreshBuild clears
-  the save file but not runtime objects from previous play sessions)
-- The brick_wall.vmat texture may make individual bricks hard to distinguish
-- Camera angle/distance may make individual bricks appear as a texture
+```csharp
+const float BoxModelNativeSize = 50f;
+go.WorldScale = size / BoxModelNativeSize;
 
-### 2. Builder NPC eyes cameras show wrong position
-**Status**: PARTIALLY WORKING
+var collider = go.AddComponent<BoxCollider>();
+collider.Scale = new Vector3( BoxModelNativeSize, BoxModelNativeSize, BoxModelNativeSize );
+```
 
-Each builder NPC has an "Eyes" child with CameraComponent. The cameras are
-created and detectable via MCP (4 Eyes objects found). However:
-- Some cameras show the NPC's own face (camera inside the head model)
-- Position may not correctly follow the parent NPC after warping
-- The `LocalPosition = (0, 0, 64)` should put the camera at eye height but
-  may need adjustment (move forward to avoid being inside the head)
+The occupancy AABB continues to use `size` directly, so requested size, rendered bounds, collider bounds, and construction occupancy now describe the same world-space dimensions.
 
-### 3. Material shows as stone_wall instead of brick_wall
-**Status**: INVESTIGATED
+## Brick anchoring bug
 
-`Material.Load("materials/medieval/brick_wall.vmat")` succeeds (no warning
-logged) but MCP reports `MaterialOverride: stone_wall.vmat`. This is likely
-engine material deduplication — brick_wall.vmat and stone_wall.vmat reference
-the same stone textures, so the engine may report the first-loaded material
-name. The actual UV scale differs (10 vs 30) so the visual result should
-differ. The brick_wall.vmat was force-compiled successfully.
+**Status: FIX APPLIED, runtime verification required.**
 
-### 4. EstimateTotalPieces is stale
-**Status**: MINOR
+The generic `SpawnBox()` used height to guess whether a piece was a wall or floor. A realistic brick is shorter than the floor threshold, so row-zero bricks were treated like floor tiles and shifted downward by half their height.
 
-`EstimateTotalPieces()` still uses hardcoded `"wall" => 12` from the old
-large-panel approach. Should be updated to estimate ~5000 bricks per wall
-segment. This only affects the log message, not actual construction.
+An explicit `PieceAnchor` mode was added. Brick placement now passes `PieceAnchor.Base`, so a brick requested at `z=0` rests on the ground instead of being centered below it. Existing non-brick callers retain the legacy automatic behavior for now to avoid changing unrelated structures in the same patch.
 
-## What We Tried
+## Road tile direction
 
-### Approach 1: PolygonMesh with custom UVs
-- Created PolygonMesh with 8 vertices, 6 faces
-- Assigned material via `AssignMaterialToFaces`
-- Set UVs via `SetFaceTextureCoords` after material assignment
-- **Result**: Walls rendered flat/untextured. UVs didn't work with PolygonMesh.
-- **Reverted**: Switched to ModelRenderer + box.vmdl
+**Status: FIX APPLIED, runtime verification required.**
 
-### Approach 2: ModelRenderer + box.vmdl + MaterialOverride
-- Used `models/dev/box.vmdl` (1x1x1 cube) with `WorldScale = size`
-- `MaterialOverride = Material.Load(materialPath)`
-- **Result**: Works! Textures show correctly. This is the proven approach
-  the market walls use.
-- **Adopted**: Current approach
+The village grammar uses road rotation as the road-width axis: main N/S roads are `Rotation=0`, cross streets are `Rotation=90`. The executor previously advanced tiles along that same axis, which made each segment grow sideways.
 
-### Approach 3: Large blocks (1m x 3m x 0.5m)
-- Individual GameObjects but very large
-- **Result**: Looked like large panels/slabs, not bricks
-- **User feedback**: "still wall panels"
+`BuildRoadSection()` now advances tiles along the perpendicular local Y axis while retaining the existing road-width rotation. This makes `Rotation=0` advance N/S and `Rotation=90` advance E/W.
 
-### Approach 4: Large blocks with mortar gaps (0.95m x 3m x 0.45m)
-- Added 5cm mortar gaps between blocks
-- **Result**: GPT-5 confirmed "individual brick blocks with dark gaps,
-  running bond pattern with staggered vertical joints"
-- **User feedback**: "definitely just generating aggressively large panels"
+## Workload estimation
 
-### Approach 5: Realistic small bricks (0.19m x 0.1m x 0.04m)
-- Wall is 1 brick thick (no depth stacking)
-- ~5000 bricks per wall segment
-- **Result**: MCP confirms 344 pieces at correct scale (7.48 x 3.94 x 1.57 in)
-- **User feedback**: "its definitely just generating aggressively large panels"
-- **Status**: UNRESOLVED — code is correct but visual result doesn't match
+**Status: FIX APPLIED FOR VillageBuilder/director registration.**
 
-### Approach 6: FreshBuild = true
-- Force `FreshBuild = true` in NPCSpawner to prevent instant reconstruction
-- **Result**: Prevents save-based reconstruction but old runtime objects from
-  previous play sessions may still persist in the scene
+The old estimate of 12 pieces per wall segment was inherited from the panel-based wall implementation. With realistic bricks, a wall segment is ~5,151 placements.
 
-## Verification Workflow
+`VillageBuilder` now computes the brick estimate from wall height and brick spacing, uses it for total estimates and builder partitioning, and overwrites each registered `DirectedTask.EstimatedPieces` with the corrected value. This prevents the ConstructionDirector from balancing thousands-of-bricks wall jobs as if they were 12-piece tasks.
 
-### Build
+The local fallback estimator still present inside `ConstructionDirector` remains legacy code; director tasks registered by `VillageBuilder` are corrected immediately after registration.
+
+## Builder camera/body transform issue
+
+**Status: PARTIAL FIX APPLIED.**
+
+Builder visual bodies were parented to the NPC root and then assigned `WorldPosition = Vector3.Zero`. That can separate the rendered citizen from its moving/warping NPC root and makes first-person camera inspection unreliable.
+
+The child body now uses `LocalPosition = Vector3.Zero` in both village-builder and normal-builder spawn paths. The `Eyes` camera remains at local `(0,0,64)` pending live verification; if it still clips into the face, add a small local forward offset after confirming the citizen forward axis in S&Box.
+
+## Material issue
+
+**Status: UNRESOLVED / VERIFY AFTER SCALE FIX.**
+
+`brick_wall.vmat` currently references the stone texture set. The repository also contains `.vtex` descriptors for `brick_color`, `brick_normal`, and `brick_rough`, but the current material does not reference them.
+
+Do not assume the MCP-reported `stone_wall` name is engine deduplication until the actual rendered material path is verified. First confirm physical brick scale. Then test the override with an unmistakable temporary material/tint or wire the brick texture resources explicitly if their source PNGs are present and compiled.
+
+## Performance architecture risk
+
+**Status: OPEN — intentionally not redesigned in this repair pass.**
+
+At ~5,151 bricks per 10 m wall segment and roughly 100+ wall segments, the current design can create hundreds of thousands of:
+
+- GameObjects
+- ModelRenderers
+- BoxColliders
+- permanent occupancy entries
+
+That is not a good final architecture. The safer next design is to keep brick-by-brick **construction events/visual progress** while batching completed courses or segments into a small number of render/collision objects and using segment-level permanent occupancy. This should be handled as a separate performance pass after correctness is verified.
+
+## Timing reality
+
+At 0.5 s per brick, one ~5,151-brick wall segment takes about 42.9 minutes for one builder. Three builders work on separate tasks, so they do not reduce a single segment to ~14 minutes. The previous “~25 minute full village” figure from the old 0.1 s / low-piece-count system no longer applies to realistic per-brick construction.
+
+## Verification checklist
+
+1. Build:
+
 ```powershell
 cd C:\Users\Shadow\Documents\lute
 dotnet build sbox/code/lute.csproj
 ```
 
-### Sync to runtime addon
-```powershell
-$src = "C:\Users\Shadow\Documents\lute\sbox\code"
-$dst = "C:\Users\Shadow\Documents\sbox-public-clean\game\addons\lute\code"
-Copy-Item "$src\Building\VillageBuilder.cs" "$dst\Building\VillageBuilder.cs" -Force
-Copy-Item "$src\Building\VillageBuilderController.cs" "$dst\Building\VillageBuilderController.cs" -Force
-Copy-Item "$src\NPC\NPCSpawner.cs" "$dst\NPC\NPCSpawner.cs" -Force
-Remove-Item "$dst\obj" -Recurse -Force -ErrorAction SilentlyContinue
-Get-ChildItem "$dst" -Filter "*.cs" -Recurse | ForEach-Object { (Get-Item $_.FullName).LastWriteTime = Get-Date }
-```
+2. Sync changed runtime files to the S&Box addon and restart play mode.
 
-### Restart play mode
-```powershell
-# Via MCP
-$body = @{jsonrpc="2.0"; method="tools/call"; params=@{name="play_stop"; arguments=@{}}} | ConvertTo-Json -Depth 5
-Invoke-RestMethod -Uri "http://127.0.0.1:7269/mcp" -Method Post -Body $body -ContentType "application/json"
-# Clear save
-Remove-Item "C:\Users\Shadow\Documents\sbox-public-clean\game\data\local\lute#local\village_save.json" -Force -ErrorAction SilentlyContinue
-# Start
-$body2 = @{jsonrpc="2.0"; method="tools/call"; params=@{name="play_start"; arguments=@{}}} | ConvertTo-Json -Depth 5
-Invoke-RestMethod -Uri "http://127.0.0.1:7269/mcp" -Method Post -Body $body2 -ContentType "application/json"
-```
+3. Start from a fresh runtime session/save.
 
-### Visual verification via GPT-5
-```powershell
-# Editor camera at village walls
-python agent\gpt_eyes.py "Describe the walls" --village --save scrap\shot.png
+4. Inspect one new `Village_Wall*` brick and verify **rendered/world bounds**, not just `WorldScale`:
 
-# Builder NPC first-person camera
-python agent\gpt_eyes.py "Describe what you see" --camera <eyes_id> --play
-```
+- expected world size: about 7.48 × 3.94 × 1.57 S&Box units before yaw swaps X/Y
+- row-zero brick bottom should be approximately at task ground Z
+- collider bounds should match rendered bounds
+- occupancy bounds should match both
 
-### MCP inspection
-```powershell
-# Find wall pieces
-$body = @{jsonrpc="2.0"; method="tools/call"; params=@{name="find_game_objects"; arguments=@{name="Village_Wall"}}} | ConvertTo-Json -Depth 5
-Invoke-RestMethod -Uri "http://127.0.0.1:7269/mcp" -Method Post -Body $body -ContentType "application/json"
+5. Visually inspect a near wall. Bricks should be physically small and separated by ~1 cm mortar gaps.
 
-# Check piece scale
-$body = @{jsonrpc="2.0"; method="tools/call"; params=@{name="get_game_object"; arguments=@{id="<piece_id>"; includeComponentProperties=$true}}} | ConvertTo-Json -Depth 5
-Invoke-RestMethod -Uri "http://127.0.0.1:7269/mcp" -Method Post -Body $body -ContentType "application/json"
-```
+6. Verify roads:
 
-### Log verification
-```powershell
-$log = "C:\Users\Shadow\Documents\sbox-public-clean\game\logs\sbox-dev.log"
-Select-String -Path $log -Pattern "VillageBuilder saved" | Select-Object -Last 3
-Select-String -Path $log -Pattern "SpawnBox material.*failed" | Select-Object -Last 3
-```
+- main road extends north/south
+- cross streets extend east/west
+- tiles do not fan sideways
 
-## Key Files
+7. Verify multi-builder assignment logs. Wall tasks should carry ~5k estimated pieces rather than 12.
 
-- `sbox/code/Building/VillageBuilder.cs` — wall construction, SpawnBox, BuildWallSegment
-- `sbox/code/Building/VillageBuilderController.cs` — NPC controller, LAY animation
-- `sbox/code/NPC/NPCSpawner.cs` — NPC spawning, FreshBuild, BuildInterval, Eyes camera
-- `sbox/Assets/materials/medieval/brick_wall.vmat` — brick material (references stone textures)
-- `agent/gpt_eyes.py` — GPT-5 vision bridge with --village and --camera options
+8. Verify builder cameras after warp. If camera still intersects the citizen head, measure the citizen facing axis and add a small local forward offset.
+
+9. Re-run reservation/collision probes and confirm the earlier event-driven completion, failure recovery, join-zone, and occupancy invariants remain intact.
+
+## Files touched by the repair pass
+
+- `sbox/code/Building/VillageBuilder.cs`
+- `sbox/code/NPC/NPCSpawner.cs`
+- `BRICK_WALL_ISSUES.md`
+- `BRICK_WALL_FIX_PASS.md`
+
+See `BRICK_WALL_FIX_PASS.md` for the exact checklist and branch-level change log.
