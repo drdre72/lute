@@ -1,12 +1,1 @@
-﻿/* VTEX */
-{
-    "version": 1,
-    "filename": "materials/medieval/brick_color.png",
-    "format": "DXT5",
-    "type": "Texture2D",
-    "filter": "Box",
-    "mipmaps": true,
-    "bumpmap": False,
-    "srgbread": true,
-    "srgbwrite": true,
-}
+﻿{"Images": null, "Sequences": [{"Source": "materials/medieval/brick_color.png", "IsLooping": false, "FlipBook": false, "Columns": 0, "Rows": 0, "Frames": 64}], "InputColorSpace": "sRGB", "OutputFormat": "DXT5", "OutputColorSpace": "sRGB", "OutputMipAlgorithm": "None", "OutputTypeString": "2D"}

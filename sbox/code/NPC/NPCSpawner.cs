@@ -227,7 +227,7 @@ namespace Lute.Npc
 			var eyesGo = scene.CreateObject( true );
 			eyesGo.Name = "Eyes";
 			eyesGo.SetParent( go );
-			eyesGo.LocalPosition = new Vector3( 0, 0, 64f );  // eye height ~1.6m
+			eyesGo.LocalPosition = new Vector3( 0, -10f, 64f );  // forward (-Y) + eye height ~1.6m
 			var camera = eyesGo.AddComponent<CameraComponent>();
 			camera.FieldOfView = 90f;
 

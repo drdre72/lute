@@ -23,6 +23,19 @@ public sealed class LuteWorld : Component
 		// Builders must NOT call Reset() themselves — it would wipe the scan.
 		Lute.Building.ConstructionDirector.Reset();
 
+		// Destroy any stale MedievalVillage root from a previous play session.
+		// This must happen ONCE here, before NPC spawning — not per-builder in
+		// VillageBuilder.OnStart(), which would cause builders to delete each
+		// other's roots.
+		foreach ( var go in Scene.GetAllObjects( true ) )
+		{
+			if ( go.Name == "MedievalVillage" )
+			{
+				go.Destroy();
+				Log.Info( $"Lute: destroyed stale MedievalVillage root {go.Id}." );
+			}
+		}
+
 		var root = Scene.CreateObject( true );
 		root.Name = "Sanctuary";
 		root.WorldPosition = Vector3.Zero;

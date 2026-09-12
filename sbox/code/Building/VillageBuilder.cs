@@ -31,9 +31,8 @@ namespace Lute.Building
 
 		enum PieceAnchor
 		{
-			Auto,
-			Base,
 			Center,
+			Base,
 			Top,
 		}
 
@@ -110,8 +109,12 @@ namespace Lute.Building
 		/// </summary>
 		public int CurrentTaskIndex { get; private set; } = -1;
 
-		/// <summary> All tasks in the village (sorted by priority). </summary>
+		/// <summary> All tasks in the village (sorted by priority). Shared across all builders. </summary>
 		public List<VillageBuildTask> Tasks { get; private set; } = new();
+
+		/// <summary> Static shared task list — only builder 0 generates it; others reference it. </summary>
+		private static List<VillageBuildTask> _sharedTasks;
+		private static GameObject _sharedVillageRoot;
 
 		/// <summary> Total elapsed build time (seconds). </summary>
 		public float ElapsedTime { get; private set; }
@@ -126,7 +129,7 @@ namespace Lute.Building
 		private GameObject _villageRoot;
 		private bool _reconstructMode; // when true, skip delays and place all pieces instantly
 
-		protected override void OnStart()
+		protected override async void OnStart()
 		{
 			_cts = new CancellationTokenSource();
 
@@ -138,15 +141,34 @@ namespace Lute.Building
 				SaveInterval = 60f;
 			}
 
-			// Create village root GameObject
-			_villageRoot = Scene.CreateObject( true );
-			_villageRoot.Name = "MedievalVillage";
-			_villageRoot.WorldPosition = Center;
+			// Create village root GameObject (only builder 0 creates it; others reuse it)
+			if ( BuilderId == 0 )
+			{
+				// Clear static state for a fresh play session
+				_sharedTasks = null;
+				_sharedVillageRoot = null;
 
-			// Generate village layout
-			var rng = VillageSeed > 0 ? new Random( VillageSeed ) : new Random();
-			var grammar = new VillageGrammar( rng );
-			Tasks = grammar.GenerateLayout( Center );
+				_villageRoot = Scene.CreateObject( true );
+				_villageRoot.Name = "MedievalVillage";
+				_villageRoot.WorldPosition = Center;
+				_sharedVillageRoot = _villageRoot;
+
+				// Generate village layout (only builder 0 generates; others share)
+				var rng = VillageSeed > 0 ? new Random( VillageSeed ) : new Random();
+				var grammar = new VillageGrammar( rng );
+				Tasks = grammar.GenerateLayout( Center );
+				_sharedTasks = Tasks;
+			}
+			else
+			{
+				// Wait for builder 0 to generate the shared task list
+				while ( _sharedTasks is null )
+				{
+					await Task.DelaySeconds( 0.1f );
+				}
+				Tasks = _sharedTasks;
+				_villageRoot = _sharedVillageRoot;
+			}
 
 			// Count total pieces estimate
 			_totalPiecesAll = EstimateTotalPieces( Tasks );
@@ -274,7 +296,7 @@ namespace Lute.Building
 		{
 			int bricksPerRow = (int)MathF.Ceiling( (10f * M) / BrickSpacingX );
 			int numRows = (int)MathF.Ceiling( WallHeight / BrickSpacingZ );
-			return bricksPerRow * numRows + numRows / 2;
+			return bricksPerRow * numRows;  // no extra odd-row brick
 		}
 
 		int EstimateTaskPieces( VillageBuildTask task )
@@ -578,15 +600,16 @@ namespace Lute.Building
 
 			int bricksPerRow = (int)MathF.Ceiling( segLen / BrickSpacingX );
 			int numRows = (int)MathF.Ceiling( wallH / BrickSpacingZ );
-			int totalBricks = bricksPerRow * numRows + numRows / 2;
+			int totalBricks = bricksPerRow * numRows;
 			task.TotalPieces = totalBricks;
 
 			int brickIdx = 0;
 			for ( int row = 0; row < numRows; row++ )
 			{
-				// Running bond: offset every other row by half a brick
+				// Running bond: offset every other row by half a brick.
+				// No extra brick — the offset alone creates the stagger.
 				float rowOffset = (row % 2 == 1) ? BrickSpacingX * 0.5f : 0f;
-				int colsThisRow = bricksPerRow + (row % 2 == 1 ? 1 : 0);
+				int colsThisRow = bricksPerRow;
 
 				for ( int col = 0; col < colsThisRow; col++ )
 				{
@@ -619,6 +642,21 @@ namespace Lute.Building
 					MaybeSave();
 				}
 			}
+
+			// Segment-level collider: one BoxCollider for the whole wall segment
+			// instead of 5,100 per-brick colliders. Created both during live
+			// construction and reconstruction (runtime objects don't persist).
+			{
+				var segColliderGo = Scene.CreateObject( false );
+				segColliderGo.Name = $"Village_{task.Name}_collider";
+				segColliderGo.SetParent( _villageRoot );
+				segColliderGo.WorldPosition = task.Position + new Vector3( 0, 0, wallH * 0.5f );
+				if ( task.Rotation != 0 ) segColliderGo.WorldRotation = Rotation.FromYaw( task.Rotation );
+				segColliderGo.WorldScale = new Vector3( segLen, brickThick, wallH );
+				var segCollider = segColliderGo.AddComponent<BoxCollider>();
+				segCollider.Scale = new Vector3( BoxModelNativeSize, BoxModelNativeSize, BoxModelNativeSize );
+				segColliderGo.Enabled = true;
+			}
 		}
 
 		// ── Gate: two towers + lintel ──
@@ -644,20 +682,20 @@ namespace Lute.Building
 						int layer = i;
 						float z = layer * (towerH / 13f);
 						var pos = task.Position + new Vector3( -gateW / 2f - towerW / 2f, 0, z + (towerH / 13f) / 2f );
-						SpawnBox( pos, new Vector3( towerW, towerW, towerH / 13f ), GateMaterial, true, _villageRoot );
+						SpawnBox( pos, new Vector3( towerW, towerW, towerH / 13f ), GateMaterial, true, _villageRoot, 0f, PieceAnchor.Center );
 					}
 					else if ( i < 26 )
 					{
 						int layer = i - 13;
 						float z = layer * (towerH / 13f);
 						var pos = task.Position + new Vector3( gateW / 2f + towerW / 2f, 0, z + (towerH / 13f) / 2f );
-						SpawnBox( pos, new Vector3( towerW, towerW, towerH / 13f ), GateMaterial, true, _villageRoot );
+						SpawnBox( pos, new Vector3( towerW, towerW, towerH / 13f ), GateMaterial, true, _villageRoot, 0f, PieceAnchor.Center );
 					}
 					else
 					{
 						// Lintel above gate
 						var pos = task.Position + new Vector3( 0, 0, towerH + lintelH / 2f );
-						SpawnBox( pos, new Vector3( gateW + towerW * 2, 3f * M, lintelH ), GateMaterial, true, _villageRoot );
+						SpawnBox( pos, new Vector3( gateW + towerW * 2, 3f * M, lintelH ), GateMaterial, true, _villageRoot, 0f, PieceAnchor.Center );
 					}
 					task.PiecesPlaced = i + 1;
 					_totalPiecesPlaced++;
@@ -687,11 +725,11 @@ namespace Lute.Building
 
 				if ( i >= task.PiecesPlaced )
 				{
-					float offset = (i - pieces / 2f) * (segLen / pieces);
+					float offset = (i - (pieces - 1) * 0.5f) * (segLen / pieces);
 					// Road Rotation describes the local width axis. Advance tiles along
 					// the perpendicular local Y axis so Rotation=0 is N/S and 90 is E/W.
 					var pos = task.Position + new Vector3( -offset * sin, offset * cos, 0 );
-					SpawnBox( pos, new Vector3( roadW, segLen / pieces, FloorThickness ), FloorMaterial, false, _villageRoot, task.Rotation );
+					SpawnBox( pos, new Vector3( roadW, segLen / pieces, FloorThickness ), FloorMaterial, false, _villageRoot, task.Rotation, PieceAnchor.Top );
 					task.PiecesPlaced = i + 1;
 					_totalPiecesPlaced++;
 				}
@@ -722,7 +760,7 @@ namespace Lute.Building
 						// Stone wall around well (16 segments)
 						float angle = i * (360f / 16f) * (float)Math.PI / 180f;
 						var pos = task.Position + new Vector3( wellR * (float)Math.Cos( angle ), wellR * (float)Math.Sin( angle ), wellH / 2f );
-						SpawnBox( pos, new Vector3( 1f * M, 0.5f * M, wellH ), WallMaterial, true, _villageRoot );
+						SpawnBox( pos, new Vector3( 1f * M, 0.5f * M, wellH ), WallMaterial, true, _villageRoot, 0f, PieceAnchor.Center );
 					}
 					else
 					{
@@ -731,7 +769,7 @@ namespace Lute.Building
 						float angle = post * 90f * (float)Math.PI / 180f;
 						float postR = wellR + 1f * M;
 						var pos = task.Position + new Vector3( postR * (float)Math.Cos( angle ), postR * (float)Math.Sin( angle ), 6f * M );
-						SpawnBox( pos, new Vector3( 0.5f * M, 0.5f * M, 4f * M ), BuildingWallMaterial, true, _villageRoot );
+						SpawnBox( pos, new Vector3( 0.5f * M, 0.5f * M, 4f * M ), BuildingWallMaterial, true, _villageRoot, 0f, PieceAnchor.Center );
 					}
 					task.PiecesPlaced = i + 1;
 					_totalPiecesPlaced++;
@@ -761,7 +799,7 @@ namespace Lute.Building
 					int col = i % 5;
 					int row = i / 5;
 					var pos = task.Position + new Vector3( (col - 2) * (sqW / 5), (row - 2) * (sqH / 5), 0 );
-					SpawnBox( pos, new Vector3( sqW / 5, sqH / 5, FloorThickness ), FloorMaterial, false, _villageRoot );
+					SpawnBox( pos, new Vector3( sqW / 5, sqH / 5, FloorThickness ), FloorMaterial, false, _villageRoot, 0f, PieceAnchor.Top );
 					task.PiecesPlaced = i + 1;
 					_totalPiecesPlaced++;
 				}
@@ -842,6 +880,7 @@ namespace Lute.Building
 					Vector3 size;
 					string materialPath;
 					bool collides;
+					PieceAnchor anchor;
 
 					switch ( piece.PieceType )
 					{
@@ -849,31 +888,36 @@ namespace Lute.Building
 							size = new Vector3( CellSize, CellSize, WallHeight );
 							materialPath = piece.Material ?? BuildingWallMaterial;
 							collides = true;
+							anchor = PieceAnchor.Base;
 							break;
 						case "DOOR":
 							size = new Vector3( CellSize, CellSize, FloorThickness * 2f );
 							materialPath = piece.Material ?? BuildingWallMaterial;
 							collides = true;
+							anchor = PieceAnchor.Base;
 							break;
 						case "ROOF":
 							size = new Vector3( CellSize, CellSize, FloorThickness );
 							materialPath = piece.Material ?? BuildingFloorMaterial;
 							collides = false;
+							anchor = PieceAnchor.Top;
 							break;
 						case "COLUMN":
 							size = piece.Size.Length > 0 ? piece.Size : new Vector3( CellSize * 0.3f, CellSize * 0.3f, WallHeight );
 							materialPath = piece.Material ?? BuildingWallMaterial;
 							collides = true;
+							anchor = PieceAnchor.Base;
 							break;
 						case "FLOOR":
 						default:
 							size = new Vector3( CellSize, CellSize, FloorThickness );
 							materialPath = piece.Material ?? BuildingFloorMaterial;
 							collides = false;
+							anchor = PieceAnchor.Top;
 							break;
 					}
 
-					SpawnBox( pos, size, materialPath, collides, _villageRoot );
+					SpawnBox( pos, size, materialPath, collides, _villageRoot, 0f, anchor );
 					task.PiecesPlaced = i + 1;
 					_totalPiecesPlaced++;
 				}
@@ -886,7 +930,7 @@ namespace Lute.Building
 		}
 
 		// ── Helper: spawn a box mesh piece ──
-		void SpawnBox( Vector3 worldPos, Vector3 size, string materialPath, bool collides, GameObject parent, float yaw = 0f, PieceAnchor anchor = PieceAnchor.Auto )
+		void SpawnBox( Vector3 worldPos, Vector3 size, string materialPath, bool collides, GameObject parent, float yaw = 0f, PieceAnchor anchor = PieceAnchor.Center )
 		{
 			switch ( anchor )
 			{
@@ -898,27 +942,19 @@ namespace Lute.Building
 					break;
 				case PieceAnchor.Center:
 					break;
-				case PieceAnchor.Auto:
-				default:
-					// Legacy behavior for non-brick callers. Explicit anchors should be
-					// preferred when the caller knows whether worldPos is a base/top/center.
-					if ( size.z > FloorThickness * 1.5f )
-						worldPos = worldPos.WithZ( worldPos.z + size.z * 0.5f );
-					else
-						worldPos = worldPos.WithZ( worldPos.z - size.z * 0.5f );
-					break;
 			}
 
-			// Piece-level occupancy gate: check that this exact piece's bounds
-			// don't conflict with existing occupancy (static geometry or other
-			// tasks' pieces). Only for live directed construction - skip during
-			// reconstruction mode (re-placing saved pieces).
-			var half = size * 0.5f;
+			// Per-piece occupancy is only checked for non-wall pieces.
+			// Wall bricks rely on the task-level reservation (the whole
+			// segment bounds are reserved by ConstructionDirector). This
+			// avoids 550,000+ dictionary entries and O(n) CanPlace scans.
+			var isWallBrick = CurrentTask is not null && CurrentTask.TaskType == "wall";
 			var rot = yaw != 0f ? Rotation.FromYaw( yaw ) : Rotation.Identity;
-			var pieceBounds = new BBox( -half, half ).Rotate( rot ).Translate( worldPos );
-
-			if ( !_reconstructMode && !string.IsNullOrEmpty( CurrentDirectedTaskId ) )
+			if ( !_reconstructMode && !isWallBrick && !string.IsNullOrEmpty( CurrentDirectedTaskId ) )
 			{
+				var half = size * 0.5f;
+				var pieceBounds = new BBox( -half, half ).Rotate( rot ).Translate( worldPos );
+
 				if ( !ReservationManager.CanPlace( CurrentDirectedTaskId, pieceBounds, out var reason ) )
 				{
 					Log.Warning( $"Lute: VillageBuilder piece placement blocked at {worldPos}: {reason}" );
@@ -949,9 +985,11 @@ namespace Lute.Building
 			if ( material is not null )
 				renderer.MaterialOverride = material;
 
-			// BoxCollider.Scale is model-local. With WorldScale=size/50, a
-			// 50-unit collider yields the same requested world dimensions.
-			if ( collides )
+			// Per-brick colliders are skipped for wall bricks — a single
+			// segment-level collider is added when the wall segment completes
+			// (see BuildWallSegment). This avoids 550,000+ physics bodies.
+			// Non-wall pieces (gates, wells, buildings) keep per-piece colliders.
+			if ( collides && !isWallBrick )
 			{
 				var collider = go.AddComponent<BoxCollider>();
 				collider.Scale = new Vector3( BoxModelNativeSize, BoxModelNativeSize, BoxModelNativeSize );
@@ -959,10 +997,13 @@ namespace Lute.Building
 
 			go.Enabled = true;
 
-			// Commit exact piece bounds to the occupancy ledger so future
-			// pieces/tasks can't overlap this one.
-			if ( !_reconstructMode && !string.IsNullOrEmpty( CurrentDirectedTaskId ) )
+			// Commit per-piece occupancy only for non-wall pieces.
+			if ( !_reconstructMode && !isWallBrick && !string.IsNullOrEmpty( CurrentDirectedTaskId ) )
+			{
+				var half = size * 0.5f;
+				var pieceBounds = new BBox( -half, half ).Rotate( rot ).Translate( worldPos );
 				ReservationManager.CommitPlacement( CurrentDirectedTaskId, pieceBounds, go.Name );
+			}
 		}
 
 		/// <summary>
@@ -1026,6 +1067,11 @@ namespace Lute.Building
 
 		void DoSave()
 		{
+			// Only builder 0 saves — it owns the authoritative shared task list.
+			// Other builders would save stale copies of the same shared list.
+			if ( BuilderId != 0 )
+				return;
+
 			bool saved = VillagePersistence.SaveProgress( Center, Tasks, ElapsedTime );
 			if ( saved )
 			{
