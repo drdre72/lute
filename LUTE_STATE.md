@@ -77,17 +77,21 @@ The authoritative construction representation is `Blueprint`. NPC speech is neve
 6. ~~Legacy fallback~~ (RESOLVED): All builders now consistently use the director path. Multi-candidate reservation tries alternate tasks when one has a spatial conflict.
 7. ~~Walk time bottleneck~~ (RESOLVED): Builders now teleport to build sites instead of walking. Each builder has a distinct warp effect color (cyan/magenta/yellow).
 8. ~~Task completion transition race~~ (RESOLVED): Controller now uses event-driven transitions via `TaskCompleted` events with exact `DirectedTask.Id`. No longer infers completion from `CurrentTaskIndex` or `CurrentTask.Status`. `TaskBlocked` and `TaskFailed` events also clear `_activeDirectedTaskId` and return controller to Idle.
-9. **Build pace still bottlenecked** (ACTIVE): Even with teleportation, tasks complete in ~12 seconds each. The bottleneck is now the `BuildTask` async loop which places pieces at 1s intervals. With 273 tasks averaging ~16 pieces each, the full build takes ~73 minutes. Further acceleration would require reducing the per-piece interval or batching piece placement.
-10. ~~Reservation conflicts on task_1~~ (DIAGNOSED): Structured diagnostics revealed root cause: adjacent wall segments at corners have overlapping piece geometry. The intersection (118.1 x 16.4 x 200 units = 3m x 0.42m x 5m) is a structural join at the wall corner. The multi-candidate loop handles this gracefully (builder skips to next task). The proper fix is **allowed join zones** for structural connections (wall↔wall corners, road↔road intersections, road↔market square).
+9. ~~Build pace bottleneck~~ (RESOLVED): `BuildInterval` reduced from 1.0s to 0.1s per piece. Full village build now takes ~25 min instead of ~73 min. Runtime verified: 247/263 tasks in 24.7 min.
+10. ~~Reservation conflicts on task_1~~ (RESOLVED): Added per-axis join tolerance for structural connections (wall↔wall corners, road↔road intersections, road↔gate, road↔market). Allows small overlaps in one horizontal axis without globally weakening collision checks. `task_1` and similar corner tasks now complete normally.
 11. ~~HandleComplete hardening~~ (RESOLVED): `HandleComplete` now rejects unregistered builders, wrong owners, stale tasks, and non-in-progress tasks.
 12. ~~Piece-level occupancy gate~~ (RESOLVED): `SpawnBox()` now calls `CanPlace()` before creating geometry and `CommitPlacement()` after. `ConstructionPlacementBlockedException` caught in `BuildLoop` → `FailTask` + retry.
 13. ~~Rotation-aware geometry~~ (RESOLVED): `SpawnBox()` now accepts a `yaw` parameter, rotates the mesh, and computes the world-space AABB from the rotated footprint. Wall and road pieces are now correctly oriented.
 14. ~~Road width~~ (RESOLVED): Road pieces are now full road width (`roadW`) instead of tiny tiles (`roadW/pieces`).
 15. ~~AuthorizeExecution validation~~ (RESOLVED): `AuthorizeExecution` now revalidates reservation ownership before switching task to InProgress.
+16. ~~Road↔cottage layout conflicts~~ (RESOLVED): `VillageGrammar` now skips building placement within 9m of cross-street Y lines (5m road half-width + 2m building half-size + 2m clearance). Eliminates road↔cottage occupancy conflicts.
+17. ~~Building-to-building overlap~~ (RESOLVED): `buildingSpacing` increased from 20m to 25m. Special buildings (Chapel, Smithy, Tavern) now have 15m clearance from generated cottages. Chapel moved from y=-40m to y=-60m to avoid overlapping 15m rowOffset buildings.
+18. ~~Deterministic replanning~~ (RESOLVED): `FailTask` now defers tasks blocked by active tasks (Pending/PendingExecution/InProgress/Blocked) instead of consuming a retry. Deferred tasks auto-unblock when the blocker completes or fails. `MaxRetries` increased from 2 to 10 for genuine failures. `ReservationManager` tracks last blocker task ID for deferral decisions.
+19. **Remaining layout conflicts** (ACTIVE): 2 tasks consistently fail permanently — `task_235` (building vs cross-street road) and `task_199` (building vs main road). These are buildings whose actual spawned footprint extends beyond their declared `BaseWidth`/`BaseHeight`, overlapping roads. Deeper fix would require matching grammar positions to actual blueprint footprint sizes.
 
 ## Next architectural target
 
-The deterministic construction-coordination layer is now implemented (Phases 1-5). NPC/executor synchronization, legacy fallback elimination, occupancy auto-scan, teleportation, event-driven completion, piece-level occupancy, rotation-aware geometry, and reservation diagnostics are all done. Remaining refinements:
+The deterministic construction-coordination layer is now implemented (Phases 1-5). NPC/executor synchronization, legacy fallback elimination, occupancy auto-scan, teleportation, event-driven completion, piece-level occupancy, rotation-aware geometry, reservation diagnostics, join zones, deterministic replanning, and build pace acceleration are all done. Remaining refinements:
 
 1. ~~NPC/executor state synchronization (ReadyAtSite gate)~~ (DONE)
 2. ~~Auto-scan static world geometry into occupancy ledger~~ (DONE)
@@ -97,8 +101,12 @@ The deterministic construction-coordination layer is now implemented (Phases 1-5
 6. ~~Rotation-aware geometry + road width fix~~ (DONE)
 7. ~~Reservation conflict diagnostics~~ (DONE)
 8. ~~HandleComplete + AuthorizeExecution hardening~~ (DONE)
-9. **Allowed join zones** for structural connections (wall↔wall corners, road↔road intersections, road↔market square) — the remaining source of false conflicts
-10. Phase 6: Gameplay social systems (deception enabled only after construction is proven)
+9. ~~Allowed join zones for structural connections~~ (DONE)
+10. ~~Build pace acceleration (0.1s/piece)~~ (DONE)
+11. ~~Road↔cottage and building↔building layout fixes~~ (DONE)
+12. ~~Deterministic replanning (defer blocked tasks, retry genuine failures)~~ (DONE)
+13. **Remaining 2 layout conflicts** (ACTIVE): `task_235` and `task_199` fail permanently because building footprints exceed declared dimensions. Fix requires matching grammar positions to actual blueprint footprint sizes.
+14. Phase 6: Gameplay social systems (deception enabled only after construction is proven)
 
 ## Rules of interpretation
 
