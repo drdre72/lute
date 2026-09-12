@@ -569,7 +569,7 @@ namespace Lute.Building
 					var pos = task.Position + new Vector3( offset * (float)Math.Cos( task.Rotation * Math.PI / 180 ),
 														   offset * (float)Math.Sin( task.Rotation * Math.PI / 180 ),
 														   0 );
-					SpawnBox( pos, new Vector3( segLen / pieces, 3f * M, WallHeight ), WallMaterial, true, _villageRoot, task.Rotation );
+					SpawnBrickBox( pos, new Vector3( segLen / pieces, 3f * M, WallHeight ), WallMaterial, true, _villageRoot, task.Rotation );
 					task.PiecesPlaced = i + 1;
 					_totalPiecesPlaced++;
 				}
@@ -918,7 +918,51 @@ namespace Lute.Building
 			}
 		}
 
-		// ── Save management ──
+	/// <summary>
+	/// Spawn a brick-pattern wall piece. Uses BrickMeshBuilder to create
+	/// proper running-bond brick geometry instead of a flat box.
+	/// </summary>
+	void SpawnBrickBox( Vector3 worldPos, Vector3 size, string materialPath, bool collides, GameObject parent, float yaw = 0f )
+	{
+		// Walls: base at z=0 (lift center)
+		worldPos = worldPos.WithZ( worldPos.z + size.z * 0.5f );
+
+		var half = size * 0.5f;
+		var rot = yaw != 0f ? Rotation.FromYaw( yaw ) : Rotation.Identity;
+		var pieceBounds = new BBox( -half, half ).Rotate( rot ).Translate( worldPos );
+
+		if ( !_reconstructMode && !string.IsNullOrEmpty( CurrentDirectedTaskId ) )
+		{
+			if ( !ReservationManager.CanPlace( CurrentDirectedTaskId, pieceBounds, out var reason ) )
+			{
+				Log.Warning( $"Lute: VillageBuilder brick placement blocked at {worldPos}: {reason}" );
+				throw new ConstructionPlacementBlockedException( $"{CurrentDirectedTaskId} placement blocked at {worldPos}: {reason}" );
+			}
+		}
+
+		var go = Scene.CreateObject( false );
+		go.Name = $"Village_brick_{CurrentTask?.Name ?? "piece"}_{_totalPiecesPlaced}";
+		go.SetParent( parent );
+		go.WorldPosition = worldPos;
+		if ( yaw != 0f ) go.WorldRotation = rot;
+
+		var meshComp = go.AddComponent<MeshComponent>();
+		meshComp.Collision = collides
+			? MeshComponent.CollisionType.Mesh
+			: MeshComponent.CollisionType.None;
+
+		var material = Material.Load( materialPath );
+		var mesh = BrickMeshBuilder.BuildBrickWall( size, material );
+		meshComp.Mesh = mesh;
+		go.Enabled = true;
+
+		if ( !_reconstructMode && !string.IsNullOrEmpty( CurrentDirectedTaskId ) )
+		{
+			ReservationManager.CommitPlacement( CurrentDirectedTaskId, pieceBounds, go.Name );
+		}
+	}
+
+	// ── Save management ──
 
 		void MaybeSave()
 		{
