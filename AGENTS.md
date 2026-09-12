@@ -2,9 +2,11 @@
 
 Persistent, hand-maintained notes for AI agents (Devin, GLM, etc.) working on
 this repo. This exists because the coding model has **no native vision
-layer** — it cannot see the S&Box editor viewport directly — and because the
-S&Box C# API is new enough that models will hallucinate outdated Garry's Mod
-/ early-S&Box hooks if they don't check the actual engine source first.
+layer** — it cannot see the S&Box editor viewport directly (but see
+`agent/gpt_eyes.py` below for a GPT-5 vision bridge that turns screenshots
+into text descriptions) — and because the S&Box C# API is new enough that
+models will hallucinate outdated Garry's Mod / early-S&Box hooks if they
+don't check the actual engine source first.
 Read this before writing S&Box code so you don't re-discover the same APIs
 every session.
 
@@ -59,6 +61,11 @@ NPC simulation still works, the architecture is correct.
   server (see "Closing the vision gap: MCP spatial probing" below). Casts
   rays, finds objects, reports positions as text — the closest thing to
   "eyes" for a vision-less agent.
+- `agent/gpt_eyes.py` — GPT-5 vision bridge (see "Closing the vision gap:
+  GPT-5 vision bridge" below). Captures an editor screenshot via MCP, sends
+  it to OpenAI's GPT-5 vision model, and prints back a text description the
+  agent can read. This is the force multiplier — real visual grounding via a
+  vision-capable model, consumed as text.
 - `agent/collision_probes.py` — automated non-visual collision and traversal
   verification. Raycasts at 3 heights across gates, through walls, down
   through towers, and along bridges. Reports PASS/FAIL per probe category,
@@ -183,11 +190,14 @@ Key tools for spatial reasoning (all return text, not images):
 scene objects (in the .scene file) are always visible, but anything
 spawned by `LuteWorld.Build()` only exists after `play_start`.
 
-The agent model still cannot process images — `read` on a PNG returns
-"Images not shown since the current model does not support them." So
-`editor_camera_screenshot` and `camera_screenshot` are useless to this
-agent. Use `scene_trace` and `get_game_object` for spatial verification
-instead.
+The agent model cannot directly process images — `read` on a PNG returns
+"Images not shown since the current model does not support them." However,
+`editor_camera_screenshot` and `camera_screenshot` are **not** useless:
+`agent/gpt_eyes.py` (see the GPT-5 vision bridge section below) captures
+the screenshot via MCP, sends it to GPT-5's vision model, and returns a
+text description the agent can read. Use `scene_trace` and
+`get_game_object` for precise spatial verification, and `gpt_eyes.py`
+for visual grounding ("what does it actually look like").
 
 ### Known PowerShell/JSON gotcha
 
@@ -207,6 +217,47 @@ $json = $raw | ConvertFrom-Json
 
 `sbox_verify.ps1` already does this — copy the pattern if you write your own
 scene-parsing script.
+
+## Closing the vision gap: GPT-5 vision bridge (`agent/gpt_eyes.py`)
+
+The agent model cannot process images — `read` on a PNG returns "Images not
+shown since the current model does not support them." But the S&Box MCP
+server's `editor_camera_screenshot` and `camera_screenshot` tools return
+base64 PNGs, and OpenAI's GPT-5 vision model CAN read them. `gpt_eyes.py`
+chains the two: it captures a screenshot from the editor, sends it to GPT-5
+as a vision input, and prints back a **text description** the agent can read.
+
+This is the force multiplier — real visual grounding via a vision-capable
+model, consumed as text. Use it alongside `sbox_eyes.py` (spatial probing)
+for full scene understanding: `sbox_eyes.py` gives you coordinates and
+raycasts, `gpt_eyes.py` gives you "what does it actually look like."
+
+```powershell
+python agent\gpt_eyes.py                          # editor viewport, default prompt
+python agent\gpt_eyes.py "Is the terrain visible?" # custom question
+python agent\gpt_eyes.py --play                   # game camera (play mode)
+python agent\gpt_eyes.py --camera <id>            # specific camera component
+python agent\gpt_eyes.py --save scrap\shot.png    # also save the raw PNG
+python agent\gpt_eyes.py --width 1280 --height 720
+python agent\gpt_eyes.py --model gpt-5            # override model
+python agent\gpt_eyes.py --detail high            # vision detail (auto/low/high/original)
+```
+
+**Requirements:**
+- `pip install openai` (SDK v3.x+; uses the Responses API with `input_image`).
+- API key: set `OPENAI_API_KEY` env var, or write it to `agent/.openai_key`
+  (gitignored). The Devin secrets manager is cloud-only (no local read-back),
+  so the key must be available locally for this script.
+- S&Box editor running with MCP enabled on `http://127.0.0.1:7269/mcp`.
+- GPT-5 is in the free-tier eligible list (250k tokens/day shared quota).
+
+**Default prompt** asks for a structured spatial description: scene overview,
+spatial layout, terrain & geometry, objects, lighting, problems, and a
+one-line summary — engineered for a coding agent that needs to reason about
+a 3D game scene from text alone.
+
+**Cost:** one vision API call per invocation (~1-2k tokens for the
+description). The screenshot capture is free (local MCP call).
 
 ## S&Box API notes (from engine source, verified against this repo's usage)
 

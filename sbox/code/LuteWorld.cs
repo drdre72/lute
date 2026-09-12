@@ -393,8 +393,8 @@ public sealed class LuteWorld : Component
 		// LuteBuilderNpc — the build-and-test logic.
 		var npc = go.AddComponent<LuteBuilderNpc>();
 
-		// First-person camera for agent vision. Nested as a child at eye
-		// height so it follows Merlyn when he teleports/walks. Not the main
+		// Agent vision camera (over-the-shoulder third-person). Nested as a
+		// child so it follows Merlyn when he teleports/walks. Not the main
 		// camera (IsMainCamera=false) — the agent captures from it
 		// explicitly via MCP camera_screenshot with this camera's ID.
 		var camGo = Scene.CreateObject( true );
@@ -413,7 +413,7 @@ public sealed class LuteWorld : Component
 		cam.ZFar = 50000f;
 
 		Log.Info( $"Lute: BuilderNpc spawned at {go.WorldPosition} (parent={parent.Name})." );
-		Log.Info( $"Lute: BuilderNpc first-person camera 'Eyes' at local z=64, FOV=90." );
+		Log.Info( $"Lute: BuilderNpc 'Eyes' camera at local (0,15,74) — over-the-shoulder third-person, FOV=90." );
 	}
 
 	/// <summary>

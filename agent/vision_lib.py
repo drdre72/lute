@@ -370,40 +370,79 @@ def overlay_grid(img_bytes, spacing=100, color=(128, 128, 128, 80)):
 
 
 class VisionLib:
-    """Stateful wrapper that caches object lookups (Merlyn, Eyes, Player)."""
+    """Stateful wrapper that caches object lookups.
+
+    Supports any NPC by name (Merlyn, VillageBuilderNPC_0, etc.).
+    GUIDs are cached per-NPC and can be invalidated on play-mode restart
+    via invalidate().
+    """
 
     def __init__(self):
-        self._merlyn_id = None
-        self._eyes_go_id = None
-        self._cam_comp_id = None
-        self._npc_comp_id = None
+        # Per-NPC cache: name -> {go_id, eyes_go_id, cam_comp_id, npc_comp_id}
+        self._npc_cache = {}
         self._player_id = None
+
+    def invalidate(self, npc_name=None):
+        """Invalidate cached GUIDs. Call after a play-mode restart.
+
+        If npc_name is given, only that NPC's cache is cleared.
+        Otherwise all caches (including player) are cleared.
+        """
+        if npc_name:
+            self._npc_cache.pop(npc_name, None)
+        else:
+            self._npc_cache.clear()
+            self._player_id = None
 
     # --- Lookups (by name, never hardcoded GUIDs) ---
 
-    def _find_merlyn(self):
-        """Look up Merlyn NPC + Eyes camera + LuteBuilderNpc component."""
-        if self._merlyn_id:
-            return
-        r = call('find_game_objects', name='Merlyn')
+    def _find_npc(self, npc_name='Merlyn'):
+        """Look up an NPC + Eyes camera + LuteBuilderNpc component by name.
+
+        Raises RuntimeError if the NPC, Eyes child, or required components
+        are not found (e.g. play mode not running).
+        """
+        if npc_name in self._npc_cache:
+            return self._npc_cache[npc_name]
+
+        r = call('find_game_objects', name=npc_name)
         d = json.loads(r['result']['content'][0]['text'])
         if not d.get('Results'):
-            raise RuntimeError('Merlyn not found — is play mode running?')
-        self._merlyn_id = d['Results'][0]['Id']
-        go = call('get_game_object', id=self._merlyn_id)
+            raise RuntimeError(f'{npc_name} not found — is play mode running?')
+        go_id = d['Results'][0]['Id']
+        go = call('get_game_object', id=go_id)
         t = go['result']['content'][0]['text']
         eyes_match = re.search(r'"Id":"([a-f0-9-]+)","Name":"Eyes"', t)
         npc_match = re.search(r'"Type":"LuteBuilderNpc","Id":"([a-f0-9-]+)"', t)
         if not eyes_match or not npc_match:
-            raise RuntimeError('Merlyn missing Eyes camera or LuteBuilderNpc component')
-        self._eyes_go_id = eyes_match.group(1)
-        self._npc_comp_id = npc_match.group(1)
-        eyes_go = call('get_game_object', id=self._eyes_go_id)
+            raise RuntimeError(f'{npc_name} missing Eyes camera or LuteBuilderNpc component')
+        eyes_go_id = eyes_match.group(1)
+        npc_comp_id = npc_match.group(1)
+        eyes_go = call('get_game_object', id=eyes_go_id)
         t2 = eyes_go['result']['content'][0]['text']
         cam_match = re.search(r'"Type":"CameraComponent","Id":"([a-f0-9-]+)"', t2)
         if not cam_match:
-            raise RuntimeError('Eyes GameObject missing CameraComponent')
-        self._cam_comp_id = cam_match.group(1)
+            raise RuntimeError(f'{npc_name} Eyes GameObject missing CameraComponent')
+        cam_comp_id = cam_match.group(1)
+
+        cache = {
+            'go_id': go_id,
+            'eyes_go_id': eyes_go_id,
+            'cam_comp_id': cam_comp_id,
+            'npc_comp_id': npc_comp_id,
+        }
+        self._npc_cache[npc_name] = cache
+        return cache
+
+    # Backward-compatible Merlyn-specific methods (delegate to generic)
+    def _find_merlyn(self):
+        """Backward-compatible Merlyn lookup."""
+        self._merlyn_cache = self._find_npc('Merlyn')
+        # Expose as attributes for old code that reads them directly
+        self._merlyn_id = self._merlyn_cache['go_id']
+        self._eyes_go_id = self._merlyn_cache['eyes_go_id']
+        self._cam_comp_id = self._merlyn_cache['cam_comp_id']
+        self._npc_comp_id = self._merlyn_cache['npc_comp_id']
 
     def _find_player(self):
         """Look up the Player Controller by name."""
@@ -415,15 +454,15 @@ class VisionLib:
             raise RuntimeError('Player Controller not found')
         self._player_id = d['Results'][0]['Id']
 
-    # --- Merlyn (Eyes camera) ---
+    # --- NPC (Eyes camera) — generic, works with any NPC by name ---
 
-    def teleport_merlyn(self, pos, target=None, look_angles=None):
-        """Teleport Merlyn and point his Eyes camera.
+    def teleport_npc(self, pos, npc_name='Merlyn', target=None, look_angles=None):
+        """Teleport an NPC and point its Eyes camera.
 
         If target is given, sets AgentTarget for auto-facing.
         If look_angles is given, sets AgentLookAngles directly.
         """
-        self._find_merlyn()
+        cache = self._find_npc(npc_name)
         props = {'AgentTeleportTo': pos}
         if target:
             props['AgentTarget'] = target
@@ -431,18 +470,43 @@ class VisionLib:
             props['AgentLookAngles'] = look_angles
         else:
             props['AgentLookAngles'] = '0,0,0'
-        call('set_component', id=self._npc_comp_id, properties=props)
+        call('set_component', id=cache['npc_comp_id'], properties=props)
         time.sleep(1.5)
 
-    def capture_merlyn(self, width=1280, height=720):
-        """Capture a screenshot from Merlyn's Eyes camera."""
-        self._find_merlyn()
-        r = call('camera_screenshot', camera=self._cam_comp_id,
+    def capture_npc(self, npc_name='Merlyn', width=1280, height=720):
+        """Capture a screenshot from an NPC's Eyes camera."""
+        cache = self._find_npc(npc_name)
+        r = call('camera_screenshot', camera=cache['cam_comp_id'],
                  width=width, height=height, includeUi=False)
         for item in r['result'].get('content', []):
             if item.get('type') == 'image':
                 return base64.b64decode(item['data'])
         return None
+
+    def get_npc_pos(self, npc_name='Merlyn'):
+        """Return an NPC's current world position as (x, y, z) tuple."""
+        cache = self._find_npc(npc_name)
+        go = call('get_game_object', id=cache['go_id'])
+        text = go['result']['content'][0]['text']
+        pos = re.search(r'"WorldPosition"\s*:\s*"([0-9.,-]+)"', text)
+        if not pos:
+            return None
+        parts = [float(x) for x in pos.group(1).split(',')]
+        return tuple(parts)
+
+    # --- Backward-compatible Merlyn wrappers ---
+
+    def teleport_merlyn(self, pos, target=None, look_angles=None):
+        """Backward-compatible Merlyn teleport (delegates to teleport_npc)."""
+        self.teleport_npc(pos, npc_name='Merlyn', target=target, look_angles=look_angles)
+
+    def capture_merlyn(self, width=1280, height=720):
+        """Backward-compatible Merlyn capture (delegates to capture_npc)."""
+        return self.capture_npc(npc_name='Merlyn', width=width, height=height)
+
+    def get_merlyn_pos(self):
+        """Backward-compatible Merlyn position (delegates to get_npc_pos)."""
+        return self.get_npc_pos(npc_name='Merlyn')
 
     # --- Player (main camera) ---
 
@@ -570,16 +634,3 @@ class VisionLib:
             if stats2['dark_pct'] < stats['dark_pct']:
                 return img2  # flash improved the shot
         return img  # flash didn't help, return original
-
-    # --- Merlyn position polling (for drive_merlyn.py) ---
-
-    def get_merlyn_pos(self):
-        """Return Merlyn's current world position as (x, y, z) tuple."""
-        self._find_merlyn()
-        go = call('get_game_object', id=self._merlyn_id)
-        text = go['result']['content'][0]['text']
-        pos = re.search(r'"WorldPosition"\s*:\s*"([0-9.,-]+)"', text)
-        if not pos:
-            return None
-        parts = [float(x) for x in pos.group(1).split(',')]
-        return tuple(parts)
