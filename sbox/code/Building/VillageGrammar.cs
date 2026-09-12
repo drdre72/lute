@@ -362,7 +362,7 @@ namespace Lute.Building
 			// from the road edge. Two columns (east and west of main road).
 			float[] rowOffsets = { 15f * M, 35f * M, 55f * M, 75f * M, 100f * M };
 			int buildingsPerRow = 6;
-			float buildingSpacing = 20f * M;
+			float buildingSpacing = 25f * M;
 			int buildingIndex = 0;
 
 			foreach ( float rowOffset in rowOffsets )
@@ -377,6 +377,10 @@ namespace Lute.Building
 					float crossStreetMargin = 5f * M + 2f * M + 2f * M; // 9m total
 					if ( Math.Abs( y - (-half * 0.5f) ) < crossStreetMargin ) continue;
 					if ( Math.Abs( y - (half * 0.5f) ) < crossStreetMargin ) continue;
+					// Skip buildings near special building positions (Chapel, Smithy, Tavern)
+					float specialMargin = 10f * M; // 10m clearance from special buildings
+					if ( Math.Abs( y - (-40f * M) ) < specialMargin ) continue; // Chapel at y=-40m
+					if ( Math.Abs( y - (30f * M) ) < specialMargin ) continue; // Smithy/Tavern at y=30m
 
 					// Pick building type by weight
 					var (btype, _) = PickWeighted( buildingTypes );
@@ -407,6 +411,10 @@ namespace Lute.Building
 					float crossStreetMargin = 5f * M + 2f * M + 2f * M; // 9m total
 					if ( Math.Abs( y - (-half * 0.5f) ) < crossStreetMargin ) continue;
 					if ( Math.Abs( y - (half * 0.5f) ) < crossStreetMargin ) continue;
+					// Skip buildings near special building positions (Chapel, Smithy, Tavern)
+					float specialMargin = 10f * M;
+					if ( Math.Abs( y - (-40f * M) ) < specialMargin ) continue; // Chapel at y=-40m
+					if ( Math.Abs( y - (30f * M) ) < specialMargin ) continue; // Smithy/Tavern at y=30m
 
 					var (btype, _) = PickWeighted( buildingTypes );
 					float wealth = btype == "cottage" ? 1.0f + (float)(_rng.NextDouble() * 0.5) : 1.5f;
