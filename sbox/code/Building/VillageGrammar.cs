@@ -372,6 +372,11 @@ namespace Lute.Building
 				{
 					float y = -half + inset + buildingSpacing * (i + 1);
 					if ( Math.Abs( y ) < 15f * M ) continue; // skip center (well/market)
+					// Skip buildings on cross-street Y lines (roads at ±half*0.5)
+					float crossStreetRoadHalf = 5f * M; // 10m road width / 2
+					float crossStreetMargin = crossStreetRoadHalf + 2f * M; // +2m clearance
+					if ( Math.Abs( y - (-half * 0.5f) ) < crossStreetMargin ) continue;
+					if ( Math.Abs( y - (half * 0.5f) ) < crossStreetMargin ) continue;
 
 					// Pick building type by weight
 					var (btype, _) = PickWeighted( buildingTypes );
@@ -398,6 +403,11 @@ namespace Lute.Building
 				{
 					float y = -half + inset + buildingSpacing * (i + 1);
 					if ( Math.Abs( y ) < 15f * M ) continue;
+					// Skip buildings on cross-street Y lines (roads at ±half*0.5)
+					float crossStreetRoadHalf = 5f * M;
+					float crossStreetMargin = crossStreetRoadHalf + 2f * M;
+					if ( Math.Abs( y - (-half * 0.5f) ) < crossStreetMargin ) continue;
+					if ( Math.Abs( y - (half * 0.5f) ) < crossStreetMargin ) continue;
 
 					var (btype, _) = PickWeighted( buildingTypes );
 					float wealth = btype == "cottage" ? 1.0f + (float)(_rng.NextDouble() * 0.5) : 1.5f;

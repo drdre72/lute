@@ -26,7 +26,7 @@ namespace Lute.Building
 		const float M = 39.37f;
 
 		/// <summary> Seconds between placed pieces. 1s = ~73-minute pace. </summary>
-		[Property] public float BuildInterval { get; set; } = 1.0f;
+		[Property] public float BuildInterval { get; set; } = 0.1f;
 
 		/// <summary> Seconds between save checks. </summary>
 		[Property] public float SaveInterval { get; set; } = 60f; // 1 minute
@@ -119,11 +119,11 @@ namespace Lute.Building
 			_cts = new CancellationTokenSource();
 
 			// Force build speed override — scene file may have stale value
-			// from a previous run. 1s/piece = ~73 minute build.
+			// from a previous run. 0.1s/piece = ~7 minute build.
 			if ( BuildInterval > 2.0f )
 			{
-				Log.Info( $"Lute: VillageBuilder overriding BuildInterval {BuildInterval}s → 1.0s (fast mode)" );
-				BuildInterval = 1.0f;
+				Log.Info( $"Lute: VillageBuilder overriding BuildInterval {BuildInterval}s → 0.1s (fast mode)" );
+				BuildInterval = 0.1f;
 			}
 			if ( SaveInterval > 120f )
 			{

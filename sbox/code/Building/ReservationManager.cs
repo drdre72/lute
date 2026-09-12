@@ -270,23 +270,52 @@ namespace Lute.Building
 			{
 				if ( o.TaskId == taskId ) continue;
 
-				// Determine tolerance: if both tasks are structurally
-				// join-compatible, use the larger JoinTolerance to allow
-				// small overlaps at corners/intersections.
-				float tol = TouchTolerance;
-				if ( requestTaskType != null && !string.IsNullOrEmpty( o.Source ) )
+				// Determine if this is a structural join (corner/intersection)
+				// between compatible task types. If so, allow small overlaps
+				// using a per-axis join tolerance rather than a uniform shrink.
+				bool isJoin = false;
+				if ( requestTaskType != null )
 				{
-					// Check if the blocker's task type is join-compatible
 					var blockerTask = o.TaskId != null ? ConstructionDirector.GetTask( o.TaskId ) : null;
 					var blockerType = blockerTask?.BuildTask?.TaskType;
-					if ( IsJoinCompatible( requestTaskType, blockerType ) )
-						tol = JoinTolerance;
+					isJoin = IsJoinCompatible( requestTaskType, blockerType );
 				}
 
-				if ( AabbOverlapsVolume( bounds, o.Bounds, tol ) )
+				if ( isJoin )
+				{
+					// For structural joins, allow the overlap if the intersection
+					// is small in at least one horizontal axis (the joining axis).
+					// This handles wall corners (thin overlap in thickness direction)
+					// and road intersections (thin overlap along travel direction).
+					if ( AabbJoinOverlap( bounds, o.Bounds ) )
+						continue; // allowed join — skip this blocker
+				}
+
+				if ( AabbOverlapsVolume( bounds, o.Bounds, TouchTolerance ) )
 					return o;
 			}
 			return null;
+		}
+
+		/// <summary>
+		/// Check if two AABBs overlap with a small enough intersection to be
+		/// a structural join (corner/intersection). The overlap is allowed if
+			/// at least one horizontal axis intersection is below JoinTolerance.
+		/// Z (height) overlap is always allowed for joins.
+		/// </summary>
+		static bool AabbJoinOverlap( BBox a, BBox b )
+		{
+			// Must overlap at all (with touch tolerance)
+			if ( !AabbOverlapsVolume( a, b, TouchTolerance ) )
+				return false;
+
+			// Compute intersection size on each axis
+			float ixX = Math.Min( a.Maxs.x, b.Maxs.x ) - Math.Max( a.Mins.x, b.Mins.x );
+			float ixY = Math.Min( a.Maxs.y, b.Maxs.y ) - Math.Max( a.Mins.y, b.Mins.y );
+
+			// Allow if at least one horizontal axis intersection is within
+			// join tolerance (the pieces are just touching at a corner/junction)
+			return ixX <= JoinTolerance || ixY <= JoinTolerance;
 		}
 
 		static bool TryGetTaskClaim( string taskId, out SpatialClaim claim )
