@@ -71,6 +71,13 @@ namespace Lute.Building
 	/// </summary>
 	[Property] public string RequestFinalizeWall { get; set; } = "";
 
+	/// <summary>
+	/// Set this to a wall task name (e.g. "Wall_N_0") to request deconstruction
+	/// of a finalized segment from MCP/the editor. The builder will call
+	/// DeconstructWall on the next OnUpdate. Cleared after processing.
+	/// </summary>
+	[Property] public string RequestDeconstructWall { get; set; } = "";
+
 		/// <summary> Seconds between save checks. </summary>
 		[Property] public float SaveInterval { get; set; } = 60f; // 1 minute
 
@@ -336,7 +343,24 @@ namespace Lute.Building
 					Log.Warning( $"Lute: MCP requested FinalizeWall('{taskName}') but task not found." );
 				}
 			}
+
+		// Check for MCP/editor-requested wall deconstruction
+		if ( !string.IsNullOrEmpty( RequestDeconstructWall ) )
+		{
+			var taskName = RequestDeconstructWall;
+			RequestDeconstructWall = ""; // Clear before processing to avoid loops
+			var task = Tasks?.Find( t => t.Name == taskName );
+			if ( task != null )
+			{
+				Log.Info( $"Lute: MCP requested DeconstructWall('{taskName}')." );
+				DeconstructWall( task );
+			}
+			else
+			{
+				Log.Warning( $"Lute: MCP requested DeconstructWall('{taskName}') but task not found." );
+			}
 		}
+	}
 
 		/// <summary> Cancel the build (e.g. NPC reassigned or destroyed). </summary>
 		public void CancelBuild()
@@ -792,11 +816,13 @@ namespace Lute.Building
 				else
 				{
 					task.WallState = WallSegmentState.BrickLaying;
+					Log.Warning( $"Lute: Wall segment '{task.Name}' NOT eligible: coverage={query.Coverage:F2} foundation={query.FoundationSupported} courses={query.CoursesContinuous} noIllegalGap={query.NoIllegalGap} noPending={query.NoPendingStructuralPieces} placed={task.PiecesPlaced}/{totalBricks} placedBricks={task.PlacedBricks.Count}." );
 				}
 			}
 			else
 			{
 				task.WallState = WallSegmentState.BrickLaying;
+				Log.Warning( $"Lute: Wall segment '{task.Name}' pieces incomplete: placed={task.PiecesPlaced} total={totalBricks}." );
 			}
 
 			// Segment-level collider: one BoxCollider sized to the wall's
@@ -830,9 +856,22 @@ namespace Lute.Building
 		// Per-row slot count: odd rows have one extra (the right half).
 		int SlotsForRow( int row ) => (row % 2 == 1) ? modulesX + 1 : modulesX;
 
+		// SlotFilled: a slot at (col, wythe=0, row) is filled if it has a
+		// Stretcher (full brick) OR a HalfStretcher (half brick at odd-row
+		// edges). Odd rows: col 0 and col modulesX are HalfStretcher; cols
+		// 1..modulesX-1 are Stretcher. Even rows: all cols are Stretcher.
+		bool SlotFilled( int col, int row )
+		{
+			if ( task.PlacedBricks.Contains( BrickSlot.Stretcher( col, 0, row ) ) )
+				return true;
+			if ( task.PlacedBricks.Contains( BrickSlot.HalfStretcher( col, 0, row ) ) )
+				return true;
+			return false;
+		}
+
 		// Foundation: row 0 is even, has modulesX slots.
 		int foundationCount = 0;
-		for ( int col = 0; col < modulesX; col++ ) { if ( task.PlacedBricks.Contains( BrickSlot.Stretcher( col, 0, 0 ) ) ) foundationCount++; }
+		for ( int col = 0; col < modulesX; col++ ) { if ( SlotFilled( col, 0 ) ) foundationCount++; }
 		q.FoundationSupported = foundationCount == modulesX;
 
 		q.CoursesContinuous = true;
@@ -842,9 +881,9 @@ namespace Lute.Building
 			bool foundGap = false;
 			for ( int col = 0; col < slots; col++ )
 			{
-				if ( !task.PlacedBricks.Contains( BrickSlot.Stretcher( col, 0, row ) ) && !foundGap )
+				if ( !SlotFilled( col, row ) && !foundGap )
 				{
-					for ( int c2 = col + 1; c2 < slots; c2++ ) { if ( task.PlacedBricks.Contains( BrickSlot.Stretcher( c2, 0, row ) ) ) { foundGap = true; break; } }
+					for ( int c2 = col + 1; c2 < slots; c2++ ) { if ( SlotFilled( c2, row ) ) { foundGap = true; break; } }
 				}
 			}
 			if ( foundGap ) { q.CoursesContinuous = false; break; }
@@ -853,7 +892,7 @@ namespace Lute.Building
 		// Top course: check all slots for the top row.
 		int topSlots = SlotsForRow( numRows - 1 );
 		int topCount = 0;
-		for ( int col = 0; col < topSlots; col++ ) { if ( task.PlacedBricks.Contains( BrickSlot.Stretcher( col, 0, numRows - 1 ) ) ) topCount++; }
+		for ( int col = 0; col < topSlots; col++ ) { if ( SlotFilled( col, numRows - 1 ) ) topCount++; }
 		q.TopCourseComplete = topCount == topSlots;
 
 		// Corner bonding: every row must have its first and last slot filled.
@@ -861,7 +900,7 @@ namespace Lute.Building
 		for ( int row = 0; row < numRows; row++ )
 		{
 			int slots = SlotsForRow( row );
-			if ( !task.PlacedBricks.Contains( BrickSlot.Stretcher( 0, 0, row ) ) && !task.PlacedBricks.Contains( BrickSlot.HalfStretcher( 0, 0, row ) ) || !task.PlacedBricks.Contains( BrickSlot.Stretcher( slots - 1, 0, row ) ) && !task.PlacedBricks.Contains( BrickSlot.HalfStretcher( slots - 1, 0, row ) ) ) { q.RequiredCornersBonded = false; break; }
+			if ( !SlotFilled( 0, row ) || !SlotFilled( slots - 1, row ) ) { q.RequiredCornersBonded = false; break; }
 		}
 
 		q.NoIllegalGap = q.CoursesContinuous;
@@ -872,8 +911,8 @@ namespace Lute.Building
 				bool rowHas = false, prevHas = false;
 				int slots = SlotsForRow( row );
 				int prevSlots = SlotsForRow( row - 1 );
-				for ( int col = 0; col < slots; col++ ) { if ( task.PlacedBricks.Contains( BrickSlot.Stretcher( col, 0, row ) ) ) rowHas = true; }
-				for ( int col = 0; col < prevSlots; col++ ) { if ( task.PlacedBricks.Contains( BrickSlot.Stretcher( col, 0, row - 1 ) ) ) prevHas = true; }
+				for ( int col = 0; col < slots; col++ ) { if ( SlotFilled( col, row ) ) rowHas = true; }
+				for ( int col = 0; col < prevSlots; col++ ) { if ( SlotFilled( col, row - 1 ) ) prevHas = true; }
 				if ( rowHas && !prevHas ) { q.NoIllegalGap = false; break; }
 			}
 		}
@@ -882,81 +921,38 @@ namespace Lute.Building
 	}
 
 		public bool FinalizeWall( VillageBuildTask task )
-		{
-			if ( task.TaskType != "wall" ) return false;
-			if ( task.WallState != WallSegmentState.FinalizationEligible ) { Log.Warning( $"Lute: FinalizeWall('{task.Name}') rejected - not eligible." ); return false; }
-			float segLen = WallSegmentLength;
-			float wallH = WallHeight;
-			float wallDepth = WallThickness;
-			float brickLen = BrickBodySize.x;
-			float brickDepth = BrickBodySize.y;
-			float brickH = BrickBodySize.z;
-			int modulesX = (int)MathF.Round( segLen / BrickModuleX );
-			int numRows = (int)MathF.Round( wallH / BrickModuleZ );
-			int numWythes = (int)MathF.Round( wallDepth / BrickModuleY );
+	{
+		if ( task.TaskType != "wall" ) return false;
+		if ( task.WallState != WallSegmentState.FinalizationEligible ) { Log.Warning( $"Lute: FinalizeWall('{task.Name}') rejected - not eligible." ); return false; }
 
-			var vertices = new List<Vertex>(); var indices = new List<int>();
-			for ( int wythe = 0; wythe < numWythes; wythe++ )
-			{
-				float yCenter = -wallDepth * 0.5f + BrickModuleY * 0.5f + wythe * BrickModuleY;
-				for ( int row = 0; row < numRows; row++ )
-				{
-					float z = row * BrickModuleZ;
-					bool isOdd = (row % 2 == 1);
-					float halfLen = BrickModuleX * 0.5f;
-					if ( isOdd )
-					{
-						// Left half
-						AddBrickToMesh( vertices, indices, -segLen * 0.5f + halfLen * 0.5f, yCenter, z, brickLen * 0.5f, brickDepth, brickH );
-						// (modulesX - 1) full - shifted by half module for running bond
-						for ( int col = 1; col < modulesX; col++ )
-						{
-							float x = -segLen * 0.5f + col * BrickModuleX;
-							AddBrickToMesh( vertices, indices, x, yCenter, z, brickLen, brickDepth, brickH );
-						}
-						// Right half
-						AddBrickToMesh( vertices, indices, segLen * 0.5f - halfLen * 0.5f, yCenter, z, brickLen * 0.5f, brickDepth, brickH );
-					}
-					else
-					{
-						for ( int col = 0; col < modulesX; col++ )
-						{
-							float x = -segLen * 0.5f + BrickModuleX * 0.5f + col * BrickModuleX;
-							AddBrickToMesh( vertices, indices, x, yCenter, z, brickLen, brickDepth, brickH );
-						}
-					}
-				}
-			}
+		// Visually lossless finalization: keep the individual brick_single_04
+		// GameObjects as-is. They are already optimized cloud assets with
+		// weathered 3D geometry, normal maps, and proper materials.
+		// Finalization only adds a segment-level collider and updates state.
+		// Do NOT collapse to a procedural mesh — that would downgrade the
+		// visual from brick_single_04 to flat boxes with castle_wall.vmat.
 
-			var mesh = new Mesh(); mesh.Material = Material.Load( WallMaterial );
-#pragma warning disable CS0618
-			mesh.CreateVertexBuffer( vertices.Count, Vertex.Layout, vertices );
-#pragma warning restore CS0618
-			mesh.CreateIndexBuffer( indices.Count, indices );
-			mesh.Bounds = new BBox( new Vector3( -segLen * 0.5f, -wallDepth * 0.5f, 0 ), new Vector3( segLen * 0.5f, wallDepth * 0.5f, wallH ) );
-			var model = Model.Builder.AddMesh( mesh ).Create();
-			var wallGo = Scene.CreateObject( false ); wallGo.Name = $"Village_{task.Name}_finalized"; wallGo.SetParent( _villageRoot );
-			// Mesh is already built in world-sized local coordinates (bounds span
-			// -segLen/2..+segLen/2, -wallDepth/2..+wallDepth/2, 0..wallH). Position
-			// the GameObject at the task origin (bottom-center) and leave scale
-			// at 1 - do NOT multiply the already-world-sized mesh by segLen again.
-			wallGo.WorldPosition = task.Position;
-			if ( task.Rotation != 0 ) wallGo.WorldRotation = Rotation.FromYaw( task.Rotation );
-			wallGo.WorldScale = Vector3.One;
-			var renderer = wallGo.AddComponent<ModelRenderer>(); renderer.Model = model;
-			var collider = wallGo.AddComponent<BoxCollider>();
-			collider.Scale = new Vector3( BoxModelNativeSize, BoxModelNativeSize, BoxModelNativeSize );
-			wallGo.Enabled = true; task.FinalizedMeshGo = wallGo;
-			int destroyed = 0;
-			foreach ( var child in _villageRoot.Children )
-			{
-				if ( child.Name != null && child.Name.StartsWith( $"Village_{task.Name}_" ) && !child.Name.EndsWith( "_collider" ) && !child.Name.EndsWith( "_finalized" ) ) { child.Destroy(); destroyed++; }
-			}
-			foreach ( var child in _villageRoot.Children ) { if ( child.Name == $"Village_{task.Name}_collider" ) { child.Destroy(); break; } }
-			task.WallState = WallSegmentState.Finalized;
-			Log.Info( $"Lute: FinalizeWall('{task.Name}') - collapsed {destroyed} bricks to 1 mesh. State=Finalized." );
-			return true;
-		}
+		float segLen = WallSegmentLength;
+		float wallH = WallHeight;
+		float wallDepth = WallThickness;
+
+		// Add a single segment-level BoxCollider for physics.
+		var colliderGo = Scene.CreateObject( false );
+		colliderGo.Name = $"Village_{task.Name}_collider";
+		colliderGo.SetParent( _villageRoot );
+		colliderGo.WorldPosition = task.Position + new Vector3( 0, 0, wallH * 0.5f );
+		if ( task.Rotation != 0 ) colliderGo.WorldRotation = Rotation.FromYaw( task.Rotation );
+		var collider = colliderGo.AddComponent<BoxCollider>();
+		collider.Scale = new Vector3( segLen, wallDepth, wallH );
+		colliderGo.Enabled = true;
+		task.FinalizedMeshGo = colliderGo;
+
+		// Do NOT destroy the individual brick GameObjects — they are the
+		// visual representation and remain as-is after finalization.
+		task.WallState = WallSegmentState.Finalized;
+		Log.Info( $"Lute: FinalizeWall('{task.Name}') - visual lossless (kept brick_single_04 GameObjects, added segment collider). State=Finalized." );
+		return true;
+	}
 
 		/// <summary>
 		/// Add one brick box to the finalized wall mesh. Uses per-brick 0-1 UVs

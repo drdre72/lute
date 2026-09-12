@@ -604,6 +604,95 @@ Requires the `Documents\bin` junction described above. Expect one harmless
 warning (`MSB9008 ... Base Library.csproj does not exist` — a stale
 `ProjectReference` from the project template; not used by this repo's code).
 
+## Editor reload workflow (sync + restart play mode)
+
+After editing `.cs` or `.scene` files in the repo, the **live S&Box editor
+copy** at `C:\Users\Shadow\Documents\sbox-public-clean\game\addons\lute\`
+must be synced and the editor must reload before runtime reflects the
+changes. The editor does not watch the repo folder — it only sees the
+addon copy. There is no in-editor "reload scene" MCP tool; the reliable
+cycle is **sync files → stop play mode → wait for recompile → start play
+mode**. Stopping and starting play mode forces the editor to re-import
+the scene and re-run `LuteWorld.Build()`, which is the only way new scene
+JSON (e.g. added cameras) or new code actually takes effect at runtime.
+
+### 1. Sync changed files to the live addon copy
+
+```powershell
+# C# gameplay code
+Copy-Item sbox/code/Building/*.cs `
+  C:\Users\Shadow\Documents\sbox-public-clean\game\addons\lute\code\Building/ `
+  -Force
+
+# Scene files
+Copy-Item sbox/Assets/scenes/lute.scene `
+  C:\Users\Shadow\Documents\sbox-public-clean\game\addons\lute\Assets\scenes/ `
+  -Force
+```
+
+Keep both directions in sync if you ever edit files in the addon copy
+directly (the addon mirror is an accidental backup — see PROGRESS_LOG
+2026-09-06).
+
+### 2. Restart play mode via MCP
+
+Use one of the existing restart scripts (do not reinvent this each
+session — the order and timing matter):
+
+- `agent/restart_play.py` — canonical, uses `urllib` (no deps). Stops
+  play, waits 3s, checks `editor_status` (`IsCompiling` /
+  `LastCompileSucceeded` / `LastCompileErrors`), starts play, waits 6s,
+  then reads console and searches for expected objects.
+- `_restart_play.py` — repo-root variant using `requests`, waits 4s for
+  recompile and 10s after `play_start` for builders to warp in.
+- `_test_finalized.py` — full cycle: stop → start → speed up builders
+  via `set_component` (`BuildInterval=0.01`) → wait for
+  `FinalizationEligible` log → trigger `RequestFinalizeWall` →
+  screenshot. Use this as the template for any "build, then verify a
+  runtime consequence" workflow.
+
+The minimum reliable sequence is:
+
+```python
+mcp('play_stop')      # exit play mode (also drops runtime-spawned objects)
+time.sleep(3)         # let the editor settle / finish recompile
+mcp('editor_status')  # check IsCompiling=false, LastCompileSucceeded=true
+mcp('play_start')     # re-enter play mode — re-imports scene, re-runs Build()
+time.sleep(8)         # let LuteWorld.Build() and builder warps complete
+```
+
+MCP endpoint: `http://127.0.0.1:7269/mcp` (JSON-RPC `tools/call`).
+
+### 3. Why a plain "sync + restart" sometimes isn't enough
+
+- The editor caches the scene in memory between play sessions. If you
+  changed **scene JSON** (cameras, static objects) rather than C# code,
+  `play_stop`/`play_start` re-imports the scene file, so it does pick up
+  scene edits — but only if the addon copy was updated *before*
+  `play_stop`. Sync first, always.
+- If the editor was already running with the old scene loaded, the
+  first `play_stop`/`play_start` cycle after a scene edit is the one
+  that imports it. If runtime still shows stale state, run the cycle a
+  second time — the first cycle can re-import while the second
+  actually runs against the imported scene.
+- `editor_status` reports `IsCompiling` — wait for it to be `false`
+  before `play_start`, or the play session boots against a stale
+  assembly and your new code silently doesn't run. Check
+  `LastCompileErrors` is 0.
+- Runtime-spawned objects (anything created by `LuteWorld.Build()` or
+  the village builders) only exist while play mode is running. Always
+  `play_start` before `find_game_objects` for those, and re-query IDs
+  after every restart — old IDs are invalid.
+
+### 4. Verifying the reload took effect
+
+- `read_console` with a `since` cursor — filter for `Lute:` / builder
+  log lines and compare timestamps to confirm the new code ran.
+- `find_game_objects` for the specific objects you expect (e.g.
+  `2nd Camera`, `Edge Camera`, `Village_Wall_*`).
+- `editor_camera_screenshot` + `agent/gpt_eyes.py` for visual
+  confirmation that what's on screen matches the change.
+
 ## Conventions
 
 - Engine: S&Box (Source 2), C# .NET 10, `Sandbox` namespace,
