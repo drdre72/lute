@@ -127,11 +127,12 @@ namespace Lute.Building
 				Log.Info( $"Lute: VillageBuilderController '{_npcId}' registered with ConversationManager." );
 			}
 
-			// Register with the ConstructionDirector for authoritative task scheduling
+			// Register with the ConstructionDirector for authoritative task scheduling.
+			// Use the VillageBuilder's BuilderId (0,1,2,...) - not a hash - so the
+			// controller and the builder share the same director identity.
 			if ( UseDirector )
 			{
-				if ( BuilderId < 0 )
-					BuilderId = _npcId.GetHashCode() & 0x7FFFFFFF;
+				BuilderId = Builder?.BuilderId ?? 0;
 				ConstructionDirector.RegisterBuilder( BuilderId, _npcId );
 				_registeredWithDirector = true;
 				Log.Info( $"Lute: VillageBuilderController '{_npcId}' registered with ConstructionDirector as builder {BuilderId}." );
@@ -341,16 +342,17 @@ namespace Lute.Building
 
 		void HandleWalking()
 		{
-			if ( Builder.CurrentTask is null )
+			if ( Builder.CurrentTask is null || Builder.CurrentTask.Status == 2 )
 			{
-				// No current task — check if village is complete
+				// No current task (or current task is complete) — check if
+				// village is complete, otherwise wait for the builder to
+				// assign the next task.
 				if ( Builder.IsComplete )
 				{
 					State = NpcState.VillageComplete;
 					Log.Info( "Lute: VillageBuilderController — village complete!" );
 					return;
 				}
-				// Wait for the builder to assign a task
 				Controller.WishVelocity = Vector3.Zero;
 				return;
 			}
@@ -374,6 +376,14 @@ namespace Lute.Building
 					// other NPC will release when its task completes.
 					Controller.WishVelocity = Vector3.Zero;
 					return;
+				}
+
+				// Notify the ConstructionDirector that we've arrived and are
+				// ready to build. The executor (VillageBuilder) is waiting for
+				// this authorization before placing any geometry.
+				if ( UseDirector && !string.IsNullOrEmpty( Builder.CurrentDirectedTaskId ) )
+				{
+					ConstructionDirector.AuthorizeExecution( Builder.CurrentDirectedTaskId, _npcId );
 				}
 
 				State = NpcState.Building;
@@ -453,9 +463,24 @@ namespace Lute.Building
 		/// </summary>
 		bool TryClaimSite( Vector3 site )
 		{
-			// Director path: submit a Claim transaction
+			// Director path: if the VillageBuilder already claimed this task
+			// through the ConstructionDirector (CurrentDirectedTaskId is set),
+			// the reservation is already held - just validate ownership and
+			// skip the redundant claim transaction.
 			if ( UseDirector && _registeredWithDirector && Builder?.CurrentTask is not null )
 			{
+				if ( !string.IsNullOrEmpty( Builder.CurrentDirectedTaskId ) )
+				{
+					// Task already claimed by the executor - validate our ownership.
+					var existing = ConstructionDirector.GetTask( Builder.CurrentDirectedTaskId );
+				if ( existing != null && existing.AssignedBuilder == Builder.BuilderId )
+					{
+						_activeClaimId = existing.ReservationId ?? Builder.CurrentDirectedTaskId;
+						return true;
+					}
+				}
+
+				// No existing director claim - submit a Claim transaction.
 				var taskName = Builder.CurrentTask.Name;
 				var req = new BlackboardRequest
 				{

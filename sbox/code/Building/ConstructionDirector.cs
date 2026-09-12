@@ -1,11 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Lute.NLP;
 
 namespace Lute.Building
 {
-	using Lute.NLP;
-
 	public enum TaskStatus
 	{
 		Pending = 0,
@@ -14,6 +13,13 @@ namespace Lute.Building
 		Blocked = 3,
 		Failed = 4,
 		Cancelled = 5,
+		/// <summary>
+		/// Task has been claimed and reserved, but the builder NPC has not
+		/// yet arrived at the site. The executor must wait for
+		/// <see cref="ConstructionDirector.AuthorizeExecution"/> before
+		/// placing geometry.
+		/// </summary>
+		PendingExecution = 6,
 	}
 
 	/// <summary>
@@ -68,6 +74,7 @@ namespace Lute.Building
 		public static void Reset()
 		{
 			ReservationManager.Reset();
+			SpatialBlackboard.Clear();
 			_tasks.Clear();
 			_builders.Clear();
 			_dependents.Clear();
@@ -106,7 +113,7 @@ namespace Lute.Building
 			state.Active = false;
 			if ( !string.IsNullOrEmpty( state.CurrentTaskId ) &&
 				_tasks.TryGetValue( state.CurrentTaskId, out var task ) &&
-				task.Status == TaskStatus.InProgress )
+				( task.Status == TaskStatus.InProgress || task.Status == TaskStatus.PendingExecution ) )
 			{
 				ReservationManager.Release( task );
 				task.Status = TaskStatus.Pending;
@@ -200,12 +207,20 @@ namespace Lute.Building
 				_tasks.Values.Where( t => t.AssignedBuilder == b.BuilderId &&
 					t.Status != TaskStatus.Complete && t.Status != TaskStatus.Cancelled && t.Status != TaskStatus.Failed )
 				.Sum( t => t.EstimatedPieces ) );
+			// PendingExecution tasks are already claimed and walking � exclude from rebalancing.
+			var pendingExec = _tasks.Values
+				.Where( t => t.Status == TaskStatus.PendingExecution )
+				.Select( t => t.Id )
+				.ToHashSet();
 
 			var assignable = _tasks.Values
 				.Where( t => t.Status == TaskStatus.Pending && t.AssignedBuilder == -1 )
 				.OrderByDescending( t => t.EstimatedPieces )
 				.ThenBy( t => t.Id )
 				.ToList();
+			// PendingExecution tasks keep their assignment � don't reassign them.
+			foreach ( var t in _tasks.Values.Where( t => t.Status == TaskStatus.PendingExecution ) )
+				pendingExec.Add( t.Id );
 
 			foreach ( var t in assignable )
 			{
@@ -227,7 +242,7 @@ namespace Lute.Building
 			if ( !string.IsNullOrEmpty( state.CurrentTaskId ) )
 			{
 				var current = GetTask( state.CurrentTaskId );
-				if ( current?.Status == TaskStatus.InProgress )
+				if ( current?.Status == TaskStatus.InProgress || current?.Status == TaskStatus.PendingExecution )
 					return current;
 				state.CurrentTaskId = null;
 			}
@@ -251,13 +266,46 @@ namespace Lute.Building
 			}
 
 			task.ReservationId = reservation.ReservationId;
-			task.Status = TaskStatus.InProgress;
+			task.Status = TaskStatus.PendingExecution;
 			task.AssignedBuilder = builderId;
 			state.CurrentTaskId = task.Id;
 
 			ConstructionEventBus.Fire( ConstructionEventType.TaskStarted,
 				taskId: task.Id, actor: npcName );
 			return task;
+		}
+
+		/// <summary>
+		/// Called by the VillageBuilderController when its NPC has arrived at the
+		/// build site. Transitions a PendingExecution task to InProgress so the
+		/// executor (VillageBuilder) may begin placing geometry.
+		/// </summary>
+		public static bool AuthorizeExecution( string taskId, string npcName )
+		{
+			if ( !_tasks.TryGetValue( taskId, out var task ) )
+				return false;
+			if ( task.Status != TaskStatus.PendingExecution )
+				return false;
+
+			int builderId = FindBuilderByNpc( npcName );
+			if ( task.AssignedBuilder != builderId )
+				return false;
+
+			task.Status = TaskStatus.InProgress;
+			Log.Info( $"Lute: ConstructionDirector authorized execution of {taskId} for {npcName}." );
+			return true;
+		}
+
+		/// <summary>
+		/// Check whether a task is ready for the executor to start building.
+		/// The executor should poll this after claiming a task and wait until
+		/// it returns true before placing any geometry.
+		/// </summary>
+		public static bool IsExecutionAuthorized( string taskId )
+		{
+			if ( !_tasks.TryGetValue( taskId, out var task ) )
+				return false;
+			return task.Status == TaskStatus.InProgress;
 		}
 
 		static DirectedTask StealTask( int builderId )
@@ -360,13 +408,14 @@ namespace Lute.Building
 		public static string StatusSummary()
 		{
 			int pending = _tasks.Values.Count( t => t.Status == TaskStatus.Pending );
+			int pendingExec = _tasks.Values.Count( t => t.Status == TaskStatus.PendingExecution );
 			int inProg = _tasks.Values.Count( t => t.Status == TaskStatus.InProgress );
 			int done = _tasks.Values.Count( t => t.Status == TaskStatus.Complete );
 			int blocked = _tasks.Values.Count( t => t.Status == TaskStatus.Blocked );
 			int failed = _tasks.Values.Count( t => t.Status == TaskStatus.Failed );
 			int active = _builders.Values.Count( b => b.Active );
 
-			var summary = $"Director: {done}/{_tasks.Count} done, {inProg} in progress, {pending} pending, {blocked} blocked, {failed} failed. Builders: {active}/{_builders.Count} active.";
+			var summary = $"Director: {done}/{_tasks.Count} done, {inProg} building, {pendingExec} walking, {pending} pending, {blocked} blocked, {failed} failed. Builders: {active}/{_builders.Count} active.";
 			foreach ( var b in _builders.Values.OrderBy( b => b.BuilderId ) )
 			{
 				var t = b.CurrentTaskId != null ? GetTask( b.CurrentTaskId ) : null;
@@ -447,7 +496,7 @@ namespace Lute.Building
 			if ( task == null ) return BlackboardResult.Fail( $"task not found or ambiguous: {req.Key}" );
 
 			// Claim is idempotent for the builder that already owns the director task.
-			if ( task.Status == TaskStatus.InProgress )
+			if ( task.Status == TaskStatus.InProgress || task.Status == TaskStatus.PendingExecution )
 			{
 				var ownership = ReservationManager.ValidateOwnership( task, req.Actor );
 				return ownership.Success
@@ -466,7 +515,7 @@ namespace Lute.Building
 			if ( !reservation.Success )
 				return BlackboardResult.Fail( $"{reservation.Reason}{(reservation.BlockedBy != null ? $" by {reservation.BlockedBy}" : "")}" );
 
-			task.Status = TaskStatus.InProgress;
+			task.Status = TaskStatus.PendingExecution;
 			task.ReservationId = reservation.ReservationId;
 			int builderId = FindBuilderByNpc( req.Actor );
 			if ( builderId >= 0 )

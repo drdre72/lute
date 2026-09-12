@@ -182,6 +182,13 @@ namespace Lute.Building
 			if ( TotalBuilders > 1 )
 				PartitionTasks();
 
+			// Reset the ConstructionDirector's static state on the first builder
+			// to start. Static fields persist across play sessions, so stale
+			// reservations and task assignments from a previous session would
+			// otherwise block the new run.
+			if ( BuilderId == 0 )
+				ConstructionDirector.Reset();
+
 			// Register this builder and its tasks with the
 			// ConstructionDirector so scheduling, reservations, and
 			// dependency tracking go through one authoritative system.
@@ -217,9 +224,13 @@ namespace Lute.Building
 				foreach ( var t in Tasks )
 					ConstructionDirector.RegisterTask( t );
 
-				ConstructionDirector.AssignTasks();
 				Log.Info( $"Lute: VillageBuilder[{BuilderId}/{TotalBuilders}] registered {Tasks.Count} tasks with ConstructionDirector." );
 			}
+
+			// Rebalance task assignments every time a builder registers,
+			// so tasks are distributed across all active builders rather
+			// than only the first one to register.
+			ConstructionDirector.AssignTasks();
 		}
 
 		/// <summary>
@@ -342,6 +353,14 @@ namespace Lute.Building
 					{
 						directed = ConstructionDirector.ClaimNextTask( BuilderId, npcName );
 					}
+					else if ( TotalBuilders > 1 && !usedDirector )
+					{
+						// Multi-builder mode: builder 0 registers the shared task
+						// list. If we haven't seen tasks yet, wait briefly for
+						// registration before falling back to legacy mode.
+						await GameTask.DelaySeconds( 0.5f );
+						continue;
+					}
 
 					if ( directed != null )
 					{
@@ -352,9 +371,18 @@ namespace Lute.Building
 						CurrentTask = task;
 						CurrentTaskIndex = idx;
 						CurrentDirectedTaskId = directed.Id;
-						task.Status = 1; // in progress
+						// Director set status to PendingExecution — wait for the NPC
+						// controller to arrive at the site and call AuthorizeExecution
+						// before we start placing geometry.
+						Log.Info( $"Lute: VillageBuilder[{BuilderId}] (director) claimed '{task.Name}' ({task.TaskType}) at {task.Position} — waiting for NPC to arrive." );
 
-						Log.Info( $"Lute: VillageBuilder[{BuilderId}] (director) starting task '{task.Name}' ({task.TaskType}) at {task.Position}." );
+						while ( !ConstructionDirector.IsExecutionAuthorized( directed.Id ) )
+						{
+							token.ThrowIfCancellationRequested();
+							await GameTask.DelaySeconds( 0.2f );
+						}
+
+						Log.Info( $"Lute: VillageBuilder[{BuilderId}] (director) building '{task.Name}' ({task.TaskType}) at {task.Position} — NPC arrived." );
 
 						await BuildTask( task, token );
 
@@ -381,7 +409,7 @@ namespace Lute.Building
 					// wait briefly and retry (work-stealing may free up a
 					// task). If nothing is pending, we're done.
 					int pendingGlobal = ConstructionDirector.AllTasks()
-						.Count( t => t.Status == TaskStatus.Pending || t.Status == TaskStatus.Blocked );
+						.Count( t => t.Status == TaskStatus.Pending || t.Status == TaskStatus.Blocked || t.Status == TaskStatus.PendingExecution );
 					if ( pendingGlobal == 0 )
 						break;
 

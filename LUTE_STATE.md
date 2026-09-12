@@ -69,17 +69,18 @@ The authoritative construction representation is `Blueprint`. NPC speech is neve
 
 ## Current construction problems / risks
 
-1. NPC/executor synchronization: VillageBuilder can start executing a claimed task while its visible NPC is still walking to the site. Next refinement: Claim → walk → ReadyAtSite → Director authorizes → build.
+1. ~~NPC/executor synchronization~~ (RESOLVED): VillageBuilder now waits for NPC arrival before placing geometry. Flow: Claim (PendingExecution) → walk → AuthorizeExecution → build.
 2. Occupancy layer only knows completed Lute construction + explicitly registered regions. Does not yet auto-scan pre-existing static world geometry.
 3. Builder NPC autonomous test placement can still interfere with agent-driven behavior.
 4. Acropolis collision currently behaves as one imported collision hull and is not yet ideal for terrace traversal.
 5. Agent movement can be affected by `PlayerController` friction/collision.
+6. Some builders may still fall back to legacy mode when the director has no tasks assigned to them (e.g. after task completion race). The wait-for-registration guard mitigates startup races.
 
 ## Next architectural target
 
-The deterministic construction-coordination layer is now implemented (Phases 1-5). Remaining refinements:
+The deterministic construction-coordination layer is now implemented (Phases 1-5). NPC/executor synchronization is implemented and verified. Remaining refinements:
 
-1. NPC/executor state synchronization (ReadyAtSite gate)
+1. ~~NPC/executor state synchronization (ReadyAtSite gate)~~ (DONE)
 2. Auto-scan static world geometry into occupancy ledger
 3. Deterministic conflict replanning (when reservation conflicts occur, replan deterministically)
 4. Phase 6: Gameplay social systems (deception enabled only after construction is proven)
