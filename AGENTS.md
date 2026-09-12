@@ -259,6 +259,69 @@ a 3D game scene from text alone.
 **Cost:** one vision API call per invocation (~1-2k tokens for the
 description). The screenshot capture is free (local MCP call).
 
+## Cloud assets: canonical workflow
+
+S&Box supports two cloud-asset loading modes. Lute uses them for
+different purposes:
+
+- **Compile-time/static** (`Cloud.Model("publisher.asset_ident")`,
+  typed properties): for core Lute assets that ship with the game.
+  S&Box downloads and packages them at build time.
+- **Runtime/dynamic** (`await Cloud.Load<T>(ident)`): reserved for
+  future UGC or deliberately dynamic content only.
+
+### Rules
+
+- **DO NOT** reference files under `sbox/.sbox/cloud/` — that directory
+  is disposable implementation cache, not an API surface.
+- **DO NOT** assume "cached == declared." A `.vmdl_c` in `.sbox/cloud`
+  existing on one machine does not mean Lute correctly depends on it.
+- **DO** use the cloud ident (publisher.asset_name) as the source of
+  truth, behind a Lute asset catalog (see below).
+- **DO** validate clean-cache + runtime bounds after adopting a cloud
+  asset. "Downloaded successfully" says nothing about whether a 2m
+  barrel became a 200m barrel.
+- **DO** record accepted assets in `docs/assets/CLOUD_ASSETS.md`.
+
+### Lute asset catalog pattern
+
+Put cloud references behind a catalog instead of scattering strings
+in construction code:
+
+```csharp
+public static class LuteAssets
+{
+    public static Model VillageBarrel =>
+        Cloud.Model( "publisher.medieval_barrel" );
+    public static Model MarketCrate =>
+        Cloud.Model( "publisher.market_crate" );
+}
+```
+
+Construction code asks for `LuteAssets.MarketCrate`, not a cache filename.
+
+### Blueprint authority rule
+
+A cloud model should NOT itself be construction authority. The
+blueprint (deterministic footprint, structural bounds, reservation
+bounds, gameplay collision policy) is authoritative. The cloud model
+is the visual asset attached to the blueprint. If the visual asset
+changes, fails to download, or has weird source collision, it does
+not silently redefine the village simulation.
+
+### Verification
+
+```powershell
+python agent\cloud_assets.py list                    # list registered assets
+python agent\cloud_assets.py verify publisher.asset  # verify one asset
+python agent\cloud_assets.py check                   # verify all registered
+```
+
+### .gitignore
+
+`sbox/.sbox/` is fully gitignored. No `.sbox` state (project.json,
+cloud cache, viewport state) is tracked. The cache is disposable.
+
 ## S&Box API notes (from engine source, verified against this repo's usage)
 
 ### Component model

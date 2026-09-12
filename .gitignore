@@ -10,8 +10,7 @@ Script/
 sbox/code/obj/
 sbox/code/bin/
 sbox/.vs/
-sbox/.sbox/transient/
-sbox/.sbox/cloud.db
+sbox/.sbox/
 *.slnx
 
 # S&Box Base Library (engine dependency, not our code)
@@ -87,3 +86,8 @@ temp/
 # Xcode user data
 *.xcuserstate
 xcuserdata/
+
+# Temp API key file for gpt_eyes.py (never commit)
+agent/.openai_key
+.openai_key
+scrap/gpt_eyes_test.png
