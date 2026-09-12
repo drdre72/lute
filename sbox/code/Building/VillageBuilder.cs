@@ -1370,13 +1370,26 @@ namespace Lute.Building
 			var renderer = go.AddComponent<ModelRenderer>();
 			if ( isWallBrick )
 			{
-				renderer.Model = Model.Load( "models/medieval/brick_single.vmdl" );
+				renderer.Model = Cloud.Model( "facepunch.brick_single_04" );
 			}
 			else
 			{
 				renderer.Model = Model.Load( "models/dev/box.vmdl" );
 			}
-			go.WorldScale = size / BoxModelNativeSize;
+			// Scale: dev/box.vmdl is 50x50x50, but cloud brick models have
+			// their own native bounds. Scale based on the model's actual size.
+			if ( isWallBrick && renderer.Model is not null )
+			{
+				var modelSize = renderer.Model.Bounds.Size;
+				if ( modelSize.x > 0 && modelSize.y > 0 && modelSize.z > 0 )
+					go.WorldScale = size / modelSize;
+				else
+					go.WorldScale = size / BoxModelNativeSize;
+			}
+			else
+			{
+				go.WorldScale = size / BoxModelNativeSize;
+			}
 
 			// Apply material override only for non-wall pieces (wall bricks
 			// already have the texture baked into brick.vmdl).
