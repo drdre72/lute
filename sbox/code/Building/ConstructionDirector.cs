@@ -350,6 +350,16 @@ namespace Lute.Building
 			if ( task.AssignedBuilder != builderId )
 				return false;
 
+			// Revalidate that the builder still holds a valid reservation
+			// before switching to InProgress. This enforces the full invariant:
+			// no construction without an active directed task AND a valid reservation.
+			var ownership = ReservationManager.ValidateOwnership( task, npcName );
+			if ( !ownership.Success )
+			{
+				Log.Warning( $"Lute: AuthorizeExecution rejected for {taskId} / {npcName}: {ownership.Reason}." );
+				return false;
+			}
+
 			task.Status = TaskStatus.InProgress;
 			Log.Info( $"Lute: ConstructionDirector authorized execution of {taskId} for {npcName}." );
 			return true;

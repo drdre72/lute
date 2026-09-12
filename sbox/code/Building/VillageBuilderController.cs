@@ -260,7 +260,21 @@ namespace Lute.Building
 					break;
 
 				case ConstructionEventType.TaskBlocked:
-					// A task failed and is retrying — offer help if we're idle
+					// A task was blocked and is retrying. If this is our active
+					// task, the executor has abandoned it — clear our state and
+					// return to Idle so we can pick up the next assignment.
+					if ( UseDirector && evt.TaskId == _activeDirectedTaskId )
+					{
+						Log.Info( $"Lute: VillageBuilderController '{_npcId}' task {evt.TaskId} blocked. Returning to Idle." );
+						_activeDirectedTaskId = null;
+						_buildingTaskIndex = -1;
+						ReleaseActiveClaim();
+						State = NpcState.Idle;
+						_stateTimer = 0;
+						Controller.WishVelocity = Vector3.Zero;
+					}
+
+					// Offer help if we're idle
 					if ( State == NpcState.Idle || State == NpcState.VillageComplete )
 					{
 						ConversationManager.Send( _npcId, "",
@@ -296,7 +310,20 @@ namespace Lute.Building
 					break;
 
 				case ConstructionEventType.TaskFailed:
-					// Update task history and reputation
+					// A task failed permanently (retry exhausted). If this is our
+					// active task, clear our state and return to Idle.
+					if ( UseDirector && evt.TaskId == _activeDirectedTaskId )
+					{
+						Log.Info( $"Lute: VillageBuilderController '{_npcId}' task {evt.TaskId} failed. Returning to Idle." );
+						_activeDirectedTaskId = null;
+						_buildingTaskIndex = -1;
+						ReleaseActiveClaim();
+						State = NpcState.Idle;
+						_stateTimer = 0;
+						Controller.WishVelocity = Vector3.Zero;
+					}
+
+					// Update task history and reputation for other builders
 					if ( _beliefs != null && evt.Actor != null && evt.Actor != _npcId )
 					{
 						_beliefs.AdjustReputation( evt.Actor, -3 );

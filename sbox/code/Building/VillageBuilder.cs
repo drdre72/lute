@@ -569,7 +569,7 @@ namespace Lute.Building
 					var pos = task.Position + new Vector3( offset * (float)Math.Cos( task.Rotation * Math.PI / 180 ),
 														   offset * (float)Math.Sin( task.Rotation * Math.PI / 180 ),
 														   0 );
-					SpawnBox( pos, new Vector3( segLen / pieces, 3f * M, WallHeight ), WallMaterial, true, _villageRoot );
+					SpawnBox( pos, new Vector3( segLen / pieces, 3f * M, WallHeight ), WallMaterial, true, _villageRoot, task.Rotation );
 					task.PiecesPlaced = i + 1;
 					_totalPiecesPlaced++;
 				}
@@ -648,7 +648,7 @@ namespace Lute.Building
 					var pos = task.Position + new Vector3( offset * (float)Math.Cos( task.Rotation * Math.PI / 180 ),
 														   offset * (float)Math.Sin( task.Rotation * Math.PI / 180 ),
 														   0 );
-					SpawnBox( pos, new Vector3( roadW / pieces, segLen / pieces, FloorThickness ), FloorMaterial, false, _villageRoot );
+					SpawnBox( pos, new Vector3( roadW, segLen / pieces, FloorThickness ), FloorMaterial, false, _villageRoot, task.Rotation );
 					task.PiecesPlaced = i + 1;
 					_totalPiecesPlaced++;
 				}
@@ -843,7 +843,7 @@ namespace Lute.Building
 		}
 
 		// ── Helper: spawn a box mesh piece ──
-		void SpawnBox( Vector3 worldPos, Vector3 size, string materialPath, bool collides, GameObject parent )
+		void SpawnBox( Vector3 worldPos, Vector3 size, string materialPath, bool collides, GameObject parent, float yaw = 0f )
 		{
 			// Walls: base at z=0 (lift center). Floors: top at z=0 (lower center).
 			if ( size.z > FloorThickness * 1.5f )
@@ -856,7 +856,8 @@ namespace Lute.Building
 			// tasks' pieces). Only for live directed construction - skip during
 			// reconstruction mode (re-placing saved pieces).
 			var half = size * 0.5f;
-			var pieceBounds = new BBox( worldPos - half, worldPos + half );
+			var rot = yaw != 0f ? Rotation.FromYaw( yaw ) : Rotation.Identity;
+			var pieceBounds = new BBox( -half, half ).Rotate( rot ).Translate( worldPos );
 
 			if ( !_reconstructMode && !string.IsNullOrEmpty( CurrentDirectedTaskId ) )
 			{
@@ -872,6 +873,7 @@ namespace Lute.Building
 			go.SetParent( parent );
 
 			go.WorldPosition = worldPos;
+			if ( yaw != 0f ) go.WorldRotation = rot;
 
 			var meshComp = go.AddComponent<MeshComponent>();
 			meshComp.Collision = collides
