@@ -43,6 +43,12 @@ namespace Lute.Building
 		const float M = 39.37f;
 		const float DefaultCell = 100f;
 		const float TouchTolerance = 0.5f;
+
+		// Tracks the task ID of the most recent occupancy blocker, so
+		// ConstructionDirector.FailTask can defer (not retry) when the
+		// blocker is still an active task.
+		static string _lastBlockerTaskId;
+		public static string GetLastBlockerTaskId() => _lastBlockerTaskId;
 		// Join tolerance for structural connections (wall corners, road
 		// intersections, road-gate, road-market). These are intentional
 		// overlaps where structural pieces meet. Much larger than
@@ -100,6 +106,7 @@ namespace Lute.Building
 				var ixMaxs = new Vector3( Math.Min( bounds.Maxs.x, occupied.Bounds.Maxs.x ), Math.Min( bounds.Maxs.y, occupied.Bounds.Maxs.y ), Math.Min( bounds.Maxs.z, occupied.Bounds.Maxs.z ) );
 				var ixSize = ixMaxs - ixMins;
 				Log.Info( $"Lute: ReservationConflict request={task.Id} name={task.BuildTask?.Name ?? "?"} type={task.BuildTask?.TaskType ?? "?"} bounds={bounds.Mins}:{bounds.Maxs} blocked_by={occupied.Source ?? occupied.Id} blocker_task={occupied.TaskId ?? "external"} kind=occupied intersection=({ixSize.x:F1},{ixSize.y:F1},{ixSize.z:F1})" );
+				_lastBlockerTaskId = occupied.TaskId;
 				ConstructionEventBus.Fire( ConstructionEventType.ReservationConflict,
 					taskId: task.Id, actor: npcName,
 					parameters: new()
@@ -203,6 +210,7 @@ namespace Lute.Building
 				var ixSize = ixMaxs - ixMins;
 				reason = $"occupied by {blocked.Source ?? blocked.Id} (task {blocked.TaskId ?? "external"})";
 				Log.Info( $"Lute: PlacementConflict task={taskId} bounds={bounds.Mins}:{bounds.Maxs} blocked_by={blocked.Source ?? blocked.Id} blocker_task={blocked.TaskId ?? "external"} intersection=({ixSize.x:F1},{ixSize.y:F1},{ixSize.z:F1})" );
+				_lastBlockerTaskId = blocked.TaskId;
 				return false;
 			}
 			return true;

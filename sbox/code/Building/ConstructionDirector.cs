@@ -38,7 +38,8 @@ namespace Lute.Building
 		public int BlueprintVersion { get; set; }
 		public string ReservationId { get; set; }
 		public int RetryCount { get; set; }
-		public int MaxRetries { get; set; } = 2;
+		public int MaxRetries { get; set; } = 10;
+		public string BlockedByTaskId { get; set; }
 		public int PiecesPlaced { get; set; }
 		public Dictionary<string, string> Preconditions { get; set; } = new();
 		public BBox? ReservationBounds { get; set; }
@@ -190,7 +191,24 @@ namespace Lute.Building
 				if ( t.Status == TaskStatus.Pending && !t.DependenciesSatisfied )
 					t.Status = TaskStatus.Blocked;
 				else if ( t.Status == TaskStatus.Blocked && t.DependenciesSatisfied )
-					t.Status = TaskStatus.Pending;
+				{
+					// If blocked by another task, only unblock when the blocker
+					// is complete or failed (no longer active).
+					if ( !string.IsNullOrEmpty( t.BlockedByTaskId ) &&
+						_tasks.TryGetValue( t.BlockedByTaskId, out var blocker ) )
+					{
+						if ( blocker.Status == TaskStatus.Complete || blocker.Status == TaskStatus.Failed || blocker.Status == TaskStatus.Cancelled )
+						{
+							t.Status = TaskStatus.Pending;
+							t.BlockedByTaskId = null;
+						}
+					}
+					else
+					{
+						t.Status = TaskStatus.Pending;
+						t.BlockedByTaskId = null;
+					}
+				}
 			}
 
 			var activeBuilders = _builders.Values.Where( b => b.Active ).ToList();
@@ -441,10 +459,34 @@ namespace Lute.Building
 			if ( t.AssignedBuilder >= 0 && _builders.TryGetValue( t.AssignedBuilder, out var b ) )
 				b.CurrentTaskId = null;
 
+			// Deterministic replanning: if the blocker is another task that
+			// is still active (Pending, PendingExecution, InProgress, or
+			// Blocked), defer this task instead of consuming a retry. The
+			// task will be reactivated when the blocker completes (via
+			// AssignTasks) or when ClaimNextTask tries it again.
+			string blockerId = ReservationManager.GetLastBlockerTaskId();
+			if ( !string.IsNullOrEmpty( blockerId ) && _tasks.TryGetValue( blockerId, out var blocker ) )
+			{
+				var bs = blocker.Status;
+				if ( bs == TaskStatus.Pending || bs == TaskStatus.PendingExecution ||
+					 bs == TaskStatus.InProgress || bs == TaskStatus.Blocked )
+				{
+					t.Status = TaskStatus.Blocked;
+					t.BlockedByTaskId = blockerId;
+					Log.Info( $"Lute: ConstructionDirector task {taskId} deferred — blocked by active task {blockerId} ({bs}). Will retry when blocker completes." );
+					ConstructionEventBus.Fire( ConstructionEventType.TaskBlocked,
+						taskId: t.Id,
+						parameters: new() { { "reason", reason ?? "" }, { "blocker", blockerId } } );
+					return;
+				}
+			}
+
+			// Not blocked by an active task — consume a retry.
 			t.RetryCount++;
 			if ( t.RetryCount <= t.MaxRetries )
 			{
 				t.Status = TaskStatus.Pending;
+				t.BlockedByTaskId = null;
 				Log.Info( $"Lute: ConstructionDirector task {taskId} failed ({reason}) — retry {t.RetryCount}/{t.MaxRetries}." );
 				ConstructionEventBus.Fire( ConstructionEventType.TaskBlocked,
 					taskId: t.Id,

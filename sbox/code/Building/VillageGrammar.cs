@@ -373,8 +373,8 @@ namespace Lute.Building
 					float y = -half + inset + buildingSpacing * (i + 1);
 					if ( Math.Abs( y ) < 15f * M ) continue; // skip center (well/market)
 					// Skip buildings on cross-street Y lines (roads at ±half*0.5)
-					float crossStreetRoadHalf = 5f * M; // 10m road width / 2
-					float crossStreetMargin = crossStreetRoadHalf + 2f * M; // +2m clearance
+					// Margin = road half-width + building half-size + clearance
+					float crossStreetMargin = 5f * M + 2f * M + 2f * M; // 9m total
 					if ( Math.Abs( y - (-half * 0.5f) ) < crossStreetMargin ) continue;
 					if ( Math.Abs( y - (half * 0.5f) ) < crossStreetMargin ) continue;
 
@@ -404,8 +404,7 @@ namespace Lute.Building
 					float y = -half + inset + buildingSpacing * (i + 1);
 					if ( Math.Abs( y ) < 15f * M ) continue;
 					// Skip buildings on cross-street Y lines (roads at ±half*0.5)
-					float crossStreetRoadHalf = 5f * M;
-					float crossStreetMargin = crossStreetRoadHalf + 2f * M;
+					float crossStreetMargin = 5f * M + 2f * M + 2f * M; // 9m total
 					if ( Math.Abs( y - (-half * 0.5f) ) < crossStreetMargin ) continue;
 					if ( Math.Abs( y - (half * 0.5f) ) < crossStreetMargin ) continue;
 
