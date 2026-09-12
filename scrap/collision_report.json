@@ -100,5 +100,241 @@
         "hit_object": ""
       }
     ]
+  },
+  {
+    "check": "wall_thickness",
+    "passed": true,
+    "details": [
+      {
+        "wall": "north",
+        "passed": true,
+        "hit": true,
+        "distance": 460.83008,
+        "expected_thickness": 78.74,
+        "hit_object": "Wall_0_1"
+      },
+      {
+        "wall": "south",
+        "passed": true,
+        "hit": true,
+        "distance": 460.83008,
+        "expected_thickness": 78.74,
+        "hit_object": "Wall_2_1"
+      },
+      {
+        "wall": "east",
+        "passed": true,
+        "hit": true,
+        "distance": 460.82812,
+        "expected_thickness": 78.74,
+        "hit_object": "Wall_1_1"
+      },
+      {
+        "wall": "west",
+        "passed": true,
+        "hit": true,
+        "distance": 460.83008,
+        "expected_thickness": 78.74,
+        "hit_object": "Wall_3_1"
+      }
+    ]
+  },
+  {
+    "check": "floor_solidity",
+    "passed": true,
+    "details": [
+      {
+        "position": "well_center",
+        "passed": true,
+        "hit": true,
+        "hit_z": 141.501678,
+        "expected_z": 99.425,
+        "hit_object": "WellRim"
+      },
+      {
+        "position": "stall_NE",
+        "passed": true,
+        "hit": true,
+        "hit_z": 149.374451,
+        "expected_z": 99.425,
+        "hit_object": "Stall_1_0_Counter"
+      },
+      {
+        "position": "stall_NW",
+        "passed": true,
+        "hit": true,
+        "hit_z": 144.37677,
+        "expected_z": 99.425,
+        "hit_object": "Stall_0_0_Counter"
+      },
+      {
+        "position": "stall_SE",
+        "passed": true,
+        "hit": true,
+        "hit_z": 144.042358,
+        "expected_z": 99.425,
+        "hit_object": "Stall_2_0_Counter"
+      },
+      {
+        "position": "stall_SW",
+        "passed": true,
+        "hit": true,
+        "hit_z": 143.558746,
+        "expected_z": 99.425,
+        "hit_object": "Stall_3_0_Counter"
+      },
+      {
+        "position": "house_north",
+        "passed": true,
+        "hit": true,
+        "hit_z": 256.904968,
+        "expected_z": 99.425,
+        "hit_object": "House_1"
+      },
+      {
+        "position": "house_south",
+        "passed": true,
+        "hit": true,
+        "hit_z": 256.904968,
+        "expected_z": 99.425,
+        "hit_object": "House_5"
+      },
+      {
+        "position": "house_east",
+        "passed": true,
+        "hit": true,
+        "hit_z": 256.904968,
+        "expected_z": 99.425,
+        "hit_object": "House_3"
+      },
+      {
+        "position": "house_west",
+        "passed": true,
+        "hit": true,
+        "hit_z": 256.904968,
+        "expected_z": 99.425,
+        "hit_object": "House_7"
+      }
+    ]
+  },
+  {
+    "check": "tower_alignment",
+    "passed": true,
+    "details": [
+      {
+        "tower": "tower_0",
+        "x": 16141.7,
+        "y": 21259.8,
+        "passed": true,
+        "hit": true,
+        "distance": 530.75476,
+        "hit_z": 777.245239,
+        "hit_object": "Tower_0_1"
+      },
+      {
+        "tower": "tower_1",
+        "x": 15354.3,
+        "y": 21259.8,
+        "passed": true,
+        "hit": true,
+        "distance": 507.68774,
+        "hit_z": 800.312256,
+        "hit_object": "Tower_0_0"
+      },
+      {
+        "tower": "tower_2",
+        "x": 16141.7,
+        "y": 10236.2,
+        "passed": true,
+        "hit": true,
+        "distance": 481.32532,
+        "hit_z": 826.674683,
+        "hit_object": "Tower_2_1"
+      },
+      {
+        "tower": "tower_3",
+        "x": 15354.3,
+        "y": 10236.2,
+        "passed": true,
+        "hit": true,
+        "distance": 462.22064,
+        "hit_z": 845.779358,
+        "hit_object": "Tower_2_0"
+      },
+      {
+        "tower": "tower_4",
+        "x": 21259.8,
+        "y": 16141.7,
+        "passed": true,
+        "hit": true,
+        "distance": 463.3282,
+        "hit_z": 844.671814,
+        "hit_object": "Tower_1_1"
+      },
+      {
+        "tower": "tower_5",
+        "x": 21259.8,
+        "y": 15354.3,
+        "passed": true,
+        "hit": true,
+        "distance": 539.0185,
+        "hit_z": 768.981506,
+        "hit_object": "Tower_1_0"
+      },
+      {
+        "tower": "tower_6",
+        "x": 10236.2,
+        "y": 16141.7,
+        "passed": true,
+        "hit": true,
+        "distance": 514.554,
+        "hit_z": 793.445984,
+        "hit_object": "Tower_3_1"
+      },
+      {
+        "tower": "tower_7",
+        "x": 10236.2,
+        "y": 15354.3,
+        "passed": true,
+        "hit": true,
+        "distance": 501.96588,
+        "hit_z": 806.034119,
+        "hit_object": "Tower_3_0"
+      }
+    ]
+  },
+  {
+    "check": "bridge_traversal",
+    "passed": true,
+    "details": [
+      {
+        "bridge": "north",
+        "passed": true,
+        "hit": false,
+        "distance": 1881,
+        "hit_object": ""
+      },
+      {
+        "bridge": "south",
+        "passed": true,
+        "hit": false,
+        "distance": 1881,
+        "hit_object": ""
+      },
+      {
+        "bridge": "east",
+        "passed": true,
+        "hit": false,
+        "distance": 1881,
+        "hit_object": ""
+      },
+      {
+        "bridge": "west",
+        "passed": true,
+        "hit": false,
+        "distance": 1881,
+        "hit_object": ""
+      }
+    ]
   }
 ]
