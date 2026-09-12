@@ -547,32 +547,60 @@ namespace Lute.Building
 			}
 		}
 
-		// ── Wall segment: a row of wall pieces ──
+		// ── Wall segment: individual bricks laid one at a time ──
 		async Task BuildWallSegment( VillageBuildTask task, CancellationToken token )
 		{
 			float segLen = 10f * M;
-			int pieces = 12; // 10m wall, ~0.83m per piece
-			task.TotalPieces = pieces;
+			float wallThick = 3f * M;
+			float wallH = WallHeight;
 
-			for ( int i = 0; i < pieces; i++ )
+			// Brick dimensions (inches) — large blocks for visible individual placement
+			const float brickLen = 1f * M;    // ~1m long
+			const float brickH = 0.5f * M;    // ~0.5m tall (course height)
+			// Wall thickness is full brick (no depth stacking needed)
+
+			int bricksPerRow = (int)MathF.Ceiling( segLen / brickLen );
+			int numRows = (int)MathF.Ceiling( wallH / brickH );
+			int totalBricks = bricksPerRow * numRows;
+			task.TotalPieces = totalBricks;
+
+			int brickIdx = 0;
+			for ( int row = 0; row < numRows; row++ )
 			{
-				token.ThrowIfCancellationRequested();
+				// Running bond: offset every other row by half a brick
+				float rowOffset = (row % 2 == 1) ? brickLen * 0.5f : 0f;
+				int colsThisRow = bricksPerRow + (row % 2 == 1 ? 1 : 0); // extra brick for offset rows
 
-				if ( i >= task.PiecesPlaced )
+				for ( int col = 0; col < colsThisRow; col++ )
 				{
-					float offset = (i - pieces / 2f) * (segLen / pieces);
-					var pos = task.Position + new Vector3( offset * (float)Math.Cos( task.Rotation * Math.PI / 180 ),
-														   offset * (float)Math.Sin( task.Rotation * Math.PI / 180 ),
-														   0 );
-					SpawnBox( pos, new Vector3( segLen / pieces, 3f * M, WallHeight ), WallMaterial, true, _villageRoot, task.Rotation );
-					task.PiecesPlaced = i + 1;
-					_totalPiecesPlaced++;
-				}
+					token.ThrowIfCancellationRequested();
 
-				ElapsedTime += BuildInterval;
-				if ( !_reconstructMode )
-					await Task.DelaySeconds( BuildInterval );
-				MaybeSave();
+					if ( brickIdx >= task.PiecesPlaced )
+					{
+						float x = -segLen * 0.5f + col * brickLen + rowOffset;
+						float z = row * brickH;
+
+						// Position relative to task center, rotated by task.Rotation
+						var localPos = new Vector3( x, 0, z );
+						var cos = (float)Math.Cos( task.Rotation * Math.PI / 180 );
+						var sin = (float)Math.Sin( task.Rotation * Math.PI / 180 );
+						var pos = task.Position + new Vector3(
+							localPos.x * cos - localPos.y * sin,
+							localPos.x * sin + localPos.y * cos,
+							localPos.z );
+
+						SpawnBox( pos, new Vector3( brickLen, wallThick, brickH ),
+							WallMaterial, true, _villageRoot, task.Rotation );
+						task.PiecesPlaced = brickIdx + 1;
+						_totalPiecesPlaced++;
+					}
+					brickIdx++;
+
+					ElapsedTime += BuildInterval;
+					if ( !_reconstructMode )
+						await Task.DelaySeconds( BuildInterval );
+					MaybeSave();
+				}
 			}
 		}
 
