@@ -825,7 +825,12 @@ namespace Lute.Building
 			p[2] = new Vector3( cx + hx, cy + hy, cz ); p[3] = new Vector3( cx - hx, cy + hy, cz );
 			p[4] = new Vector3( cx - hx, cy - hy, cz + sz ); p[5] = new Vector3( cx + hx, cy - hy, cz + sz );
 			p[6] = new Vector3( cx + hx, cy + hy, cz + sz ); p[7] = new Vector3( cx - hx, cy + hy, cz + sz );
-			var uv0 = new Vector4( 0, 0, 0, 0 ); var uv1 = new Vector4( 1, 0, 0, 0 ); var uv2 = new Vector4( 1, 1, 0, 0 ); var uv3 = new Vector4( 0, 1, 0, 0 );
+			// World-position-based UVs: map texture continuously across the wall
+		float texTile = 1.0f * M;  // 100cm per texture tile (larger stones)
+		var uv0 = new Vector4( (cx - hx) / texTile, cz / texTile, 0, 0 );
+		var uv1 = new Vector4( (cx + hx) / texTile, cz / texTile, 0, 0 );
+		var uv2 = new Vector4( (cx + hx) / texTile, (cz + sz) / texTile, 0, 0 );
+		var uv3 = new Vector4( (cx - hx) / texTile, (cz + sz) / texTile, 0, 0 );
 			vertices.Add( new Vertex( p[3], uv0, Color32.White ) ); vertices.Add( new Vertex( p[2], uv1, Color32.White ) ); vertices.Add( new Vertex( p[6], uv2, Color32.White ) ); vertices.Add( new Vertex( p[7], uv3, Color32.White ) );
 			vertices.Add( new Vertex( p[1], uv0, Color32.White ) ); vertices.Add( new Vertex( p[0], uv1, Color32.White ) ); vertices.Add( new Vertex( p[4], uv2, Color32.White ) ); vertices.Add( new Vertex( p[5], uv3, Color32.White ) );
 			vertices.Add( new Vertex( p[0], uv0, Color32.White ) ); vertices.Add( new Vertex( p[3], uv1, Color32.White ) ); vertices.Add( new Vertex( p[7], uv2, Color32.White ) ); vertices.Add( new Vertex( p[4], uv3, Color32.White ) );
