@@ -96,10 +96,10 @@ namespace Lute.Npc
 
 			// Body GameObject — citizen + colliders + Rigidbody + PlayerController + controller.
 			// Spawn close to the ground (z=4, just above the floor at z=0-3) so
-		// the PlayerController's short 2-unit ground trace can reach the floor.
-		// Spawning at z=64 leaves the body floating ~60 units above the floor
-		// and the ground trace never hits.
-		SpawnCitizenBody( marker.Scene, parent, name, sitePos + new Vector3( 0f, 5f * M, 4f ), builder );
+			// the PlayerController's short 2-unit ground trace can reach the floor.
+			// Spawning at z=64 leaves the body floating ~60 units above the floor
+			// and the ground trace never hits.
+			SpawnCitizenBody( marker.Scene, parent, name, sitePos + new Vector3( 0f, 5f * M, 4f ), builder );
 		}
 
 		/// <summary>
@@ -176,11 +176,13 @@ namespace Lute.Npc
 			go.WorldPosition = bodyPos;
 			go.WorldRotation = Rotation.Identity;
 
-			// Body — citizen model.
+			// Body — citizen model. Child transforms must be local to the NPC
+			// root; assigning WorldPosition=0 after parenting can detach the visual
+			// body from a warped/moved NPC and makes camera diagnostics misleading.
 			var bodyGo = scene.CreateObject( true );
 			bodyGo.Name = "Body";
 			bodyGo.SetParent( go );
-			bodyGo.WorldPosition = Vector3.Zero;
+			bodyGo.LocalPosition = Vector3.Zero;
 			bodyGo.WorldRotation = Rotation.Identity;
 			var bodyRenderer = bodyGo.AddComponent<SkinnedModelRenderer>();
 			bodyRenderer.Model = Model.Load( "models/citizen/citizen.vmdl" );
@@ -256,11 +258,11 @@ namespace Lute.Npc
 			go.WorldPosition = bodyPos;
 			go.WorldRotation = Rotation.Identity;
 
-			// Body — citizen model.
+			// Body — citizen model. Keep the child at the NPC root, not world zero.
 			var bodyGo = scene.CreateObject( true );
 			bodyGo.Name = "Body";
 			bodyGo.SetParent( go );
-			bodyGo.WorldPosition = Vector3.Zero;
+			bodyGo.LocalPosition = Vector3.Zero;
 			bodyGo.WorldRotation = Rotation.Identity;
 			var bodyRenderer = bodyGo.AddComponent<SkinnedModelRenderer>();
 			bodyRenderer.Model = Model.Load( "models/citizen/citizen.vmdl" );

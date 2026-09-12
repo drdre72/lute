@@ -24,6 +24,18 @@ namespace Lute.Building
 	public sealed class VillageBuilder : Component
 	{
 		const float M = 39.37f;
+		const float BoxModelNativeSize = 50f;
+		const float BrickSpacingX = 0.2f * M;
+		const float BrickSpacingZ = 0.05f * M;
+		const float BrickMortarGap = 0.01f * M;
+
+		enum PieceAnchor
+		{
+			Auto,
+			Base,
+			Center,
+			Top,
+		}
 
 		/// <summary> Seconds between placed pieces. 1s = ~73-minute pace. </summary>
 		[Property] public float BuildInterval { get; set; } = 0.5f;
@@ -214,7 +226,12 @@ namespace Lute.Building
 			if ( BuilderId == 0 )
 			{
 				foreach ( var t in Tasks )
-					ConstructionDirector.RegisterTask( t );
+				{
+					var taskId = ConstructionDirector.RegisterTask( t );
+					var directed = ConstructionDirector.GetTask( taskId );
+					if ( directed is not null )
+						directed.EstimatedPieces = EstimateTaskPieces( t );
+				}
 
 				Log.Info( $"Lute: VillageBuilder[{BuilderId}/{TotalBuilders}] registered {Tasks.Count} tasks with ConstructionDirector." );
 			}
@@ -253,21 +270,32 @@ namespace Lute.Building
 			_cts?.Cancel();
 		}
 
+		int EstimateWallPieces()
+		{
+			int bricksPerRow = (int)MathF.Ceiling( (10f * M) / BrickSpacingX );
+			int numRows = (int)MathF.Ceiling( WallHeight / BrickSpacingZ );
+			return bricksPerRow * numRows + numRows / 2;
+		}
+
+		int EstimateTaskPieces( VillageBuildTask task )
+		{
+			if ( task is null ) return 0;
+			return task.TaskType switch
+			{
+				"wall" => EstimateWallPieces(),
+				"gate" => 30,
+				"road" => 8,
+				"well" => 20,
+				"market_square" => 25,
+				_ => EstimateBuildingPieces( task ),
+			};
+		}
+
 		int EstimateTotalPieces( List<VillageBuildTask> tasks )
 		{
 			int total = 0;
 			foreach ( var t in tasks )
-			{
-				total += t.TaskType switch
-				{
-					"wall" => 12,          // 10m wall segment: ~12 pieces
-					"gate" => 30,           // gate with towers: ~30 pieces
-					"road" => 8,            // road section: ~8 pieces
-					"well" => 20,           // well: ~20 pieces
-					"market_square" => 25,  // market square: ~25 pieces
-					_ => EstimateBuildingPieces( t ), // buildings
-				};
-			}
+				total += EstimateTaskPieces( t );
 			return total;
 		}
 
@@ -290,18 +318,7 @@ namespace Lute.Building
 			// Estimate piece count for each task
 			var estimates = new List<(int idx, int pieces)>();
 			for ( int i = 0; i < Tasks.Count; i++ )
-			{
-				int pieces = Tasks[i].TaskType switch
-				{
-					"wall" => 12,
-					"gate" => 30,
-					"road" => 8,
-					"well" => 20,
-					"market_square" => 25,
-					_ => EstimateBuildingPieces( Tasks[i] ),
-				};
-				estimates.Add( (i, pieces) );
-			}
+				estimates.Add( (i, EstimateTaskPieces( Tasks[i] )) );
 
 			// Sort by piece count descending (biggest first)
 			estimates.Sort( (a, b) => b.pieces.CompareTo( a.pieces ) );
@@ -315,8 +332,11 @@ namespace Lute.Building
 
 			// Log the partition for verification
 			var perBuilder = new int[TotalBuilders];
-			foreach ( var e in estimates )
-				perBuilder[e.idx % TotalBuilders] += e.pieces;
+			for ( int i = 0; i < estimates.Count; i++ )
+			{
+				int builderId = i % TotalBuilders;
+				perBuilder[builderId] += estimates[i].pieces;
+			}
 			Log.Info( $"Lute: VillageBuilder[{BuilderId}/{TotalBuilders}] partitioned {Tasks.Count} tasks (balanced deal):" );
 			for ( int b = 0; b < TotalBuilders; b++ )
 				Log.Info( $"  builder {b}: ~{perBuilder[b]} pieces" );
@@ -363,10 +383,10 @@ namespace Lute.Building
 						CurrentTask = task;
 						CurrentTaskIndex = idx;
 						CurrentDirectedTaskId = directed.Id;
-						// Director set status to PendingExecution � wait for the NPC
+						// Director set status to PendingExecution — wait for the NPC
 						// controller to arrive at the site and call AuthorizeExecution
 						// before we start placing geometry.
-						Log.Info( $"Lute: VillageBuilder[{BuilderId}] (director) claimed '{task.Name}' ({task.TaskType}) at {task.Position} � waiting for NPC to arrive." );
+						Log.Info( $"Lute: VillageBuilder[{BuilderId}] (director) claimed '{task.Name}' ({task.TaskType}) at {task.Position} — waiting for NPC to arrive." );
 
 						while ( !ConstructionDirector.IsExecutionAuthorized( directed.Id ) )
 						{
@@ -374,7 +394,7 @@ namespace Lute.Building
 							await GameTask.DelaySeconds( 0.2f );
 						}
 
-						Log.Info( $"Lute: VillageBuilder[{BuilderId}] (director) building '{task.Name}' ({task.TaskType}) at {task.Position} � NPC arrived." );
+						Log.Info( $"Lute: VillageBuilder[{BuilderId}] (director) building '{task.Name}' ({task.TaskType}) at {task.Position} — NPC arrived." );
 
 						try
 						{
@@ -552,28 +572,20 @@ namespace Lute.Building
 		{
 			float segLen = 10f * M;
 			float wallH = WallHeight;
+			const float brickThick = 0.1f * M;
+			const float brickLen = BrickSpacingX - BrickMortarGap;
+			const float brickH = BrickSpacingZ - BrickMortarGap;
 
-			// Realistic brick dimensions (inches)
-			// Brick: 0.2m long x 0.1m thick x 0.05m tall
-			// Wall is 1 brick thick (0.1m) — no depth stacking
-			// Spacing includes ~1cm mortar gap
-			const float brickSpacingX = 0.2f * M;    // ~0.2m grid spacing (length)
-			const float brickSpacingZ = 0.05f * M;   // ~0.05m grid spacing (height)
-			const float mortarGap = 0.01f * M;       // ~1cm mortar gap
-			const float brickLen = brickSpacingX - mortarGap;   // ~0.19m
-			const float brickThick = 0.1f * M;                        // ~0.1m (single brick width)
-			const float brickH = brickSpacingZ - mortarGap;        // ~0.04m
-
-			int bricksPerRow = (int)MathF.Ceiling( segLen / brickSpacingX );
-			int numRows = (int)MathF.Ceiling( wallH / brickSpacingZ );
-			int totalBricks = bricksPerRow * numRows;
+			int bricksPerRow = (int)MathF.Ceiling( segLen / BrickSpacingX );
+			int numRows = (int)MathF.Ceiling( wallH / BrickSpacingZ );
+			int totalBricks = bricksPerRow * numRows + numRows / 2;
 			task.TotalPieces = totalBricks;
 
 			int brickIdx = 0;
 			for ( int row = 0; row < numRows; row++ )
 			{
 				// Running bond: offset every other row by half a brick
-				float rowOffset = (row % 2 == 1) ? brickSpacingX * 0.5f : 0f;
+				float rowOffset = (row % 2 == 1) ? BrickSpacingX * 0.5f : 0f;
 				int colsThisRow = bricksPerRow + (row % 2 == 1 ? 1 : 0);
 
 				for ( int col = 0; col < colsThisRow; col++ )
@@ -582,8 +594,8 @@ namespace Lute.Building
 
 					if ( brickIdx >= task.PiecesPlaced )
 					{
-						float x = -segLen * 0.5f + col * brickSpacingX + rowOffset;
-						float z = row * brickSpacingZ;
+						float x = -segLen * 0.5f + col * BrickSpacingX + rowOffset;
+						float z = row * BrickSpacingZ;
 
 						// Position relative to task center, rotated by task.Rotation
 						var localPos = new Vector3( x, 0, z );
@@ -595,7 +607,7 @@ namespace Lute.Building
 							localPos.z );
 
 						SpawnBox( pos, new Vector3( brickLen, brickThick, brickH ),
-							WallMaterial, true, _villageRoot, task.Rotation );
+							WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base );
 						task.PiecesPlaced = brickIdx + 1;
 						_totalPiecesPlaced++;
 					}
@@ -665,6 +677,9 @@ namespace Lute.Building
 			task.TotalPieces = pieces;
 			float roadW = 10f * M;
 			float segLen = 10f * M;
+			float angle = task.Rotation * (float)Math.PI / 180f;
+			float cos = (float)Math.Cos( angle );
+			float sin = (float)Math.Sin( angle );
 
 			for ( int i = 0; i < pieces; i++ )
 			{
@@ -673,9 +688,9 @@ namespace Lute.Building
 				if ( i >= task.PiecesPlaced )
 				{
 					float offset = (i - pieces / 2f) * (segLen / pieces);
-					var pos = task.Position + new Vector3( offset * (float)Math.Cos( task.Rotation * Math.PI / 180 ),
-														   offset * (float)Math.Sin( task.Rotation * Math.PI / 180 ),
-														   0 );
+					// Road Rotation describes the local width axis. Advance tiles along
+					// the perpendicular local Y axis so Rotation=0 is N/S and 90 is E/W.
+					var pos = task.Position + new Vector3( -offset * sin, offset * cos, 0 );
 					SpawnBox( pos, new Vector3( roadW, segLen / pieces, FloorThickness ), FloorMaterial, false, _villageRoot, task.Rotation );
 					task.PiecesPlaced = i + 1;
 					_totalPiecesPlaced++;
@@ -871,13 +886,28 @@ namespace Lute.Building
 		}
 
 		// ── Helper: spawn a box mesh piece ──
-		void SpawnBox( Vector3 worldPos, Vector3 size, string materialPath, bool collides, GameObject parent, float yaw = 0f )
+		void SpawnBox( Vector3 worldPos, Vector3 size, string materialPath, bool collides, GameObject parent, float yaw = 0f, PieceAnchor anchor = PieceAnchor.Auto )
 		{
-			// Walls: base at z=0 (lift center). Floors: top at z=0 (lower center).
-			if ( size.z > FloorThickness * 1.5f )
-				worldPos = worldPos.WithZ( worldPos.z + size.z * 0.5f );
-			else
-				worldPos = worldPos.WithZ( worldPos.z - size.z * 0.5f );
+			switch ( anchor )
+			{
+				case PieceAnchor.Base:
+					worldPos = worldPos.WithZ( worldPos.z + size.z * 0.5f );
+					break;
+				case PieceAnchor.Top:
+					worldPos = worldPos.WithZ( worldPos.z - size.z * 0.5f );
+					break;
+				case PieceAnchor.Center:
+					break;
+				case PieceAnchor.Auto:
+				default:
+					// Legacy behavior for non-brick callers. Explicit anchors should be
+					// preferred when the caller knows whether worldPos is a base/top/center.
+					if ( size.z > FloorThickness * 1.5f )
+						worldPos = worldPos.WithZ( worldPos.z + size.z * 0.5f );
+					else
+						worldPos = worldPos.WithZ( worldPos.z - size.z * 0.5f );
+					break;
+			}
 
 			// Piece-level occupancy gate: check that this exact piece's bounds
 			// don't conflict with existing occupancy (static geometry or other
@@ -903,11 +933,12 @@ namespace Lute.Building
 			go.WorldPosition = worldPos;
 			if ( yaw != 0f ) go.WorldRotation = rot;
 
-			// Use ModelRenderer with box.vmdl + MaterialOverride — this is the
-			// proven approach (market walls use it) that handles UVs correctly.
+			// models/dev/box.vmdl is 50x50x50 local units. Convert requested
+			// world dimensions into transform scale so rendered bounds match
+			// the same size used by occupancy and collision.
 			var renderer = go.AddComponent<ModelRenderer>();
 			renderer.Model = Model.Load( "models/dev/box.vmdl" );
-			go.WorldScale = size;  // box.vmdl is 1x1x1, scale to desired size
+			go.WorldScale = size / BoxModelNativeSize;
 
 			var material = Material.Load( materialPath );
 			if ( material is null )
@@ -916,15 +947,14 @@ namespace Lute.Building
 				material = Material.Load( "materials/medieval/stone_wall.vmat" );
 			}
 			if ( material is not null )
-			{
 				renderer.MaterialOverride = material;
-			}
 
-			// Add collision if needed
+			// BoxCollider.Scale is model-local. With WorldScale=size/50, a
+			// 50-unit collider yields the same requested world dimensions.
 			if ( collides )
 			{
 				var collider = go.AddComponent<BoxCollider>();
-				collider.Scale = size;
+				collider.Scale = new Vector3( BoxModelNativeSize, BoxModelNativeSize, BoxModelNativeSize );
 			}
 
 			go.Enabled = true;
@@ -932,61 +962,57 @@ namespace Lute.Building
 			// Commit exact piece bounds to the occupancy ledger so future
 			// pieces/tasks can't overlap this one.
 			if ( !_reconstructMode && !string.IsNullOrEmpty( CurrentDirectedTaskId ) )
-			{
 				ReservationManager.CommitPlacement( CurrentDirectedTaskId, pieceBounds, go.Name );
-			}
 		}
 
-	/// <summary>
-	/// Spawn a brick-pattern wall piece. Uses BrickMeshBuilder to create
-	/// proper running-bond brick geometry instead of a flat box.
-	/// </summary>
-	void SpawnBrickBox( Vector3 worldPos, Vector3 size, string materialPath, bool collides, GameObject parent, float yaw = 0f )
-	{
-		// Walls: base at z=0 (lift center)
-		worldPos = worldPos.WithZ( worldPos.z + size.z * 0.5f );
-
-		var half = size * 0.5f;
-		var rot = yaw != 0f ? Rotation.FromYaw( yaw ) : Rotation.Identity;
-		var pieceBounds = new BBox( -half, half ).Rotate( rot ).Translate( worldPos );
-
-		if ( !_reconstructMode && !string.IsNullOrEmpty( CurrentDirectedTaskId ) )
+		/// <summary>
+		/// Spawn a brick-pattern wall piece. Uses BrickMeshBuilder to create
+		/// proper running-bond brick geometry instead of a flat box.
+		/// </summary>
+		void SpawnBrickBox( Vector3 worldPos, Vector3 size, string materialPath, bool collides, GameObject parent, float yaw = 0f )
 		{
-			if ( !ReservationManager.CanPlace( CurrentDirectedTaskId, pieceBounds, out var reason ) )
+			// Walls: base at z=0 (lift center)
+			worldPos = worldPos.WithZ( worldPos.z + size.z * 0.5f );
+
+			var half = size * 0.5f;
+			var rot = yaw != 0f ? Rotation.FromYaw( yaw ) : Rotation.Identity;
+			var pieceBounds = new BBox( -half, half ).Rotate( rot ).Translate( worldPos );
+
+			if ( !_reconstructMode && !string.IsNullOrEmpty( CurrentDirectedTaskId ) )
 			{
-				Log.Warning( $"Lute: VillageBuilder brick placement blocked at {worldPos}: {reason}" );
-				throw new ConstructionPlacementBlockedException( $"{CurrentDirectedTaskId} placement blocked at {worldPos}: {reason}" );
+				if ( !ReservationManager.CanPlace( CurrentDirectedTaskId, pieceBounds, out var reason ) )
+				{
+					Log.Warning( $"Lute: VillageBuilder brick placement blocked at {worldPos}: {reason}" );
+					throw new ConstructionPlacementBlockedException( $"{CurrentDirectedTaskId} placement blocked at {worldPos}: {reason}" );
+				}
 			}
+
+			var go = Scene.CreateObject( false );
+			go.Name = $"Village_brick_{CurrentTask?.Name ?? "piece"}_{_totalPiecesPlaced}";
+			go.SetParent( parent );
+			go.WorldPosition = worldPos;
+			if ( yaw != 0f ) go.WorldRotation = rot;
+
+			var meshComp = go.AddComponent<MeshComponent>();
+			meshComp.Collision = collides
+				? MeshComponent.CollisionType.Mesh
+				: MeshComponent.CollisionType.None;
+
+			var material = Material.Load( materialPath );
+			if ( material is null )
+			{
+				Log.Warning( $"Lute: Brick material '{materialPath}' failed to load, falling back to stone_wall" );
+				material = Material.Load( "materials/medieval/stone_wall.vmat" );
+			}
+			var mesh = BrickMeshBuilder.BuildBrickWall( size, material );
+			meshComp.Mesh = mesh;
+			go.Enabled = true;
+
+			if ( !_reconstructMode && !string.IsNullOrEmpty( CurrentDirectedTaskId ) )
+				ReservationManager.CommitPlacement( CurrentDirectedTaskId, pieceBounds, go.Name );
 		}
 
-		var go = Scene.CreateObject( false );
-		go.Name = $"Village_brick_{CurrentTask?.Name ?? "piece"}_{_totalPiecesPlaced}";
-		go.SetParent( parent );
-		go.WorldPosition = worldPos;
-		if ( yaw != 0f ) go.WorldRotation = rot;
-
-		var meshComp = go.AddComponent<MeshComponent>();
-		meshComp.Collision = collides
-			? MeshComponent.CollisionType.Mesh
-			: MeshComponent.CollisionType.None;
-
-		var material = Material.Load( materialPath );
-		if ( material is null )
-		{
-			Log.Warning( $"Lute: Brick material '{materialPath}' failed to load, falling back to stone_wall" );
-			material = Material.Load( "materials/medieval/stone_wall.vmat" );
-		}
-		var mesh = BrickMeshBuilder.BuildBrickWall( size, material );
-		meshComp.Mesh = mesh;
-		go.Enabled = true;
-
-		if ( !_reconstructMode && !string.IsNullOrEmpty( CurrentDirectedTaskId ) )
-		{
-			ReservationManager.CommitPlacement( CurrentDirectedTaskId, pieceBounds, go.Name );
-		}
-	}
-
-	// ── Save management ──
+		// ── Save management ──
 
 		void MaybeSave()
 		{
