@@ -634,3 +634,114 @@ class VisionLib:
             if stats2['dark_pct'] < stats['dark_pct']:
                 return img2  # flash improved the shot
         return img  # flash didn't help, return original
+
+    # --- Unified observation: telemetry + vision in one call ---
+
+    def observe_npc(self, npc_name='Merlyn', question='Describe what you see.',
+                    width=1280, height=720, vision_model=None):
+        """Observe an NPC: return authoritative telemetry + GPT visual description.
+
+        Pairs camera vision with runtime telemetry so Devin gets both the
+        "what does it look like" (vision) and the "what is the ground truth"
+        (telemetry) in one structured package. Vision is an observation
+        channel, not a source of truth — telemetry is authoritative.
+
+        Returns a dict with:
+          - npc: NPC name
+          - world_position: (x, y, z)
+          - world_rotation: (pitch, yaw, roll) or None
+          - camera_position: (x, y, z) of Eyes child
+          - directed_task_id: current task ID or None
+          - task_status: status string or None
+          - reservation_id: current reservation or None
+          - grounded: bool or None
+          - screenshot_path: path to saved PNG or None
+          - vision_description: GPT text description or None
+          - vision_error: error message if vision failed
+        """
+        cache = self._find_npc(npc_name)
+
+        # Telemetry: NPC world position and rotation
+        go = call('get_game_object', id=cache['go_id'])
+        go_text = go['result']['content'][0]['text']
+        pos_match = re.search(r'"WorldPosition"\s*:\s*"([0-9.,-]+)"', go_text)
+        rot_match = re.search(r'"WorldRotation"\s*:\s*"([0-9.,-]+)"', go_text)
+        world_pos = tuple(float(x) for x in pos_match.group(1).split(',')) if pos_match else None
+        world_rot = tuple(float(x) for x in rot_match.group(1).split(',')) if rot_match else None
+
+        # Telemetry: Eyes camera position
+        eyes_go = call('get_game_object', id=cache['eyes_go_id'])
+        eyes_text = eyes_go['result']['content'][0]['text']
+        cam_pos_match = re.search(r'"WorldPosition"\s*:\s*"([0-9.,-]+)"', eyes_text)
+        cam_pos = tuple(float(x) for x in cam_pos_match.group(1).split(',')) if cam_pos_match else None
+
+        # Telemetry: agent control properties (directed task, grounded, etc.)
+        npc_props = call('get_game_object', id=cache['npc_comp_id'],
+                         includeComponentProperties=True)
+        props_text = npc_props['result']['content'][0]['text']
+        directed_task = re.search(r'"DirectedTaskId"\s*:\s*"([^"]*)"', props_text)
+        task_status = re.search(r'"TaskStatus"\s*:\s*"?(\w+)"?', props_text)
+        reservation = re.search(r'"ReservationId"\s*:\s*"([^"]*)"', props_text)
+        grounded = re.search(r'"Grounded"\s*:\s*(true|false)', props_text)
+
+        # Vision: capture screenshot and ask GPT
+        screenshot_path = None
+        vision_desc = None
+        vision_err = None
+        try:
+            img = self.capture_npc(npc_name, width=width, height=height)
+            if img:
+                screenshot_path = save_img(img, f'observe_{npc_name}')
+                # Use gpt_eyes vision if available, else fall back to ask_vision
+                try:
+                    import base64 as _b64
+                    from gpt_eyes import describe_image
+                    b64 = _b64.b64encode(img).decode()
+                    vision_desc = describe_image(b64, question, model=vision_model or 'gpt-5')
+                except ImportError:
+                    vision_desc = ask_vision(img, question)
+            else:
+                vision_err = 'capture_npc returned no image'
+        except Exception as e:
+            vision_err = str(e)
+
+        return {
+            'npc': npc_name,
+            'world_position': world_pos,
+            'world_rotation': world_rot,
+            'camera_position': cam_pos,
+            'directed_task_id': directed_task.group(1) if directed_task else None,
+            'task_status': task_status.group(1) if task_status else None,
+            'reservation_id': reservation.group(1) if reservation else None,
+            'grounded': (grounded.group(1) == 'true') if grounded else None,
+            'screenshot_path': screenshot_path,
+            'vision_description': vision_desc,
+            'vision_error': vision_err,
+        }
+
+    def format_observation(self, obs):
+        """Format an observe_npc() result as readable text for the agent."""
+        lines = [f"NPC: {obs['npc']}"]
+        if obs.get('world_position'):
+            lines.append(f"WorldPosition: {obs['world_position']}")
+        if obs.get('world_rotation'):
+            lines.append(f"WorldRotation: {obs['world_rotation']}")
+        if obs.get('camera_position'):
+            lines.append(f"CameraPosition: {obs['camera_position']}")
+        if obs.get('directed_task_id'):
+            lines.append(f"DirectedTaskId: {obs['directed_task_id']}")
+        if obs.get('task_status'):
+            lines.append(f"TaskStatus: {obs['task_status']}")
+        if obs.get('reservation_id'):
+            lines.append(f"ReservationId: {obs['reservation_id']}")
+        if obs.get('grounded') is not None:
+            lines.append(f"Grounded: {obs['grounded']}")
+        if obs.get('screenshot_path'):
+            lines.append(f"Screenshot: {obs['screenshot_path']}")
+        lines.append("")
+        if obs.get('vision_description'):
+            lines.append("GPT visual interpretation:")
+            lines.append(obs['vision_description'])
+        elif obs.get('vision_error'):
+            lines.append(f"Vision error: {obs['vision_error']}")
+        return '\n'.join(lines)
