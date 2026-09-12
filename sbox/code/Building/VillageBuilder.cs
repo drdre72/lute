@@ -25,11 +25,11 @@ namespace Lute.Building
 	{
 		const float M = 39.37f;
 		const float BoxModelNativeSize = 50f;
-		const float BrickSpacingX = 0.2f * M;
-		const float BrickSpacingZ = 0.05f * M;
-		const float BrickMortarGap = 0.01f * M;
-	/// <summary> Wall segment length in world units. 2m = small Rust-style buildable unit. </summary>
-	const float WallSegmentLength = 2f * M;
+		const float BrickSpacingX = 0.25f * M;  // 25cm brick length (medieval realistic)
+		const float BrickSpacingZ = 0.06f * M;  // 6cm brick height (medieval realistic)
+		const float BrickMortarGap = 0f;       // 0cm — no see-through gaps; mortar is in the texture
+		/// <summary> Wall segment length in world units. 2m = small Rust-style buildable unit. </summary>
+		const float WallSegmentLength = 2f * M;
 
 		enum PieceAnchor
 		{
@@ -64,7 +64,7 @@ namespace Lute.Building
 		[Property] public float FloorThickness { get; set; } = 10f;
 
 		/// <summary> Material for walls. </summary>
-		[Property] public string WallMaterial { get; set; } = "materials/medieval/brick_wall.vmat";
+		[Property] public string WallMaterial { get; set; } = "materials/medieval/castle_wall.vmat";
 
 		/// <summary> Material for floors/roads. </summary>
 		[Property] public string FloorMaterial { get; set; } = "materials/medieval/plaza.vmat";
@@ -623,9 +623,9 @@ namespace Lute.Building
 		{
 			float segLen = WallSegmentLength;
 			float wallH = WallHeight;
-			const float brickThick = 0.1f * M;
+			const float brickThick = 0.50f * M;  // 50cm — 2 bricks deep (castle wall thickness)  // 12cm brick depth (medieval realistic)
 			const float brickLen = BrickSpacingX - BrickMortarGap;
-			const float brickH = BrickSpacingZ - BrickMortarGap;
+			const float brickH = BrickSpacingZ;  // full row height — no vertical gap (mortar is implicit)
 
 			int bricksPerRow = (int)MathF.Ceiling( segLen / BrickSpacingX );
 			int numRows = (int)MathF.Ceiling( wallH / BrickSpacingZ );
@@ -636,9 +636,27 @@ namespace Lute.Building
 			for ( int row = 0; row < numRows; row++ )
 			{
 				// Running bond: offset every other row by half a brick.
-				// No extra brick — the offset alone creates the stagger.
+				// Odd rows get an extra half-brick at start to fill edge gap. — the offset alone creates the stagger.
 				float rowOffset = (row % 2 == 1) ? BrickSpacingX * 0.5f : 0f;
 				int colsThisRow = bricksPerRow;
+				// On odd rows, spawn a half-width brick at the start edge to fill the gap.
+				if ( row % 2 == 1 && brickIdx >= task.PiecesPlaced )
+				{
+					float ex = -segLen * 0.5f;
+					float ez = row * BrickSpacingZ;
+					var elocal = new Vector3( ex, 0, ez );
+					var ecos = (float)Math.Cos( task.Rotation * Math.PI / 180 );
+					var esin = (float)Math.Sin( task.Rotation * Math.PI / 180 );
+					var epos = task.Position + new Vector3(
+						elocal.x * ecos - elocal.y * esin,
+						elocal.x * esin + elocal.y * ecos,
+						elocal.z );
+					SpawnBox( epos, new Vector3( BrickSpacingX * 0.5f, brickThick, brickH ),
+						WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base );
+					brickIdx++;
+					task.PiecesPlaced = brickIdx;
+					_totalPiecesPlaced++;
+				}
 
 				for ( int col = 0; col < colsThisRow; col++ )
 				{
@@ -760,12 +778,15 @@ namespace Lute.Building
 			if ( task.TaskType != "wall" ) return false;
 			if ( task.WallState != WallSegmentState.FinalizationEligible ) { Log.Warning( $"Lute: FinalizeWall('{task.Name}') rejected - not eligible." ); return false; }
 			float segLen = WallSegmentLength; float wallH = WallHeight;
-			const float brickThick = 0.1f * M; const float brickLen = BrickSpacingX - BrickMortarGap; const float brickH = BrickSpacingZ - BrickMortarGap;
+			const float brickThick = 0.50f * M;  const float brickLen = BrickSpacingX - BrickMortarGap; const float brickH = BrickSpacingZ;
 			int bricksPerRow = (int)MathF.Ceiling( segLen / BrickSpacingX ); int numRows = (int)MathF.Ceiling( wallH / BrickSpacingZ );
 			var vertices = new List<Vertex>(); var indices = new List<int>();
 			for ( int row = 0; row < numRows; row++ )
 			{
 				float rowOffset = (row % 2 == 1) ? BrickSpacingX * 0.5f : 0f;
+				// Edge brick at start of odd rows (fills the running-bond gap)
+				if ( row % 2 == 1 )
+					AddBrickToMesh( vertices, indices, -segLen * 0.5f, 0, row * BrickSpacingZ, BrickSpacingX * 0.5f, brickThick, brickH );
 				for ( int col = 0; col < bricksPerRow; col++ )
 				{
 					float x = -segLen * 0.5f + col * BrickSpacingX + rowOffset; float z = row * BrickSpacingZ;
@@ -819,7 +840,7 @@ namespace Lute.Building
 			if ( task.TaskType != "wall" ) return false;
 			if ( task.WallState != WallSegmentState.Finalized ) { Log.Warning( $"Lute: DeconstructWall('{task.Name}') rejected - not Finalized." ); return false; }
 			float segLen = WallSegmentLength; float wallH = WallHeight;
-			const float brickThick = 0.1f * M; const float brickLen = BrickSpacingX - BrickMortarGap; const float brickH = BrickSpacingZ - BrickMortarGap;
+			const float brickThick = 0.50f * M;  const float brickLen = BrickSpacingX - BrickMortarGap; const float brickH = BrickSpacingZ;
 			int bricksPerRow = (int)MathF.Ceiling( segLen / BrickSpacingX ); int numRows = (int)MathF.Ceiling( wallH / BrickSpacingZ );
 			if ( task.FinalizedMeshGo is not null ) { task.FinalizedMeshGo.Destroy(); task.FinalizedMeshGo = null; }
 			int topRow = numRows - 1; float rowOffset = (topRow % 2 == 1) ? BrickSpacingX * 0.5f : 0f;
@@ -1157,7 +1178,7 @@ namespace Lute.Building
 			if ( material is null )
 			{
 				Log.Warning( $"Lute: SpawnBox material '{materialPath}' failed to load, using default." );
-				material = Material.Load( "materials/medieval/stone_wall.vmat" );
+				material = Material.Load( "materials/medieval/castle_wall.vmat" );
 			}
 			if ( material is not null )
 				renderer.MaterialOverride = material;
@@ -1220,7 +1241,7 @@ namespace Lute.Building
 			if ( material is null )
 			{
 				Log.Warning( $"Lute: Brick material '{materialPath}' failed to load, falling back to stone_wall" );
-				material = Material.Load( "materials/medieval/stone_wall.vmat" );
+				material = Material.Load( "materials/medieval/castle_wall.vmat" );
 			}
 			var mesh = BrickMeshBuilder.BuildBrickWall( size, material );
 			meshComp.Mesh = mesh;
