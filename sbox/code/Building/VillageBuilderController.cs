@@ -99,6 +99,7 @@ namespace Lute.Building
 
 		private float _stateTimer;
 		private float _logTimer;
+		private float _layAnimTimer;
 		private Vector3 _currentTarget;
 		private int _buildingTaskIndex = -1; // tracks which task index we're standing at
 		private string _activeDirectedTaskId; // exact DirectedTask.Id the NPC is currently building (director mode)
@@ -495,6 +496,12 @@ namespace Lute.Building
 		{
 			Controller.WishVelocity = Vector3.Zero;
 
+			// Play a simple LAY animation cycle while building.
+			// The citizen animgraph doesn't have a "lay brick" gesture,
+			// so we simulate it by cycling the duck/crouch parameter:
+			// duck=1 (crouch down to place) → duck=0 (stand back up).
+			PlayLayAnimation();
+
 			// Director mode: the TaskCompleted event drives the transition
 			// out of Building. Do NOT infer completion from CurrentTaskIndex
 			// or CurrentTask.Status — the executor (VillageBuilder) is the
@@ -555,6 +562,30 @@ namespace Lute.Building
 				Log.Info( $"Lute: VillageBuilderController task '{Builder.CurrentTask.Name}' done. Walking to next site." );
 				return;
 			}
+		}
+
+		/// <summary>
+		/// Simple LAY animation: cycles the citizen "duck" parameter to
+		/// simulate crouching down to place a brick, then standing back up.
+		/// The cycle period matches the BuildInterval (0.5s) so each
+		/// brick placement is accompanied by one crouch-and-rise gesture.
+		/// </summary>
+		void PlayLayAnimation()
+		{
+			var body = GetComponentInChildren<SkinnedModelRenderer>();
+			if ( !body.IsValid() )
+				return;
+
+			// Cycle the duck parameter: 0 (standing) → 1 (crouched) → 0
+			// over the build interval. Use a sine wave for smooth motion.
+			_layAnimTimer += Time.Delta;
+			var cycle = 0.5f; // match BuildInterval
+			var phase = ( _layAnimTimer % cycle ) / cycle;
+			var duck = MathF.Sin( phase * MathF.PI ); // 0 → 1 → 0
+
+			body.Set( "duck", duck );
+			body.Set( "b_grounded", true );
+			body.Set( "move_x", 0f );
 		}
 
 		/// <summary>

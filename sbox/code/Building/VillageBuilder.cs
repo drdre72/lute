@@ -26,7 +26,7 @@ namespace Lute.Building
 		const float M = 39.37f;
 
 		/// <summary> Seconds between placed pieces. 1s = ~73-minute pace. </summary>
-		[Property] public float BuildInterval { get; set; } = 0.1f;
+		[Property] public float BuildInterval { get; set; } = 0.5f;
 
 		/// <summary> Seconds between save checks. </summary>
 		[Property] public float SaveInterval { get; set; } = 60f; // 1 minute
@@ -44,7 +44,7 @@ namespace Lute.Building
 		[Property] public float FloorThickness { get; set; } = 10f;
 
 		/// <summary> Material for walls. </summary>
-		[Property] public string WallMaterial { get; set; } = "materials/medieval/stone_wall.vmat";
+		[Property] public string WallMaterial { get; set; } = "materials/medieval/brick_wall.vmat";
 
 		/// <summary> Material for floors/roads. </summary>
 		[Property] public string FloorMaterial { get; set; } = "materials/medieval/plaza.vmat";
@@ -118,13 +118,8 @@ namespace Lute.Building
 		{
 			_cts = new CancellationTokenSource();
 
-			// Force build speed override — scene file may have stale value
-			// from a previous run. 0.1s/piece = ~7 minute build.
-			if ( BuildInterval > 2.0f )
-			{
-				Log.Info( $"Lute: VillageBuilder overriding BuildInterval {BuildInterval}s → 0.1s (fast mode)" );
-				BuildInterval = 0.1f;
-			}
+			// Force build speed — 0.5s per brick lay with LAY animation.
+			BuildInterval = 0.5f;
 			if ( SaveInterval > 120f )
 			{
 				Log.Info( $"Lute: VillageBuilder overriding SaveInterval {SaveInterval}s → 60s (fast mode)" );
@@ -569,7 +564,7 @@ namespace Lute.Building
 					var pos = task.Position + new Vector3( offset * (float)Math.Cos( task.Rotation * Math.PI / 180 ),
 														   offset * (float)Math.Sin( task.Rotation * Math.PI / 180 ),
 														   0 );
-					SpawnBrickBox( pos, new Vector3( segLen / pieces, 3f * M, WallHeight ), WallMaterial, true, _villageRoot, task.Rotation );
+					SpawnBox( pos, new Vector3( segLen / pieces, 3f * M, WallHeight ), WallMaterial, true, _villageRoot, task.Rotation );
 					task.PiecesPlaced = i + 1;
 					_totalPiecesPlaced++;
 				}
@@ -875,39 +870,30 @@ namespace Lute.Building
 			go.WorldPosition = worldPos;
 			if ( yaw != 0f ) go.WorldRotation = rot;
 
-			var meshComp = go.AddComponent<MeshComponent>();
-			meshComp.Collision = collides
-				? MeshComponent.CollisionType.Mesh
-				: MeshComponent.CollisionType.None;
-
-			var mesh = new PolygonMesh();
-
-			var v0 = mesh.AddVertex( new Vector3( -half.x, -half.y, -half.z ) );
-			var v1 = mesh.AddVertex( new Vector3(  half.x, -half.y, -half.z ) );
-			var v2 = mesh.AddVertex( new Vector3(  half.x,  half.y, -half.z ) );
-			var v3 = mesh.AddVertex( new Vector3( -half.x,  half.y, -half.z ) );
-			var v4 = mesh.AddVertex( new Vector3( -half.x, -half.y,  half.z ) );
-			var v5 = mesh.AddVertex( new Vector3(  half.x, -half.y,  half.z ) );
-			var v6 = mesh.AddVertex( new Vector3(  half.x,  half.y,  half.z ) );
-			var v7 = mesh.AddVertex( new Vector3( -half.x,  half.y,  half.z ) );
-
-			mesh.AddFace( v0, v3, v2, v1 );
-			mesh.AddFace( v4, v5, v6, v7 );
-			mesh.AddFace( v0, v1, v5, v4 );
-			mesh.AddFace( v1, v2, v6, v5 );
-			mesh.AddFace( v2, v3, v7, v6 );
-			mesh.AddFace( v3, v0, v4, v7 );
+			// Use ModelRenderer with box.vmdl + MaterialOverride — this is the
+			// proven approach (market walls use it) that handles UVs correctly.
+			var renderer = go.AddComponent<ModelRenderer>();
+			renderer.Model = Model.Load( "models/dev/box.vmdl" );
+			go.WorldScale = size;  // box.vmdl is 1x1x1, scale to desired size
 
 			var material = Material.Load( materialPath );
+			if ( material is null )
+			{
+				Log.Warning( $"Lute: SpawnBox material '{materialPath}' failed to load, using default." );
+				material = Material.Load( "materials/medieval/stone_wall.vmat" );
+			}
 			if ( material is not null )
 			{
-				var allFaces = new List<FaceHandle>();
-				for ( int f = 0; f < 6; f++ )
-					allFaces.Add( mesh.FaceHandleFromIndex( f ) );
-				mesh.AssignMaterialToFaces( allFaces, material );
+				renderer.MaterialOverride = material;
 			}
 
-			meshComp.Mesh = mesh;
+			// Add collision if needed
+			if ( collides )
+			{
+				var collider = go.AddComponent<BoxCollider>();
+				collider.Scale = size;
+			}
+
 			go.Enabled = true;
 
 			// Commit exact piece bounds to the occupancy ledger so future
@@ -952,6 +938,11 @@ namespace Lute.Building
 			: MeshComponent.CollisionType.None;
 
 		var material = Material.Load( materialPath );
+		if ( material is null )
+		{
+			Log.Warning( $"Lute: Brick material '{materialPath}' failed to load, falling back to stone_wall" );
+			material = Material.Load( "materials/medieval/stone_wall.vmat" );
+		}
 		var mesh = BrickMeshBuilder.BuildBrickWall( size, material );
 		meshComp.Mesh = mesh;
 		go.Enabled = true;

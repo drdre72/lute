@@ -130,12 +130,12 @@ namespace Lute.Npc
 				builder.Center = center;
 				builder.VillageSeed = marker.VillageSeed;
 				builder.FreshBuild = marker.FreshBuild;
-				builder.BuildInterval = 1.0f;     // 1s per piece = fast build (~73 min for full village)
+				builder.BuildInterval = 0.5f;     // 0.5s per brick lay with LAY animation
 				builder.SaveInterval = 60f;        // save every 1 minute
 				builder.CellSize = 100f;
 				builder.WallHeight = 200f;
 				builder.FloorThickness = 10f;
-				builder.WallMaterial = "materials/medieval/stone_wall.vmat";
+				builder.WallMaterial = "materials/medieval/brick_wall.vmat";
 				builder.FloorMaterial = "materials/medieval/plaza.vmat";
 				builder.BuildingWallMaterial = "materials/medieval/wood.vmat";
 				builder.BuildingFloorMaterial = "materials/medieval/wood.vmat";
