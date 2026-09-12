@@ -129,7 +129,7 @@ namespace Lute.Npc
 				var builder = villageGo.AddComponent<VillageBuilder>();
 				builder.Center = center;
 				builder.VillageSeed = marker.VillageSeed;
-				builder.FreshBuild = marker.FreshBuild;
+				builder.FreshBuild = true;  // always fresh — no instant reconstruct
 				builder.BuildInterval = 0.5f;     // 0.5s per brick lay with LAY animation
 				builder.SaveInterval = 60f;        // save every 1 minute
 				builder.CellSize = 100f;
@@ -219,6 +219,15 @@ namespace Lute.Npc
 			// Village builder controller.
 			var npc = go.AddComponent<VillageBuilderController>();
 			npc.Builder = builder;
+
+			// Eyes — camera for GPT-5 vision inspection (first-person view).
+			// Inherits parent rotation so it looks where the NPC faces.
+			var eyesGo = scene.CreateObject( true );
+			eyesGo.Name = "Eyes";
+			eyesGo.SetParent( go );
+			eyesGo.LocalPosition = new Vector3( 0, 0, 64f );  // eye height ~1.6m
+			var camera = eyesGo.AddComponent<CameraComponent>();
+			camera.FieldOfView = 90f;
 
 			// Interaction.
 			var interactable = go.AddComponent<Interactable>();
