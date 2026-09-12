@@ -49,7 +49,14 @@ The authoritative construction representation is `Blueprint`. NPC speech is neve
 - BuildingGrammar / StyleGrammar
 - MonumentBlueprintProducer
 - VillageBuilder and save/resume path
-- SpatialBlackboard
+- SpatialBlackboard (positions, claims, AABB box reservations, messages)
+- ConstructionDirector (authoritative task scheduling, dependencies, reservations)
+- ReservationManager (task-tied reservations, occupancy ledger, conflict detection)
+- ConstructionEventBus (pub/sub event system for construction state transitions)
+- Deterministic NLP pipeline (tokenizer, grammar parser, entity resolver, speech templates)
+- ConversationManager (async message delivery, exactly-once consumption)
+- BeliefModel (self-beliefs, task history, reputation, trust, conversation state)
+- VillageBuilderController (wired to ConversationManager, ConstructionDirector, ConstructionEventBus)
 - LuteBuilderNpc autonomous and agent-drive modes
 - LuteWatchtower from-scratch construction
 - Neutral Market monument whitebox/detail pass
@@ -57,24 +64,25 @@ The authoritative construction representation is `Blueprint`. NPC speech is neve
 - In-game agent chat panel on `J`
 - S&Box native MCP spatial probing through the existing `agent/sbox_eyes.py` workflow
 - `.devin-context` session memory and hooks
+- Lute context MCP server (`agent/lute_context_server.py`)
+- Structured project memory (`LUTE_STATE.md`, `LUTE_CAPABILITIES.md`, ADRs)
 
 ## Current construction problems / risks
 
-1. NPCs can still attempt construction in occupied/invalid spatial regions. Treat this as a scheduling/reservation/dependency problem, not as a dialogue problem.
-2. Builder NPC autonomous test placement can still interfere with agent-driven behavior.
-3. Acropolis collision currently behaves as one imported collision hull and is not yet ideal for terrace traversal.
-4. Agent movement can be affected by `PlayerController` friction/collision.
+1. NPC/executor synchronization: VillageBuilder can start executing a claimed task while its visible NPC is still walking to the site. Next refinement: Claim → walk → ReadyAtSite → Director authorizes → build.
+2. Occupancy layer only knows completed Lute construction + explicitly registered regions. Does not yet auto-scan pre-existing static world geometry.
+3. Builder NPC autonomous test placement can still interfere with agent-driven behavior.
+4. Acropolis collision currently behaves as one imported collision hull and is not yet ideal for terrace traversal.
+5. Agent movement can be affected by `PlayerController` friction/collision.
 
 ## Next architectural target
 
-Implement the deterministic construction-coordination layer before adding gameplay deception:
+The deterministic construction-coordination layer is now implemented (Phases 1-5). Remaining refinements:
 
-1. ConstructionDirector
-2. task dependency graph
-3. spatial reservation manager
-4. deterministic NPC intent/NLP layer
-5. construction conflict resolver
-6. truthful construction reporting and validation
+1. NPC/executor state synchronization (ReadyAtSite gate)
+2. Auto-scan static world geometry into occupancy ledger
+3. Deterministic conflict replanning (when reservation conflicts occur, replan deterministically)
+4. Phase 6: Gameplay social systems (deception enabled only after construction is proven)
 
 ## Rules of interpretation
 

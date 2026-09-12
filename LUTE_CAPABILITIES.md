@@ -11,16 +11,17 @@
 | Style grammar | implemented | `sbox/code/Building/StyleGrammar.cs` | Architectural constraints |
 | Monument generation | implemented | `sbox/code/Building/MonumentBlueprintProducer.cs` | Includes massing-level monument presets |
 | Village construction | implemented | `sbox/code/Building/VillageBuilder.cs` | Incremental/save-resume path |
-| Multi-builder scheduling | partial | `sbox/code/Building/VillageBuilder.cs` | Needs stronger dependency/reservation semantics |
-| Spatial blackboard | implemented | `sbox/code/Building/SpatialBlackboard.cs` | Shared NPC positions/claims/messages |
+| Multi-builder scheduling | implemented | `sbox/code/Building/ConstructionDirector.cs` | Balanced deal, work-stealing, dependency-aware |
+| Spatial blackboard | implemented | `sbox/code/Building/SpatialBlackboard.cs` | Shared NPC positions/claims/messages, AABB box reservations |
 | Runtime block construction | implemented | `sbox/code/LuteBuilderNpc.cs` | Runtime MeshComponent creation requires disabled→mesh→enabled sequence |
 | From-scratch watchtower construction | implemented | `sbox/code/LuteWatchtower.cs` | First validated walkable structure |
-| Deterministic NPC intent/NLP | planned | architecture target | No runtime LLM |
-| ConstructionDirector | planned | architecture target | Central task scheduler / dependency authority |
-| Reservation manager | planned | architecture target | Prevents concurrent spatial conflicts |
-| Construction conflict resolver | planned | architecture target | Handles blockage/replanning deterministically |
-| NPC goals/needs/beliefs/memory | partial | NPC codebase | Needs formalized deterministic model |
-| NPC-to-NPC negotiation | partial | `SpatialBlackboard` / conversation code | Needs semantic intent layer |
+| Deterministic NPC intent/NLP | implemented | `sbox/code/NLP/` | Tokenizer, grammar parser, entity resolver, speech templates, conversation manager |
+| ConstructionDirector | implemented | `sbox/code/Building/ConstructionDirector.cs` | Central task scheduler, dependency authority, authoritative reservations |
+| Reservation manager | implemented | `sbox/code/Building/ReservationManager.cs` | Task-tied reservations, occupancy ledger, prevents concurrent spatial conflicts |
+| Construction event bus | implemented | `sbox/code/Building/ConstructionEventBus.cs` | Pub/sub event system for construction state transitions |
+| Construction conflict resolver | partial | `sbox/code/Building/ConstructionDirector.cs` | Reservation conflicts detected; deterministic replanning needs further work |
+| NPC goals/needs/beliefs/memory | implemented | `sbox/code/NLP/BeliefModel.cs` | Self-beliefs, task history, reputation, conversation state, trust |
+| NPC-to-NPC negotiation | implemented | `sbox/code/NLP/ConversationManager.cs` + `CommunicationBus` | Deterministic NLP intents, async message delivery, exactly-once consumption |
 | Runtime LLM NPC behavior | disabled | project rule | Must remain absent from gameplay path |
 | Construction deception | disabled | project rule | Intentionally reserved for future gameplay mode |
 | Gameplay deception | planned | future gameplay phase | Must be feature-gated and outside construction mode |
