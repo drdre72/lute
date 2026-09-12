@@ -551,20 +551,21 @@ namespace Lute.Building
 		async Task BuildWallSegment( VillageBuildTask task, CancellationToken token )
 		{
 			float segLen = 10f * M;
-			float wallThick = 3f * M;
 			float wallH = WallHeight;
 
-			// Brick spacing (inches) — grid spacing including mortar gap
-			const float brickSpacing = 1f * M;     // ~1m grid spacing
-			const float rowSpacing = 0.5f * M;     // ~0.5m course height
-			// Brick actual size — slightly smaller than spacing to leave mortar gaps
-			const float mortarGap = 0.05f * M;     // ~5cm mortar gap
-			const float brickLen = brickSpacing - mortarGap;   // ~0.95m
-			const float brickH = rowSpacing - mortarGap;        // ~0.45m
-			// Wall thickness is full brick (no depth stacking needed)
+			// Realistic brick dimensions (inches)
+			// Brick: 0.2m long x 0.1m thick x 0.05m tall
+			// Wall is 1 brick thick (0.1m) — no depth stacking
+			// Spacing includes ~1cm mortar gap
+			const float brickSpacingX = 0.2f * M;    // ~0.2m grid spacing (length)
+			const float brickSpacingZ = 0.05f * M;   // ~0.05m grid spacing (height)
+			const float mortarGap = 0.01f * M;       // ~1cm mortar gap
+			const float brickLen = brickSpacingX - mortarGap;   // ~0.19m
+			const float brickThick = 0.1f * M;                        // ~0.1m (single brick width)
+			const float brickH = brickSpacingZ - mortarGap;        // ~0.04m
 
-			int bricksPerRow = (int)MathF.Ceiling( segLen / brickSpacing );
-			int numRows = (int)MathF.Ceiling( wallH / rowSpacing );
+			int bricksPerRow = (int)MathF.Ceiling( segLen / brickSpacingX );
+			int numRows = (int)MathF.Ceiling( wallH / brickSpacingZ );
 			int totalBricks = bricksPerRow * numRows;
 			task.TotalPieces = totalBricks;
 
@@ -572,8 +573,8 @@ namespace Lute.Building
 			for ( int row = 0; row < numRows; row++ )
 			{
 				// Running bond: offset every other row by half a brick
-				float rowOffset = (row % 2 == 1) ? brickSpacing * 0.5f : 0f;
-				int colsThisRow = bricksPerRow + (row % 2 == 1 ? 1 : 0); // extra brick for offset rows
+				float rowOffset = (row % 2 == 1) ? brickSpacingX * 0.5f : 0f;
+				int colsThisRow = bricksPerRow + (row % 2 == 1 ? 1 : 0);
 
 				for ( int col = 0; col < colsThisRow; col++ )
 				{
@@ -581,8 +582,8 @@ namespace Lute.Building
 
 					if ( brickIdx >= task.PiecesPlaced )
 					{
-						float x = -segLen * 0.5f + col * brickSpacing + rowOffset;
-						float z = row * rowSpacing;
+						float x = -segLen * 0.5f + col * brickSpacingX + rowOffset;
+						float z = row * brickSpacingZ;
 
 						// Position relative to task center, rotated by task.Rotation
 						var localPos = new Vector3( x, 0, z );
@@ -593,7 +594,7 @@ namespace Lute.Building
 							localPos.x * sin + localPos.y * cos,
 							localPos.z );
 
-						SpawnBox( pos, new Vector3( brickLen, wallThick, brickH ),
+						SpawnBox( pos, new Vector3( brickLen, brickThick, brickH ),
 							WallMaterial, true, _villageRoot, task.Rotation );
 						task.PiecesPlaced = brickIdx + 1;
 						_totalPiecesPlaced++;
