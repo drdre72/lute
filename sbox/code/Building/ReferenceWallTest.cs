@@ -241,7 +241,7 @@ namespace Lute.Building
 
 						for ( int col = 1; col < modulesX; col++ )
 						{
-							float x = -segLen * 0.5f + BrickModuleX * 0.5f + col * BrickModuleX;
+							float x = -segLen * 0.5f + col * BrickModuleX;
 							var pos = task.Position + new Vector3( x, yCenter, z );
 							SpawnBrick( pos, new Vector3( brickLen, brickDepth, brickH ) );
 							task.PiecesPlaced = brickIdx + 1;
@@ -390,7 +390,7 @@ namespace Lute.Building
 						AddBrickToMesh( vertices, indices, -segLen * 0.5f + halfLen * 0.5f, yCenter, z, brickLen * 0.5f, brickDepth, brickH );
 						for ( int col = 1; col < modulesX; col++ )
 						{
-							float x = -segLen * 0.5f + BrickModuleX * 0.5f + col * BrickModuleX;
+							float x = -segLen * 0.5f + col * BrickModuleX;
 							AddBrickToMesh( vertices, indices, x, yCenter, z, brickLen, brickDepth, brickH );
 						}
 						AddBrickToMesh( vertices, indices, segLen * 0.5f - halfLen * 0.5f, yCenter, z, brickLen * 0.5f, brickDepth, brickH );
@@ -486,7 +486,7 @@ namespace Lute.Building
 				task.PlacedBricks.Remove( BrickSlot.HalfStretcher( 0, 0, topRow ) );
 				for ( int col = 1; col < modulesX; col++ )
 				{
-					float x = -segLen * 0.5f + BrickModuleX * 0.5f + col * BrickModuleX;
+					float x = -segLen * 0.5f + col * BrickModuleX;
 					pos = task.Position + new Vector3( x, yCenter, z );
 					SpawnBrick( pos, new Vector3( brickLen, brickDepth, brickH ) );
 					task.PlacedBricks.Remove( BrickSlot.Stretcher( col, 0, topRow ) );

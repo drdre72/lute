@@ -495,6 +495,7 @@ namespace Lute.Building
 		void HandleBuilding()
 		{
 			Controller.WishVelocity = Vector3.Zero;
+			FaceWall();
 
 			// Play a simple LAY animation cycle while building.
 			// The citizen animgraph doesn't have a "lay brick" gesture,
@@ -561,6 +562,27 @@ namespace Lute.Building
 				Controller.WishVelocity = Vector3.Zero;
 				Log.Info( $"Lute: VillageBuilderController task '{Builder.CurrentTask.Name}' done. Walking to next site." );
 				return;
+			}
+		}
+
+		/// <summary>
+		/// Face the wall being built. The NPC rotates to look directly
+		/// at the wall face, perpendicular to the wall's long axis.
+		/// This makes the NPC appear to be actively working on the wall
+		/// and ensures consistent screenshot framing.
+		/// </summary>
+		void FaceWall()
+		{
+			if ( Builder?.CurrentTask is null ) return;
+			var task = Builder.CurrentTask;
+			var wallPos = task.Position;
+			// NPC faces the wall: look from NPC position toward wall center
+			var toWall = wallPos - WorldPosition;
+			toWall = toWall.WithZ( 0 );
+			if ( toWall.LengthSquared > 1f )
+			{
+				float yaw = MathF.Atan2( toWall.y, toWall.x ) * 180f / MathF.PI;
+				WorldRotation = Rotation.FromYaw( yaw );
 			}
 		}
 

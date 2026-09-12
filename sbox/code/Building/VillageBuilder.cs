@@ -714,11 +714,14 @@ namespace Lute.Building
 						if ( !_reconstructMode ) await Task.DelaySeconds( BuildInterval );
 						MaybeSave();
 
-						// (modulesX - 1) full bricks
+						// (modulesX - 1) full bricks — shifted by half a module
+						// so vertical joints stagger (running bond). The left
+						// half brick occupies the first half-module, so full
+						// bricks start at col*moduleX from the left edge.
 						for ( int col = 1; col < modulesX; col++ )
 						{
 							token.ThrowIfCancellationRequested();
-							float x = -segLen * 0.5f + BrickModuleX * 0.5f + col * BrickModuleX;
+							float x = -segLen * 0.5f + col * BrickModuleX;
 							if ( brickIdx >= task.PiecesPlaced )
 							{
 								var pos = RotateLocal( new Vector3( x, yCenter, z ) );
@@ -905,10 +908,10 @@ namespace Lute.Building
 					{
 						// Left half
 						AddBrickToMesh( vertices, indices, -segLen * 0.5f + halfLen * 0.5f, yCenter, z, brickLen * 0.5f, brickDepth, brickH );
-						// (modulesX - 1) full
+						// (modulesX - 1) full - shifted by half module for running bond
 						for ( int col = 1; col < modulesX; col++ )
 						{
-							float x = -segLen * 0.5f + BrickModuleX * 0.5f + col * BrickModuleX;
+							float x = -segLen * 0.5f + col * BrickModuleX;
 							AddBrickToMesh( vertices, indices, x, yCenter, z, brickLen, brickDepth, brickH );
 						}
 						// Right half
@@ -1023,7 +1026,7 @@ namespace Lute.Building
 				task.PlacedBricks.Remove( BrickSlot.HalfStretcher( 0, 0, topRow ) );
 				for ( int col = 1; col < modulesX; col++ )
 				{
-					float x = -segLen * 0.5f + BrickModuleX * 0.5f + col * BrickModuleX;
+					float x = -segLen * 0.5f + col * BrickModuleX;
 					pos = RotateLocal( new Vector3( x, yCenter, z ) );
 				SpawnBox( pos, new Vector3( brickLen, brickDepth, brickH ), WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base );
 					task.PlacedBricks.Remove( BrickSlot.Stretcher( col, 0, topRow ) );
