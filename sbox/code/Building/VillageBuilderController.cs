@@ -478,7 +478,7 @@ namespace Lute.Building
 				WarpEffect.Spawn( Scene, WorldPosition, tint, 0.4f );
 
 				// Teleport to the target site (slightly above ground)
-				WorldPosition = target + Vector3.Up * 4f;
+				WorldPosition = WallStandPosition( target ) + Vector3.Up * 4f;
 				Controller.WishVelocity = Vector3.Zero;
 
 				// Spawn arrival poof at the destination
@@ -489,7 +489,7 @@ namespace Lute.Building
 			}
 
 			// Close enough — walk normally for the last few meters
-			MoveToward( target );
+			MoveToward( WallStandPosition( target ) );
 		}
 
 		void HandleBuilding()
@@ -563,6 +563,32 @@ namespace Lute.Building
 				Log.Info( $"Lute: VillageBuilderController task '{Builder.CurrentTask.Name}' done. Walking to next site." );
 				return;
 			}
+		}
+
+		/// <summary>
+		/// Compute a position for the NPC to stand beside the wall,
+		/// not inside it. Offsets ~1m perpendicular to the wall face
+		/// so the NPC is clearly visible and not clipping.
+		/// </summary>
+		Vector3 WallStandPosition( Vector3 wallCenter )
+		{
+			if ( Builder?.CurrentTask is null ) return wallCenter;
+			var task = Builder.CurrentTask;
+			// Offset the NPC to stand beside the wall, not inside it.
+			// Use the wall rotation to find the face normal, then offset
+			// in the direction the NPC is already on relative to the wall.
+			float yawRad = task.Rotation * MathF.PI / 180f;
+			float faceX = MathF.Sin( yawRad );
+			float faceY = MathF.Cos( yawRad );
+			// Determine which side of the wall the NPC is on
+			var toNpc = WorldPosition - wallCenter;
+			toNpc = toNpc.WithZ( 0 );
+			// Project onto face normal to determine sign
+			float dot = toNpc.x * faceX + toNpc.y * faceY;
+			float sign = dot >= 0 ? 1f : -1f;
+			// Offset 1.5m from wall center on the NPC's side
+			float offset = 1.5f * 39.37f;
+			return wallCenter + new Vector3( faceX * offset * sign, faceY * offset * sign, 0 );
 		}
 
 		/// <summary>

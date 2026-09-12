@@ -288,7 +288,7 @@ namespace Lute.Building
 			go.SetParent( _root );
 			go.WorldPosition = worldPos;
 			var renderer = go.AddComponent<ModelRenderer>();
-			renderer.Model = Model.Load( "models/medieval/brick.vmdl" );
+			renderer.Model = Model.Load( "models/medieval/brick_single.vmdl" );
 			go.WorldScale = size / BoxModelNativeSize;
 			go.Enabled = true;
 		}

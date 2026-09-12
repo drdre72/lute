@@ -1370,7 +1370,7 @@ namespace Lute.Building
 			var renderer = go.AddComponent<ModelRenderer>();
 			if ( isWallBrick )
 			{
-				renderer.Model = Model.Load( "models/medieval/brick.vmdl" );
+				renderer.Model = Model.Load( "models/medieval/brick_single.vmdl" );
 			}
 			else
 			{
