@@ -5,11 +5,7 @@ using System.Linq;
 namespace Lute.Building
 {
 	using Lute.NLP;
-	/// <summary>
-	/// Status of a directed construction task. Mirrors VillageBuildTask.Status
-	/// (0=pending,1=in_progress,2=complete) but adds Blocked (waiting on a
-	/// dependency) and Failed (validation/execution failure).
-	/// </summary>
+
 	public enum TaskStatus
 	{
 		Pending = 0,
@@ -21,81 +17,33 @@ namespace Lute.Building
 	}
 
 	/// <summary>
-	/// A directed task: a unit of construction work the
-	/// <see cref="ConstructionDirector"/> schedules. Wraps a
-	/// <see cref="VillageBuildTask"/> with director-level metadata:
-	/// assigned builder, dependency edges, blueprint id/version, retry
-	/// count, and reservation id. This is the authoritative task record;
-	/// <see cref="VillageBuildTask"/> becomes the executor-side view.
+	/// Authoritative director-side construction task. VillageBuildTask is the
+	/// executor view; DirectedTask owns scheduling, dependencies and reservation.
 	/// </summary>
 	public class DirectedTask
 	{
-		/// <summary> Stable director-side id (independent of list index). </summary>
 		public string Id { get; set; }
-
-		/// <summary> The underlying village build task (executor view). </summary>
 		public VillageBuildTask BuildTask { get; set; }
-
-		/// <summary> Current director status. </summary>
 		public TaskStatus Status { get; set; } = TaskStatus.Pending;
-
-		/// <summary> Builder assigned to this task (-1 = unassigned). </summary>
 		public int AssignedBuilder { get; set; } = -1;
-
-		/// <summary> Estimated piece count (for load balancing). </summary>
 		public int EstimatedPieces { get; set; }
-
-		/// <summary> Ids of tasks that must be Complete before this one starts. </summary>
 		public List<string> DependsOn { get; set; } = new();
-
-		/// <summary> Blueprint id this task produces (if any). </summary>
 		public string BlueprintId { get; set; }
-
-		/// <summary> Blueprint version last executed for this task. </summary>
 		public int BlueprintVersion { get; set; }
-
-		/// <summary> SpatialBlackboard claim id held by this task, if any. </summary>
 		public string ReservationId { get; set; }
-
-		/// <summary> Number of times this task has been retried after failure. </summary>
 		public int RetryCount { get; set; }
-
-		/// <summary> Max retries before the director gives up. </summary>
 		public int MaxRetries { get; set; } = 2;
-
-		/// <summary> Pieces placed so far (progress). </summary>
 		public int PiecesPlaced { get; set; }
-
-		/// <summary> True if all dependencies are Complete. </summary>
-		public bool DependenciesSatisfied =>
-			DependsOn.All( depId =>
-				ConstructionDirector.GetTask( depId )?.Status == TaskStatus.Complete );
-
-		/// <summary>
-		/// Preconditions that must be true before this task can start.
-		/// Per professor Phase 4: foundation.exists, area.available,
-		/// materials >= required. These are checked by the director
-		/// before assigning the task.
-		/// </summary>
 		public Dictionary<string, string> Preconditions { get; set; } = new();
-
-		/// <summary>
-		/// Spatial bounds this task reserves (AABB). If set, the director
-		/// uses ClaimBox instead of radius-based Claim.
-		/// </summary>
 		public BBox? ReservationBounds { get; set; }
-
-		/// <summary> Conflict list — task ids or object ids that must not overlap. </summary>
 		public List<string> Conflicts { get; set; } = new();
 
-		/// <summary> True if all preconditions are satisfied. </summary>
-		public bool PreconditionsSatisfied =>
-			ConstructionDirector.CheckPreconditions( Preconditions );
+		public bool DependenciesSatisfied =>
+			DependsOn.All( depId => ConstructionDirector.GetTask( depId )?.Status == TaskStatus.Complete );
+
+		public bool PreconditionsSatisfied => ConstructionDirector.CheckPreconditions( Preconditions );
 	}
 
-	/// <summary>
-	/// Per-builder runtime state tracked by the director.
-	/// </summary>
 	public class BuilderState
 	{
 		public int BuilderId { get; set; }
@@ -106,41 +54,20 @@ namespace Lute.Building
 	}
 
 	/// <summary>
-	/// Centralized construction scheduler. The professor's Phase 3
-	/// recommendation: one authoritative system for task scheduling,
-	/// builder assignment, spatial reservations, dependency tracking,
-	/// progress, and recovery — instead of having those concerns spread
-	/// across <see cref="VillageBuilder"/> (partitioning + build loop),
-	/// <see cref="SpatialBlackboard"/> (claims), and
-	/// <see cref="VillagePersistence"/> (progress).
-	///
-	/// Design:
-	/// - Static singleton-style (matches SpatialBlackboard's pattern) so
-	///   any system can query it without DI.
-	/// - Backward compatible: existing VillageBuilder code keeps working.
-	///   New code should go through the Director so scheduling,
-	///   reservations, and dependencies are consistent.
-	/// - The Director owns the task list; builders ask it for the next
-	///   ready task instead of iterating a shared list themselves.
-	/// - Work-stealing: when a builder finishes its assigned tasks, it
-	///   can steal the oldest pending task from any builder with a
-	///   heavier remaining load.
+	/// Single authoritative scheduler for construction. NPCs and executors may
+	/// request work, but only the director may transition task ownership and
+	/// acquire/release task reservations.
 	/// </summary>
 	public static class ConstructionDirector
 	{
-		// id -> task
 		static readonly Dictionary<string, DirectedTask> _tasks = new();
-		// builder id -> state
 		static readonly Dictionary<int, BuilderState> _builders = new();
-		// task id -> task ids that depend on it (reverse edges)
 		static readonly Dictionary<string, List<string>> _dependents = new();
 		static int _nextTaskSeq;
 
-		// ── Registration ──
-
-		/// <summary> Clear all director state (test/reset). </summary>
 		public static void Reset()
 		{
+			ReservationManager.Reset();
 			_tasks.Clear();
 			_builders.Clear();
 			_dependents.Clear();
@@ -148,11 +75,18 @@ namespace Lute.Building
 		}
 
 		/// <summary>
-		/// Register a builder with the director. Must be called before
-		/// that builder can be assigned tasks.
+		/// Register or reactivate a builder without destroying its current state.
+		/// VillageBuilder and VillageBuilderController can safely register the same id.
 		/// </summary>
 		public static void RegisterBuilder( int builderId, string npcName )
 		{
+			if ( _builders.TryGetValue( builderId, out var existing ) )
+			{
+				existing.NpcName = npcName;
+				existing.Active = true;
+				return;
+			}
+
 			_builders[builderId] = new BuilderState
 			{
 				BuilderId = builderId,
@@ -161,18 +95,28 @@ namespace Lute.Building
 			};
 		}
 
-		/// <summary> Mark a builder inactive (e.g. NPC destroyed). </summary>
+		/// <summary>
+		/// Deactivate a builder and safely return any unfinished task to the queue.
+		/// </summary>
 		public static void DeactivateBuilder( int builderId )
 		{
-			if ( _builders.TryGetValue( builderId, out var st ) )
-				st.Active = false;
+			if ( !_builders.TryGetValue( builderId, out var state ) )
+				return;
+
+			state.Active = false;
+			if ( !string.IsNullOrEmpty( state.CurrentTaskId ) &&
+				_tasks.TryGetValue( state.CurrentTaskId, out var task ) &&
+				task.Status == TaskStatus.InProgress )
+			{
+				ReservationManager.Release( task );
+				task.Status = TaskStatus.Pending;
+				task.AssignedBuilder = -1;
+				state.CurrentTaskId = null;
+			}
+
+			AssignTasks();
 		}
 
-		/// <summary>
-		/// Register a task with the director. Returns the assigned task id.
-		/// Estimates piece count if not set. Does NOT assign a builder yet
-		/// — call <see cref="AssignTasks"/> after all tasks are registered.
-		/// </summary>
 		public static string RegisterTask( VillageBuildTask buildTask,
 			List<string> dependsOn = null, string blueprintId = null )
 		{
@@ -184,10 +128,14 @@ namespace Lute.Building
 				EstimatedPieces = EstimatePieces( buildTask ),
 				BlueprintId = blueprintId,
 				DependsOn = dependsOn ?? new(),
+				PiecesPlaced = buildTask?.PiecesPlaced ?? 0,
+				ReservationBounds = buildTask != null ? ReservationManager.EstimateTaskBounds( buildTask ) : null,
+				// Completed persistence entries stay complete. An old in-progress
+				// entry is made pending because runtime reservations do not survive reload.
+				Status = buildTask?.Status == 2 ? TaskStatus.Complete : TaskStatus.Pending,
 			};
 			_tasks[id] = dt;
 
-			// Build reverse dependency edges
 			if ( dependsOn != null )
 			{
 				foreach ( var dep in dependsOn )
@@ -197,40 +145,39 @@ namespace Lute.Building
 						list = new();
 						_dependents[dep] = list;
 					}
-					list.Add( id );
+					if ( !list.Contains( id ) )
+						list.Add( id );
 				}
 			}
 
 			ConstructionEventBus.Fire( ConstructionEventType.TaskCreated,
 				taskId: id, parameters: new() { { "name", buildTask?.Name ?? "" } } );
-
 			return id;
 		}
 
-		/// <summary> Get a task by id. </summary>
-		public static DirectedTask GetTask( string id )
+		public static DirectedTask GetTask( string id ) =>
+			id != null && _tasks.TryGetValue( id, out var t ) ? t : null;
+
+		/// <summary> Resolve an id first, then a unique human-readable task name for compatibility. </summary>
+		public static DirectedTask ResolveTask( string key )
 		{
-			return _tasks.TryGetValue( id, out var t ) ? t : null;
+			if ( string.IsNullOrWhiteSpace( key ) )
+				return null;
+			if ( _tasks.TryGetValue( key, out var direct ) )
+				return direct;
+
+			var matches = _tasks.Values.Where( t => t.BuildTask?.Name == key ).Take( 2 ).ToList();
+			return matches.Count == 1 ? matches[0] : null;
 		}
 
-		/// <summary> All registered tasks. </summary>
-		public static List<DirectedTask> AllTasks() => _tasks.Values.ToList();
+		public static DirectedTask FindTaskForBuildTask( VillageBuildTask buildTask ) =>
+			buildTask == null ? null : _tasks.Values.FirstOrDefault( t => ReferenceEquals( t.BuildTask, buildTask ) );
 
-		/// <summary> All registered builders. </summary>
+		public static List<DirectedTask> AllTasks() => _tasks.Values.ToList();
 		public static List<BuilderState> AllBuilders() => _builders.Values.ToList();
 
-		// ── Scheduling / assignment ──
-
-		/// <summary>
-		/// Assign all pending tasks to builders using balanced deal
-		/// (biggest-first round-robin), respecting dependencies. Tasks
-		/// with unsatisfied dependencies are marked Blocked and excluded
-		/// from this pass; call AssignTasks again after their deps
-		/// complete.
-		/// </summary>
 		public static void AssignTasks()
 		{
-			// Mark blocked tasks
 			foreach ( var t in _tasks.Values )
 			{
 				if ( t.Status == TaskStatus.Pending && !t.DependenciesSatisfied )
@@ -239,99 +186,96 @@ namespace Lute.Building
 					t.Status = TaskStatus.Pending;
 			}
 
-			int builderCount = _builders.Count;
-			if ( builderCount == 0 )
+			var activeBuilders = _builders.Values.Where( b => b.Active ).ToList();
+			if ( activeBuilders.Count == 0 )
 				return;
 
-			// Collect assignable pending tasks, biggest first
+			// Remove assignments to inactive builders so work can be rebalanced.
+			var activeIds = activeBuilders.Select( b => b.BuilderId ).ToHashSet();
+			foreach ( var t in _tasks.Values.Where( t =>
+				t.Status == TaskStatus.Pending && t.AssignedBuilder >= 0 && !activeIds.Contains( t.AssignedBuilder ) ) )
+				t.AssignedBuilder = -1;
+
+			var load = activeBuilders.ToDictionary( b => b.BuilderId, b =>
+				_tasks.Values.Where( t => t.AssignedBuilder == b.BuilderId &&
+					t.Status != TaskStatus.Complete && t.Status != TaskStatus.Cancelled && t.Status != TaskStatus.Failed )
+				.Sum( t => t.EstimatedPieces ) );
+
 			var assignable = _tasks.Values
 				.Where( t => t.Status == TaskStatus.Pending && t.AssignedBuilder == -1 )
 				.OrderByDescending( t => t.EstimatedPieces )
+				.ThenBy( t => t.Id )
 				.ToList();
-
-			// Balanced deal
-			var load = _builders.ToDictionary( b => b.Key, b => 0 );
-			foreach ( var b in _builders.Values )
-				load[b.BuilderId] = _tasks.Values
-					.Where( t => t.AssignedBuilder == b.BuilderId &&
-						 t.Status != TaskStatus.Complete )
-					.Sum( t => t.EstimatedPieces );
 
 			foreach ( var t in assignable )
 			{
-				// Pick the builder with the smallest current load
-				int target = load.OrderBy( kvp => kvp.Value ).First().Key;
+				int target = load.OrderBy( kvp => kvp.Value ).ThenBy( kvp => kvp.Key ).First().Key;
 				t.AssignedBuilder = target;
 				load[target] += t.EstimatedPieces;
-
 				ConstructionEventBus.Fire( ConstructionEventType.TaskAssigned,
-					taskId: t.Id, target: _builders.TryGetValue( target, out var tb ) ? tb.NpcName : target.ToString() );
+					taskId: t.Id,
+					target: _builders.TryGetValue( target, out var b ) ? b.NpcName : target.ToString() );
 			}
 		}
 
-		/// <summary>
-		/// Get the next task a builder should work on. Returns null if
-		/// none ready. The task is marked InProgress and a spatial
-		/// reservation is attempted. If the reservation fails (another
-		/// builder has the site), the task stays Pending and the builder
-		/// should try again next tick.
-		/// </summary>
 		public static DirectedTask ClaimNextTask( int builderId, string npcName )
 		{
 			if ( !_builders.TryGetValue( builderId, out var state ) || !state.Active )
 				return null;
 
-			// Find an assigned, pending, dependency-satisfied task
-			var task = _tasks.Values.FirstOrDefault( t =>
-				t.AssignedBuilder == builderId &&
-				t.Status == TaskStatus.Pending &&
-				t.DependenciesSatisfied );
+			// A builder may own only one in-progress task at a time.
+			if ( !string.IsNullOrEmpty( state.CurrentTaskId ) )
+			{
+				var current = GetTask( state.CurrentTaskId );
+				if ( current?.Status == TaskStatus.InProgress )
+					return current;
+				state.CurrentTaskId = null;
+			}
 
-			// Work-stealing: if none assigned, steal the oldest pending
-			// task from the most-loaded builder.
+			var task = _tasks.Values
+				.Where( t => t.AssignedBuilder == builderId &&
+					t.Status == TaskStatus.Pending && t.DependenciesSatisfied && t.PreconditionsSatisfied )
+				.OrderBy( t => t.Id )
+				.FirstOrDefault();
+
 			if ( task == null )
 				task = StealTask( builderId );
-
 			if ( task == null )
 				return null;
 
-			// Attempt spatial reservation
-			var bt = task.BuildTask;
-			float radius = Math.Max( bt.BaseWidth, bt.BaseHeight ) * 100f + 200f;
-			if ( !SpatialBlackboard.Claim( npcName, bt.Position, radius, "construction", 0 ) )
+			var reservation = ReservationManager.TryAcquire( task, npcName );
+			if ( !reservation.Success )
 			{
-				// Site blocked — leave pending, try again later
+				Log.Info( $"Lute: ConstructionDirector could not reserve {task.Id} for {npcName}: {reservation.Reason}." );
 				return null;
 			}
 
-			task.ReservationId = $"{npcName}_{task.Id}";
+			task.ReservationId = reservation.ReservationId;
 			task.Status = TaskStatus.InProgress;
+			task.AssignedBuilder = builderId;
 			state.CurrentTaskId = task.Id;
 
 			ConstructionEventBus.Fire( ConstructionEventType.TaskStarted,
 				taskId: task.Id, actor: npcName );
-
 			return task;
 		}
 
 		static DirectedTask StealTask( int builderId )
 		{
-			// Find the most-loaded active builder other than us
 			var other = _builders.Values
 				.Where( b => b.BuilderId != builderId && b.Active )
-				.OrderByDescending( b => _tasks.Values
-					.Count( t => t.AssignedBuilder == b.BuilderId &&
-						 t.Status == TaskStatus.Pending ) )
+				.OrderByDescending( b => _tasks.Values.Count( t =>
+					t.AssignedBuilder == b.BuilderId && t.Status == TaskStatus.Pending ) )
+				.ThenBy( b => b.BuilderId )
 				.FirstOrDefault();
 			if ( other == null )
 				return null;
 
-			// Steal its oldest pending, dependency-satisfied task
 			var victim = _tasks.Values
 				.Where( t => t.AssignedBuilder == other.BuilderId &&
-					 t.Status == TaskStatus.Pending &&
-					 t.DependenciesSatisfied )
-				.OrderBy( t => t.EstimatedPieces ) // steal smallest first
+					t.Status == TaskStatus.Pending && t.DependenciesSatisfied && t.PreconditionsSatisfied )
+				.OrderBy( t => t.EstimatedPieces )
+				.ThenBy( t => t.Id )
 				.FirstOrDefault();
 			if ( victim == null )
 				return null;
@@ -340,111 +284,79 @@ namespace Lute.Building
 			return victim;
 		}
 
-		/// <summary>
-		/// Report progress on a task (pieces placed). Called by the
-		/// executor as it builds.
-		/// </summary>
 		public static void ReportProgress( string taskId, int piecesPlaced )
 		{
-			if ( _tasks.TryGetValue( taskId, out var t ) )
-			{
-				t.PiecesPlaced = piecesPlaced;
-				if ( _builders.TryGetValue( t.AssignedBuilder, out var b ) )
-					b.PiecesBuilt = piecesPlaced;
-			}
+			if ( !_tasks.TryGetValue( taskId, out var t ) )
+				return;
+			t.PiecesPlaced = piecesPlaced;
+			if ( _builders.TryGetValue( t.AssignedBuilder, out var b ) )
+				b.PiecesBuilt = piecesPlaced;
 		}
 
-		/// <summary>
-		/// Mark a task complete. Releases the spatial reservation and
-		/// notifies dependents (their Blocked status will clear on the
-		/// next <see cref="AssignTasks"/> pass).
-		/// </summary>
 		public static void CompleteTask( string taskId )
 		{
 			if ( !_tasks.TryGetValue( taskId, out var t ) )
 				return;
+			if ( t.Status == TaskStatus.Complete )
+				return;
 
 			t.Status = TaskStatus.Complete;
+			if ( t.BuildTask != null )
+				t.PiecesPlaced = Math.Max( t.PiecesPlaced, t.BuildTask.PiecesPlaced );
 			if ( t.AssignedBuilder >= 0 && _builders.TryGetValue( t.AssignedBuilder, out var b ) )
 				b.CurrentTaskId = null;
 
-			// Release reservation
-			if ( !string.IsNullOrEmpty( t.ReservationId ) )
-			{
-				SpatialBlackboard.ReleaseClaim( t.ReservationId );
-				t.ReservationId = null;
-			}
-
+			ReservationManager.Release( t );
 			ConstructionEventBus.Fire( ConstructionEventType.TaskCompleted,
-				taskId: t.Id, actor: _builders.TryGetValue( t.AssignedBuilder, out var cb ) ? cb.NpcName : null );
+				taskId: t.Id,
+				actor: _builders.TryGetValue( t.AssignedBuilder, out var cb ) ? cb.NpcName : null );
+
+			// Completing a dependency can make blocked work runnable immediately.
+			AssignTasks();
 		}
 
-		/// <summary>
-		/// Mark a task failed. Increments retry count; if under
-		/// <see cref="DirectedTask.MaxRetries"/>, resets to Pending for
-		/// retry; otherwise stays Failed. Releases the reservation.
-		/// </summary>
 		public static void FailTask( string taskId, string reason = null )
 		{
 			if ( !_tasks.TryGetValue( taskId, out var t ) )
 				return;
 
-			t.RetryCount++;
-			if ( !string.IsNullOrEmpty( t.ReservationId ) )
-			{
-				SpatialBlackboard.ReleaseClaim( t.ReservationId );
-				t.ReservationId = null;
-			}
+			ReservationManager.Release( t );
+			if ( t.AssignedBuilder >= 0 && _builders.TryGetValue( t.AssignedBuilder, out var b ) )
+				b.CurrentTaskId = null;
 
+			t.RetryCount++;
 			if ( t.RetryCount <= t.MaxRetries )
 			{
 				t.Status = TaskStatus.Pending;
 				Log.Info( $"Lute: ConstructionDirector task {taskId} failed ({reason}) — retry {t.RetryCount}/{t.MaxRetries}." );
 				ConstructionEventBus.Fire( ConstructionEventType.TaskBlocked,
-					taskId: t.Id, parameters: new() { { "reason", reason ?? "" }, { "retry", t.RetryCount.ToString() } } );
+					taskId: t.Id,
+					parameters: new() { { "reason", reason ?? "" }, { "retry", t.RetryCount.ToString() } } );
 			}
 			else
 			{
 				t.Status = TaskStatus.Failed;
-				Log.Warning( $"Lute: ConstructionDirector task {taskId} failed permanently ({reason}) after {t.RetryCount} retries." );
+				Log.Warning( $"Lute: ConstructionDirector task {taskId} failed permanently ({reason}) after {t.RetryCount} attempts." );
 				ConstructionEventBus.Fire( ConstructionEventType.TaskFailed,
 					taskId: t.Id, parameters: new() { { "reason", reason ?? "" } } );
 			}
 		}
 
-		/// <summary> Cancel a task (e.g. NPC reassigned). </summary>
 		public static void CancelTask( string taskId )
 		{
 			if ( !_tasks.TryGetValue( taskId, out var t ) )
 				return;
+			ReservationManager.Release( t );
 			t.Status = TaskStatus.Cancelled;
-			if ( !string.IsNullOrEmpty( t.ReservationId ) )
-			{
-				SpatialBlackboard.ReleaseClaim( t.ReservationId );
-				t.ReservationId = null;
-			}
+			if ( t.AssignedBuilder >= 0 && _builders.TryGetValue( t.AssignedBuilder, out var b ) )
+				b.CurrentTaskId = null;
 		}
 
-		// ── Recovery ──
+		public static List<DirectedTask> TasksNeedingReconstruction() => _tasks.Values
+			.Where( t => t.Status == TaskStatus.Complete )
+			.OrderBy( t => t.Id )
+			.ToList();
 
-		/// <summary>
-		/// Returns tasks whose geometry must be reconstructed on reload
-		/// (Complete tasks whose pieces were runtime-spawned and didn't
-		/// survive the scene reload). Only one builder should actually
-		/// perform reconstruction; the others should call this only to
-		/// know which tasks are covered.
-		/// </summary>
-		public static List<DirectedTask> TasksNeedingReconstruction()
-		{
-			return _tasks.Values
-				.Where( t => t.Status == TaskStatus.Complete )
-				.OrderBy( t => t.Id )
-				.ToList();
-		}
-
-		// ── Status ──
-
-		/// <summary> Console-friendly status summary. </summary>
 		public static string StatusSummary()
 		{
 			int pending = _tasks.Values.Count( t => t.Status == TaskStatus.Pending );
@@ -452,263 +364,190 @@ namespace Lute.Building
 			int done = _tasks.Values.Count( t => t.Status == TaskStatus.Complete );
 			int blocked = _tasks.Values.Count( t => t.Status == TaskStatus.Blocked );
 			int failed = _tasks.Values.Count( t => t.Status == TaskStatus.Failed );
-			int builders = _builders.Count;
 			int active = _builders.Values.Count( b => b.Active );
 
-			var sb = $"Director: {done}/{_tasks.Count} done, {inProg} in progress, {pending} pending, {blocked} blocked, {failed} failed. Builders: {active}/{builders} active.";
+			var summary = $"Director: {done}/{_tasks.Count} done, {inProg} in progress, {pending} pending, {blocked} blocked, {failed} failed. Builders: {active}/{_builders.Count} active.";
 			foreach ( var b in _builders.Values.OrderBy( b => b.BuilderId ) )
 			{
 				var t = b.CurrentTaskId != null ? GetTask( b.CurrentTaskId ) : null;
-				sb += $"\n  [builder {b.BuilderId}] {(b.Active ? "active" : "inactive")} — {(t != null ? $"{t.Id} ({t.BuildTask?.Name}) {t.PiecesPlaced}/{t.EstimatedPieces}" : "idle")}";
+				summary += $"\n  [builder {b.BuilderId}] {(b.Active ? "active" : "inactive")} — {(t != null ? $"{t.Id} ({t.BuildTask?.Name}) {t.PiecesPlaced}/{t.EstimatedPieces}" : "idle")}";
 			}
-			return sb;
+			return summary;
 		}
 
-		// ── Preconditions ──
-
-	/// <summary>
-	/// Check if a set of preconditions is satisfied. Preconditions are
-	/// key-value pairs:
-	///   "foundation.exists" → "true" — check if a foundation task is complete
-	///   "area.available" → "x,y,z,w,h,d" — check if the AABB is unclaimed
-	///   "materials.stone" → "50" — check if enough material is available
-	/// </summary>
-	public static bool CheckPreconditions( Dictionary<string, string> preconditions )
-	{
-		if ( preconditions == null || preconditions.Count == 0 )
-			return true;
-
-		foreach ( var (key, value) in preconditions )
+		public static bool CheckPreconditions( Dictionary<string, string> preconditions )
 		{
-			if ( key == "foundation.exists" && value == "true" )
+			if ( preconditions == null || preconditions.Count == 0 )
+				return true;
+
+			foreach ( var (key, value) in preconditions )
 			{
-				// Check if any foundation task is complete
-				bool hasFoundation = _tasks.Values.Any( t =>
-					t.Status == TaskStatus.Complete &&
-					t.BuildTask?.TaskType == "foundation" );
-				if ( !hasFoundation )
-					return false;
-			}
-			else if ( key == "area.available" )
-			{
-				// value = "x,y,z,w,h,d" — center + dimensions
-				var parts = value.Split( ',' );
-				if ( parts.Length >= 6 &&
-					float.TryParse( parts[0], out float x ) &&
-					float.TryParse( parts[1], out float y ) &&
-					float.TryParse( parts[2], out float z ) &&
-					float.TryParse( parts[3], out float w ) &&
-					float.TryParse( parts[4], out float h ) &&
-					float.TryParse( parts[5], out float d ) )
+				if ( key == "foundation.exists" && value == "true" )
 				{
-					var center = new Vector3( x, y, z );
-					var bounds = new BBox(
-						center - new Vector3( w * 0.5f, h * 0.5f, d * 0.5f ),
-						center + new Vector3( w * 0.5f, h * 0.5f, d * 0.5f ) );
-					if ( SpatialBlackboard.CheckClearBox( bounds ) != null )
-						return false;
+					bool hasFoundation = _tasks.Values.Any( t =>
+						t.Status == TaskStatus.Complete && t.BuildTask?.TaskType == "foundation" );
+					if ( !hasFoundation ) return false;
+				}
+				else if ( key == "area.available" )
+				{
+					var parts = value.Split( ',' );
+					if ( parts.Length >= 6 &&
+						float.TryParse( parts[0], out float x ) &&
+						float.TryParse( parts[1], out float y ) &&
+						float.TryParse( parts[2], out float z ) &&
+						float.TryParse( parts[3], out float w ) &&
+						float.TryParse( parts[4], out float h ) &&
+						float.TryParse( parts[5], out float d ) )
+					{
+						var center = new Vector3( x, y, z );
+						var bounds = new BBox(
+							center - new Vector3( w * 0.5f, h * 0.5f, d * 0.5f ),
+							center + new Vector3( w * 0.5f, h * 0.5f, d * 0.5f ) );
+						if ( SpatialBlackboard.CheckClearBox( bounds ) != null ) return false;
+					}
+				}
+				else if ( key.StartsWith( "materials." ) )
+				{
+					// Material inventory integration is intentionally a separate system.
 				}
 			}
-			else if ( key.StartsWith( "materials." ) )
+			return true;
+		}
+
+		public static BlackboardResult ProcessRequest( BlackboardRequest request )
+		{
+			if ( request == null )
+				return BlackboardResult.Fail( "null request" );
+
+			return request.Operation switch
 			{
-				// Material check — for now, assume materials are always
-				// available (material tracking not yet implemented)
-				// TODO: integrate with a material/resource system
+				BlackboardOperation.Read => HandleRead( request ),
+				BlackboardOperation.Claim => HandleClaim( request ),
+				BlackboardOperation.Release => HandleRelease( request ),
+				BlackboardOperation.Update => HandleUpdate( request ),
+				BlackboardOperation.Request => HandleRequest( request ),
+				BlackboardOperation.Offer => HandleOffer( request ),
+				BlackboardOperation.Complete => HandleComplete( request ),
+				BlackboardOperation.Fail => HandleFail( request ),
+				_ => BlackboardResult.Fail( $"unknown operation: {request.Operation}" ),
+			};
+		}
+
+		static BlackboardResult HandleRead( BlackboardRequest req )
+		{
+			var task = ResolveTask( req.Key );
+			if ( task != null ) return BlackboardResult.Ok( task.Status.ToString() );
+			if ( req.Key == "summary" ) return BlackboardResult.Ok( StatusSummary() );
+			return BlackboardResult.Fail( $"key not found: {req.Key}" );
+		}
+
+		static BlackboardResult HandleClaim( BlackboardRequest req )
+		{
+			var task = ResolveTask( req.Key );
+			if ( task == null ) return BlackboardResult.Fail( $"task not found or ambiguous: {req.Key}" );
+
+			// Claim is idempotent for the builder that already owns the director task.
+			if ( task.Status == TaskStatus.InProgress )
+			{
+				var ownership = ReservationManager.ValidateOwnership( task, req.Actor );
+				return ownership.Success
+					? BlackboardResult.Ok( ownership.ReservationId )
+					: BlackboardResult.Fail( ownership.Reason );
 			}
+
+			if ( task.Status != TaskStatus.Pending )
+				return BlackboardResult.Fail( $"task {task.Id} is not pending (status={task.Status})" );
+			if ( !task.DependenciesSatisfied )
+				return BlackboardResult.Fail( $"task {task.Id} has unsatisfied dependencies" );
+			if ( !task.PreconditionsSatisfied )
+				return BlackboardResult.Fail( $"task {task.Id} has unsatisfied preconditions" );
+
+			var reservation = ReservationManager.TryAcquire( task, req.Actor );
+			if ( !reservation.Success )
+				return BlackboardResult.Fail( $"{reservation.Reason}{(reservation.BlockedBy != null ? $" by {reservation.BlockedBy}" : "")}" );
+
+			task.Status = TaskStatus.InProgress;
+			task.ReservationId = reservation.ReservationId;
+			int builderId = FindBuilderByNpc( req.Actor );
+			if ( builderId >= 0 )
+			{
+				task.AssignedBuilder = builderId;
+				_builders[builderId].CurrentTaskId = task.Id;
+			}
+
+			ConstructionEventBus.Fire( ConstructionEventType.TaskClaimed,
+				taskId: task.Id, actor: req.Actor );
+			return BlackboardResult.Ok( reservation.ReservationId );
 		}
 
-		return true;
-	}
-
-	// ── Blackboard transactions ──
-
-	/// <summary>
-	/// Process a BlackboardRequest from an NPC. This is the authoritative
-	/// transaction path — NPCs submit requests, the director validates
-	/// and applies them, and returns a BlackboardResult.
-	///
-	/// NPCs never directly mutate the world — they go through this method.
-	/// </summary>
-	public static BlackboardResult ProcessRequest( BlackboardRequest request )
-	{
-		if ( request == null )
-			return BlackboardResult.Fail( "null request" );
-
-		return request.Operation switch
+		static BlackboardResult HandleRelease( BlackboardRequest req )
 		{
-			BlackboardOperation.Read => HandleRead( request ),
-			BlackboardOperation.Claim => HandleClaim( request ),
-			BlackboardOperation.Release => HandleRelease( request ),
-			BlackboardOperation.Update => HandleUpdate( request ),
-			BlackboardOperation.Request => HandleRequest( request ),
-			BlackboardOperation.Offer => HandleOffer( request ),
-			BlackboardOperation.Complete => HandleComplete( request ),
-			BlackboardOperation.Fail => HandleFail( request ),
-			_ => BlackboardResult.Fail( $"unknown operation: {request.Operation}" ),
-		};
-	}
+			var task = ResolveTask( req.Key );
+			if ( task == null ) return BlackboardResult.Fail( $"task not found or ambiguous: {req.Key}" );
 
-	static BlackboardResult HandleRead( BlackboardRequest req )
-	{
-		var task = GetTask( req.Key );
-		if ( task != null )
-			return BlackboardResult.Ok( task.Status.ToString() );
-
-		// Read blackboard state
-		if ( req.Key == "summary" )
-			return BlackboardResult.Ok( StatusSummary() );
-
-		return BlackboardResult.Fail( $"key not found: {req.Key}" );
-	}
-
-	static BlackboardResult HandleClaim( BlackboardRequest req )
-	{
-		var task = GetTask( req.Key );
-		if ( task == null )
-			return BlackboardResult.Fail( $"task not found: {req.Key}" );
-
-		if ( task.Status != TaskStatus.Pending )
-			return BlackboardResult.Fail( $"task {req.Key} is not pending (status={task.Status})" );
-
-		if ( !task.DependenciesSatisfied )
-			return BlackboardResult.Fail( $"task {req.Key} has unsatisfied dependencies" );
-
-		if ( !task.PreconditionsSatisfied )
-			return BlackboardResult.Fail( $"task {req.Key} has unsatisfied preconditions" );
-
-		// Attempt spatial reservation
-		if ( task.ReservationBounds.HasValue )
-		{
-			if ( !SpatialBlackboard.ClaimBox( req.Actor, task.ReservationBounds.Value,
-				 "construction", 0, task.Id ) )
-				return BlackboardResult.Fail( $"area blocked for task {req.Key}" );
-		}
-		else if ( task.BuildTask != null )
-		{
-			var bt = task.BuildTask;
-			float radius = Math.Max( bt.BaseWidth, bt.BaseHeight ) * 100f + 200f;
-			if ( !SpatialBlackboard.Claim( req.Actor, bt.Position, radius, "construction", 0 ) )
-				return BlackboardResult.Fail( $"area blocked for task {req.Key}" );
+			ReservationManager.Release( task );
+			task.Status = TaskStatus.Pending;
+			if ( task.AssignedBuilder >= 0 && _builders.TryGetValue( task.AssignedBuilder, out var b ) )
+				b.CurrentTaskId = null;
+			ConstructionEventBus.Fire( ConstructionEventType.ReservationReleased,
+				taskId: task.Id, actor: req.Actor );
+			return BlackboardResult.Ok();
 		}
 
-		task.Status = TaskStatus.InProgress;
-		task.AssignedBuilder = FindBuilderByNpc( req.Actor );
-		if ( _builders.TryGetValue( task.AssignedBuilder, out var b ) )
-			b.CurrentTaskId = task.Id;
-
-		ConstructionEventBus.Fire( ConstructionEventType.TaskClaimed,
-			taskId: task.Id, actor: req.Actor );
-
-		return BlackboardResult.Ok( task.Id );
-	}
-
-	static BlackboardResult HandleRelease( BlackboardRequest req )
-	{
-		var task = GetTask( req.Key );
-		if ( task == null )
-			return BlackboardResult.Fail( $"task not found: {req.Key}" );
-
-		if ( !string.IsNullOrEmpty( task.ReservationId ) )
+		static BlackboardResult HandleUpdate( BlackboardRequest req )
 		{
-			SpatialBlackboard.ReleaseClaim( task.ReservationId );
-			task.ReservationId = null;
+			var task = ResolveTask( req.Key );
+			if ( task == null ) return BlackboardResult.Fail( $"task not found or ambiguous: {req.Key}" );
+			if ( req.Value is int pieces )
+			{
+				ReportProgress( task.Id, pieces );
+				return BlackboardResult.Ok( pieces );
+			}
+			return BlackboardResult.Ok();
 		}
 
-		task.Status = TaskStatus.Pending;
-		ConstructionEventBus.Fire( ConstructionEventType.ReservationReleased,
-			taskId: task.Id, actor: req.Actor );
-
-		return BlackboardResult.Ok();
-	}
-
-	static BlackboardResult HandleUpdate( BlackboardRequest req )
-	{
-		var task = GetTask( req.Key );
-		if ( task == null )
-			return BlackboardResult.Fail( $"task not found: {req.Key}" );
-
-		if ( req.Value is int pieces )
+		static BlackboardResult HandleRequest( BlackboardRequest req )
 		{
-			task.PiecesPlaced = pieces;
-			ReportProgress( req.Key, pieces );
-			return BlackboardResult.Ok( pieces );
+			int builderId = FindBuilderByNpc( req.Actor );
+			if ( builderId < 0 ) return BlackboardResult.Fail( $"builder not registered: {req.Actor}" );
+			var task = ClaimNextTask( builderId, req.Actor );
+			return task == null ? BlackboardResult.Fail( "no available tasks" ) : BlackboardResult.Ok( task.Id );
 		}
 
-		return BlackboardResult.Ok();
-	}
-
-	static BlackboardResult HandleRequest( BlackboardRequest req )
-	{
-		// NPC is requesting a task — find the next available one
-		var builderId = FindBuilderByNpc( req.Actor );
-		if ( builderId < 0 )
-			return BlackboardResult.Fail( $"builder not registered: {req.Actor}" );
-
-		var task = ClaimNextTask( builderId, req.Actor );
-		if ( task == null )
-			return BlackboardResult.Fail( "no available tasks" );
-
-		return BlackboardResult.Ok( task.Id );
-	}
-
-	static BlackboardResult HandleOffer( BlackboardRequest req )
-	{
-		// NPC is offering to help with a task
-		ConstructionEventBus.Fire( ConstructionEventType.NpcOfferedHelp,
-			taskId: req.Key, actor: req.Actor,
-			parameters: req.Value != null
-				? new() { { "offer", req.Value.ToString() } }
-				: null );
-		return BlackboardResult.Ok();
-	}
-
-	static BlackboardResult HandleComplete( BlackboardRequest req )
-	{
-		var task = GetTask( req.Key );
-		if ( task == null )
-			return BlackboardResult.Fail( $"task not found: {req.Key}" );
-
-		// Validate that the task is actually complete (don't trust speech)
-		// The executor should have reported progress before completing
-		CompleteTask( req.Key );
-		ConstructionEventBus.Fire( ConstructionEventType.TaskCompleted,
-			taskId: task.Id, actor: req.Actor );
-
-		return BlackboardResult.Ok();
-	}
-
-	static BlackboardResult HandleFail( BlackboardRequest req )
-	{
-		var task = GetTask( req.Key );
-		if ( task == null )
-			return BlackboardResult.Fail( $"task not found: {req.Key}" );
-
-		FailTask( req.Key, req.Value?.ToString() );
-		ConstructionEventBus.Fire( ConstructionEventType.TaskFailed,
-			taskId: task.Id, actor: req.Actor,
-			parameters: req.Value != null
-				? new() { { "reason", req.Value.ToString() } }
-				: null );
-
-		return BlackboardResult.Ok();
-	}
-
-	static int FindBuilderByNpc( string npcName )
-	{
-		foreach ( var kvp in _builders )
+		static BlackboardResult HandleOffer( BlackboardRequest req )
 		{
-			if ( kvp.Value.NpcName == npcName )
-				return kvp.Key;
+			ConstructionEventBus.Fire( ConstructionEventType.NpcOfferedHelp,
+				taskId: req.Key, actor: req.Actor,
+				parameters: req.Value != null ? new() { { "offer", req.Value.ToString() } } : null );
+			return BlackboardResult.Ok();
 		}
-		return -1;
-	}
 
-	// ── Helpers ──
+		static BlackboardResult HandleComplete( BlackboardRequest req )
+		{
+			var task = ResolveTask( req.Key );
+			if ( task == null ) return BlackboardResult.Fail( $"task not found or ambiguous: {req.Key}" );
+			CompleteTask( task.Id );
+			return BlackboardResult.Ok();
+		}
+
+		static BlackboardResult HandleFail( BlackboardRequest req )
+		{
+			var task = ResolveTask( req.Key );
+			if ( task == null ) return BlackboardResult.Fail( $"task not found or ambiguous: {req.Key}" );
+			FailTask( task.Id, req.Value?.ToString() );
+			return BlackboardResult.Ok();
+		}
+
+		static int FindBuilderByNpc( string npcName )
+		{
+			foreach ( var kvp in _builders )
+				if ( kvp.Value.NpcName == npcName ) return kvp.Key;
+			return -1;
+		}
 
 		static int EstimatePieces( VillageBuildTask task )
 		{
-			if ( task == null )
-				return 0;
+			if ( task == null ) return 0;
 			return task.TaskType switch
 			{
 				"wall" => 12,
@@ -716,8 +555,7 @@ namespace Lute.Building
 				"road" => 8,
 				"well" => 20,
 				"market_square" => 25,
-				_ => (int)( task.BaseWidth * task.WealthFactor ) *
-					 (int)( task.BaseHeight * task.WealthFactor ),
+				_ => (int)( task.BaseWidth * task.WealthFactor ) * (int)( task.BaseHeight * task.WealthFactor ),
 			};
 		}
 	}
