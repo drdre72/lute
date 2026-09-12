@@ -500,7 +500,16 @@ namespace Lute.Building
 				return false;
 			}
 
-			// Fallback: direct SpatialBlackboard claim
+			// Fallback: direct SpatialBlackboard claim.
+			// Skip this when using the director — direct claims have no
+			// TaskId and will block the director's task reservations for
+			// other builders, causing reservation conflicts.
+			if ( UseDirector )
+			{
+				Log.Info( $"Lute: VillageBuilderController '{_npcId}' no director claim available — waiting." );
+				return false;
+			}
+
 			var blocker = SpatialBlackboard.CheckClear( site, ClaimRadius, _npcId );
 			if ( blocker is not null )
 			{

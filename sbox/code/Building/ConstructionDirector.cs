@@ -203,24 +203,58 @@ namespace Lute.Building
 				t.Status == TaskStatus.Pending && t.AssignedBuilder >= 0 && !activeIds.Contains( t.AssignedBuilder ) ) )
 				t.AssignedBuilder = -1;
 
+			// PendingExecution and InProgress tasks are already claimed -
+			// exclude them from rebalancing.
+			var locked = _tasks.Values
+				.Where( t => t.Status == TaskStatus.PendingExecution || t.Status == TaskStatus.InProgress )
+				.Select( t => t.Id )
+				.ToHashSet();
+
 			var load = activeBuilders.ToDictionary( b => b.BuilderId, b =>
 				_tasks.Values.Where( t => t.AssignedBuilder == b.BuilderId &&
 					t.Status != TaskStatus.Complete && t.Status != TaskStatus.Cancelled && t.Status != TaskStatus.Failed )
 				.Sum( t => t.EstimatedPieces ) );
-			// PendingExecution tasks are already claimed and walking � exclude from rebalancing.
-			var pendingExec = _tasks.Values
-				.Where( t => t.Status == TaskStatus.PendingExecution )
-				.Select( t => t.Id )
-				.ToHashSet();
+
+			// Rebalance: if any builder has more than its fair share of
+			// pending tasks, release the excess so they can be reassigned
+			// to less-loaded builders. This handles the case where all
+			// tasks were initially assigned to builder 0 before other
+			// builders registered.
+			int totalPendingPieces = _tasks.Values
+				.Where( t => t.Status == TaskStatus.Pending && !locked.Contains( t.Id ) )
+				.Sum( t => t.EstimatedPieces );
+			int avgPerBuilder = activeBuilders.Count > 0
+				? totalPendingPieces / activeBuilders.Count : 0;
+
+			foreach ( var b in activeBuilders )
+			{
+				var pending = _tasks.Values
+					.Where( t => t.AssignedBuilder == b.BuilderId &&
+						t.Status == TaskStatus.Pending && !locked.Contains( t.Id ) )
+					.OrderByDescending( t => t.EstimatedPieces )
+					.ThenBy( t => t.Id )
+					.ToList();
+
+				int kept = load[b.BuilderId];
+				foreach ( var t in pending )
+				{
+					if ( kept <= avgPerBuilder ) break;
+					t.AssignedBuilder = -1;
+					kept -= t.EstimatedPieces;
+				}
+			}
+
+			// Recalculate load after rebalancing.
+			load = activeBuilders.ToDictionary( b => b.BuilderId, b =>
+				_tasks.Values.Where( t => t.AssignedBuilder == b.BuilderId &&
+					t.Status != TaskStatus.Complete && t.Status != TaskStatus.Cancelled && t.Status != TaskStatus.Failed )
+				.Sum( t => t.EstimatedPieces ) );
 
 			var assignable = _tasks.Values
-				.Where( t => t.Status == TaskStatus.Pending && t.AssignedBuilder == -1 )
+				.Where( t => t.Status == TaskStatus.Pending && t.AssignedBuilder == -1 && !locked.Contains( t.Id ) )
 				.OrderByDescending( t => t.EstimatedPieces )
 				.ThenBy( t => t.Id )
 				.ToList();
-			// PendingExecution tasks keep their assignment � don't reassign them.
-			foreach ( var t in _tasks.Values.Where( t => t.Status == TaskStatus.PendingExecution ) )
-				pendingExec.Add( t.Id );
 
 			foreach ( var t in assignable )
 			{
@@ -247,32 +281,57 @@ namespace Lute.Building
 				state.CurrentTaskId = null;
 			}
 
-			var task = _tasks.Values
+			// Build a candidate list: tasks assigned to this builder first,
+			// then stealable tasks from other builders, then unassigned tasks.
+			// We try each candidate until one reserves successfully, so a
+			// spatial reservation conflict on one task doesn't block the
+			// builder from working on a different task.
+			var candidates = _tasks.Values
 				.Where( t => t.AssignedBuilder == builderId &&
 					t.Status == TaskStatus.Pending && t.DependenciesSatisfied && t.PreconditionsSatisfied )
 				.OrderBy( t => t.Id )
-				.FirstOrDefault();
+				.ToList();
 
-			if ( task == null )
-				task = StealTask( builderId );
-			if ( task == null )
-				return null;
-
-			var reservation = ReservationManager.TryAcquire( task, npcName );
-			if ( !reservation.Success )
+			// Add stealable tasks from other builders.
+			foreach ( var t in _tasks.Values
+				.Where( t => t.AssignedBuilder != builderId && t.AssignedBuilder >= 0 &&
+					t.Status == TaskStatus.Pending && t.DependenciesSatisfied && t.PreconditionsSatisfied )
+				.OrderBy( t => t.EstimatedPieces ).ThenBy( t => t.Id ) )
 			{
-				Log.Info( $"Lute: ConstructionDirector could not reserve {task.Id} for {npcName}: {reservation.Reason}." );
-				return null;
+				if ( !candidates.Contains( t ) )
+					candidates.Add( t );
 			}
 
-			task.ReservationId = reservation.ReservationId;
-			task.Status = TaskStatus.PendingExecution;
-			task.AssignedBuilder = builderId;
-			state.CurrentTaskId = task.Id;
+			// Add unassigned tasks.
+			foreach ( var t in _tasks.Values
+				.Where( t => t.AssignedBuilder == -1 &&
+					t.Status == TaskStatus.Pending && t.DependenciesSatisfied && t.PreconditionsSatisfied )
+				.OrderBy( t => t.Id ) )
+			{
+				if ( !candidates.Contains( t ) )
+					candidates.Add( t );
+			}
 
-			ConstructionEventBus.Fire( ConstructionEventType.TaskStarted,
-				taskId: task.Id, actor: npcName );
-			return task;
+			foreach ( var task in candidates )
+			{
+				var reservation = ReservationManager.TryAcquire( task, npcName );
+				if ( !reservation.Success )
+				{
+					Log.Info( $"Lute: ConstructionDirector could not reserve {task.Id} for {npcName}: {reservation.Reason}." );
+					continue;
+				}
+
+				task.ReservationId = reservation.ReservationId;
+				task.Status = TaskStatus.PendingExecution;
+				task.AssignedBuilder = builderId;
+				state.CurrentTaskId = task.Id;
+
+				ConstructionEventBus.Fire( ConstructionEventType.TaskStarted,
+					taskId: task.Id, actor: npcName );
+				return task;
+			}
+
+			return null;
 		}
 
 		/// <summary>
