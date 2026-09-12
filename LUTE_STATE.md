@@ -69,44 +69,44 @@ The authoritative construction representation is `Blueprint`. NPC speech is neve
 
 ## Current construction problems / risks
 
-1. ~~NPC/executor synchronization~~ (RESOLVED): VillageBuilder now waits for NPC arrival before placing geometry. Flow: Claim (PendingExecution) → teleport → AuthorizeExecution → build.
-2. ~~Occupancy auto-scan~~ (RESOLVED): OccupancyScanner scans all static colliders at startup and registers them in the occupancy ledger (122 regions in current scene). Reset moved to LuteWorld.Build() entry so scan survives builder startup.
+1. ~~NPC/executor synchronization~~ (RESOLVED): VillageBuilder waits for NPC arrival before placing geometry. Flow: Claim (PendingExecution) → teleport → AuthorizeExecution → build.
+2. ~~Occupancy auto-scan~~ (RESOLVED): OccupancyScanner scans static colliders at startup and reset occurs before the scan so occupancy survives builder startup.
 3. Builder NPC autonomous test placement can still interfere with agent-driven behavior.
 4. Acropolis collision currently behaves as one imported collision hull and is not yet ideal for terrace traversal.
 5. Agent movement can be affected by `PlayerController` friction/collision.
-6. ~~Legacy fallback~~ (RESOLVED): All builders now consistently use the director path. Multi-candidate reservation tries alternate tasks when one has a spatial conflict.
-7. ~~Walk time bottleneck~~ (RESOLVED): Builders now teleport to build sites instead of walking. Each builder has a distinct warp effect color (cyan/magenta/yellow).
-8. ~~Task completion transition race~~ (RESOLVED): Controller now uses event-driven transitions via `TaskCompleted` events with exact `DirectedTask.Id`. No longer infers completion from `CurrentTaskIndex` or `CurrentTask.Status`. `TaskBlocked` and `TaskFailed` events also clear `_activeDirectedTaskId` and return controller to Idle.
-9. ~~Build pace bottleneck~~ (RESOLVED): `BuildInterval` reduced from 1.0s to 0.1s per piece. Full village build now takes ~25 min instead of ~73 min. Runtime verified: 247/263 tasks in 24.7 min.
-10. ~~Reservation conflicts on task_1~~ (RESOLVED): Added per-axis join tolerance for structural connections (wall↔wall corners, road↔road intersections, road↔gate, road↔market). Allows small overlaps in one horizontal axis without globally weakening collision checks. `task_1` and similar corner tasks now complete normally.
-11. ~~HandleComplete hardening~~ (RESOLVED): `HandleComplete` now rejects unregistered builders, wrong owners, stale tasks, and non-in-progress tasks.
-12. ~~Piece-level occupancy gate~~ (RESOLVED): `SpawnBox()` now calls `CanPlace()` before creating geometry and `CommitPlacement()` after. `ConstructionPlacementBlockedException` caught in `BuildLoop` → `FailTask` + retry.
-13. ~~Rotation-aware geometry~~ (RESOLVED): `SpawnBox()` now accepts a `yaw` parameter, rotates the mesh, and computes the world-space AABB from the rotated footprint. Wall and road pieces are now correctly oriented.
-14. ~~Road width~~ (RESOLVED): Road pieces are now full road width (`roadW`) instead of tiny tiles (`roadW/pieces`).
-15. ~~AuthorizeExecution validation~~ (RESOLVED): `AuthorizeExecution` now revalidates reservation ownership before switching task to InProgress.
-16. ~~Road↔cottage layout conflicts~~ (RESOLVED): `VillageGrammar` now skips building placement within 9m of cross-street Y lines (5m road half-width + 2m building half-size + 2m clearance). Eliminates road↔cottage occupancy conflicts.
-17. ~~Building-to-building overlap~~ (RESOLVED): `buildingSpacing` increased from 20m to 25m. Special buildings (Chapel, Smithy, Tavern) now have 15m clearance from generated cottages. Chapel moved from y=-40m to y=-60m to avoid overlapping 15m rowOffset buildings.
-18. ~~Deterministic replanning~~ (RESOLVED): `FailTask` now defers tasks blocked by active tasks (Pending/PendingExecution/InProgress/Blocked) instead of consuming a retry. Deferred tasks auto-unblock when the blocker completes or fails. `MaxRetries` increased from 2 to 10 for genuine failures. `ReservationManager` tracks last blocker task ID for deferral decisions.
-19. **Remaining layout conflicts** (ACTIVE): 2 tasks consistently fail permanently — `task_235` (building vs cross-street road) and `task_199` (building vs main road). These are buildings whose actual spawned footprint extends beyond their declared `BaseWidth`/`BaseHeight`, overlapping roads. Deeper fix would require matching grammar positions to actual blueprint footprint sizes.
+6. ~~Legacy fallback contention~~ (RESOLVED): director path is authoritative and multi-candidate reservation can try alternate work.
+7. ~~Walk time bottleneck~~ (RESOLVED): builders teleport to build sites with per-builder warp effects.
+8. ~~Task completion transition race~~ (RESOLVED): controller uses exact `DirectedTask.Id` event-driven completion; `TaskBlocked` and `TaskFailed` also clear the active directed task and return to Idle.
+9. **Build pace / object-count bottleneck** (ACTIVE): realistic brick walls now use ~5,151 placements per 10 m wall segment at 0.5 s per brick. The old ~25-minute full-village estimate from the 0.1 s / low-piece-count implementation is no longer valid. Final performance architecture should batch/instance completed brick courses or segments while preserving brick-by-brick construction progress.
+10. ~~Reservation conflicts on task_1~~ (RESOLVED): per-axis structural join tolerance handles wall corners and other intended joins without globally weakening collision checks.
+11. ~~HandleComplete hardening~~ (RESOLVED): stale, foreign, unregistered, and non-in-progress completion requests are rejected.
+12. ~~Piece-level occupancy gate~~ (RESOLVED): `SpawnBox()` calls `CanPlace()` before world mutation and commits exact occupancy after successful placement.
+13. ~~Rotation-aware wall geometry~~ (RESOLVED): yaw is applied to render geometry and piece AABBs.
+14. **Road direction correction** (FIX APPLIED ON `brick-wall-hardening`, PENDING RUNTIME VERIFY): road tiles now advance perpendicular to the configured width rotation so main roads extend N/S and cross streets E/W.
+15. ~~AuthorizeExecution validation~~ (RESOLVED): reservation ownership is revalidated before switching to InProgress.
+16. ~~Road↔cottage layout conflicts~~ (RESOLVED): grammar clearance rules eliminate the previously observed road/cottage conflicts.
+17. ~~Building-to-building overlap~~ (RESOLVED for known cases): building spacing and special-building clearance were increased; Chapel was relocated.
+18. ~~Deterministic replanning~~ (RESOLVED): active-task blockers defer work instead of consuming retries; genuine failures still use bounded retries.
+19. **Remaining layout conflicts** (ACTIVE): `task_235` and `task_199` have been observed failing because actual spawned building footprints can exceed declared `BaseWidth`/`BaseHeight`. Deeper fix requires matching grammar clearance to real blueprint footprints.
+20. **Brick renderer scale mismatch** (FIX APPLIED ON `brick-wall-hardening`, PENDING RUNTIME VERIFY): `models/dev/box.vmdl` is treated as a 50-unit cube. `SpawnBox()` now uses `WorldScale = requestedSize / 50`, so renderer, collider, and occupancy dimensions share one world-size contract.
+21. **Brick vertical anchoring** (FIX APPLIED ON `brick-wall-hardening`, PENDING RUNTIME VERIFY): realistic short bricks no longer fall through the old height-based wall/floor heuristic; wall bricks use explicit base anchoring.
+22. **Brick workload estimation** (FIX APPLIED ON `brick-wall-hardening`): VillageBuilder estimates ~5k placements per wall segment, uses that for partitioning, and propagates the corrected value into registered `DirectedTask.EstimatedPieces`.
+23. **Builder eye-camera diagnostics** (PARTIAL): citizen child bodies now use local zero instead of world zero after parenting. Camera local position remains `(0,0,64)` until live inspection confirms whether a forward offset is still needed.
+24. **Brick material identity** (ACTIVE): `brick_wall.vmat` still references the stone texture set. Do not treat the reported `stone_wall` name as proven engine deduplication until the override/resource path is visually verified.
 
 ## Next architectural target
 
-The deterministic construction-coordination layer is now implemented (Phases 1-5). NPC/executor synchronization, legacy fallback elimination, occupancy auto-scan, teleportation, event-driven completion, piece-level occupancy, rotation-aware geometry, reservation diagnostics, join zones, deterministic replanning, and build pace acceleration are all done. Remaining refinements:
+The deterministic construction-coordination layer is largely implemented and hardened. Current priorities are:
 
-1. ~~NPC/executor state synchronization (ReadyAtSite gate)~~ (DONE)
-2. ~~Auto-scan static world geometry into occupancy ledger~~ (DONE)
-3. ~~Teleportation with per-builder warp effects~~ (DONE)
-4. ~~Event-driven completion with exact DirectedTask.Id~~ (DONE)
-5. ~~Piece-level occupancy gate~~ (DONE)
-6. ~~Rotation-aware geometry + road width fix~~ (DONE)
-7. ~~Reservation conflict diagnostics~~ (DONE)
-8. ~~HandleComplete + AuthorizeExecution hardening~~ (DONE)
-9. ~~Allowed join zones for structural connections~~ (DONE)
-10. ~~Build pace acceleration (0.1s/piece)~~ (DONE)
-11. ~~Road↔cottage and building↔building layout fixes~~ (DONE)
-12. ~~Deterministic replanning (defer blocked tasks, retry genuine failures)~~ (DONE)
-13. **Remaining 2 layout conflicts** (ACTIVE): `task_235` and `task_199` fail permanently because building footprints exceed declared dimensions. Fix requires matching grammar positions to actual blueprint footprint sizes.
-14. Phase 6: Gameplay social systems (deception enabled only after construction is proven)
+1. Runtime-verify the `brick-wall-hardening` scale/anchor/road fixes.
+2. Verify rendered brick bounds, collider bounds, and occupancy bounds all match.
+3. Verify corrected ~5k wall estimates distribute work sensibly across three builders.
+4. Design brick rendering/collision batching so brick-by-brick progress does not require hundreds of thousands of permanent GameObjects/colliders/occupancy records.
+5. Resolve remaining blueprint-footprint layout conflicts (`task_199`, `task_235`).
+6. Verify/fix brick material resources after geometry scale is proven.
+7. Phase 6 social gameplay only after construction correctness/performance is stable; deception remains disabled during construction validation.
+
+See `BRICK_WALL_ISSUES.md` and `BRICK_WALL_FIX_PASS.md` for the detailed brick-wall diagnosis, applied repair checklist, and verification steps.
 
 ## Rules of interpretation
 
@@ -114,5 +114,6 @@ The deterministic construction-coordination layer is now implemented (Phases 1-5
 - Prefer `AGENTS.md` for stable S&Box/API facts.
 - Prefer this file for current implementation status.
 - Prefer ADRs for the reason a design decision was made.
-- Never infer a capability merely because a file/type exists; verify the implementation and its tests/logs.
+- Never infer a capability merely because a file/type exists; verify implementation and runtime behavior.
+- A source-level fix marked `PENDING RUNTIME VERIFY` is not considered resolved until compile/play/spatial checks pass.
 - Do not reintroduce runtime LLM inference into NPC behavior.
