@@ -182,12 +182,9 @@ namespace Lute.Building
 			if ( TotalBuilders > 1 )
 				PartitionTasks();
 
-			// Reset the ConstructionDirector's static state on the first builder
-			// to start. Static fields persist across play sessions, so stale
-			// reservations and task assignments from a previous session would
-			// otherwise block the new run.
-			if ( BuilderId == 0 )
-				ConstructionDirector.Reset();
+			// NOTE: ConstructionDirector.Reset() is now called once at
+			// LuteWorld.Build() entry, BEFORE the static occupancy scan.
+			// Do NOT reset here — it would wipe the scanned occupancy.
 
 			// Register this builder and its tasks with the
 			// ConstructionDirector so scheduling, reservations, and
@@ -384,7 +381,19 @@ namespace Lute.Building
 
 						Log.Info( $"Lute: VillageBuilder[{BuilderId}] (director) building '{task.Name}' ({task.TaskType}) at {task.Position} � NPC arrived." );
 
-						await BuildTask( task, token );
+						try
+						{
+							await BuildTask( task, token );
+						}
+						catch ( ConstructionPlacementBlockedException ex )
+						{
+							Log.Warning( $"Lute: {directed.Id} blocked during placement: {ex.BlockReason}" );
+							ConstructionDirector.FailTask( directed.Id, ex.BlockReason );
+							CurrentDirectedTaskId = null;
+							CurrentTask = null;
+							CurrentTaskIndex = -1;
+							continue;
+						}
 
 						task.Status = 2; // complete
 						ConstructionDirector.CompleteTask( directed.Id );
@@ -836,15 +845,31 @@ namespace Lute.Building
 		// ── Helper: spawn a box mesh piece ──
 		void SpawnBox( Vector3 worldPos, Vector3 size, string materialPath, bool collides, GameObject parent )
 		{
-			var go = Scene.CreateObject( false );
-			go.Name = $"Village_{CurrentTask?.Name ?? "piece"}_{_totalPiecesPlaced}";
-			go.SetParent( parent );
-
 			// Walls: base at z=0 (lift center). Floors: top at z=0 (lower center).
 			if ( size.z > FloorThickness * 1.5f )
 				worldPos = worldPos.WithZ( worldPos.z + size.z * 0.5f );
 			else
 				worldPos = worldPos.WithZ( worldPos.z - size.z * 0.5f );
+
+			// Piece-level occupancy gate: check that this exact piece's bounds
+			// don't conflict with existing occupancy (static geometry or other
+			// tasks' pieces). Only for live directed construction - skip during
+			// reconstruction mode (re-placing saved pieces).
+			var half = size * 0.5f;
+			var pieceBounds = new BBox( worldPos - half, worldPos + half );
+
+			if ( !_reconstructMode && !string.IsNullOrEmpty( CurrentDirectedTaskId ) )
+			{
+				if ( !ReservationManager.CanPlace( CurrentDirectedTaskId, pieceBounds, out var reason ) )
+				{
+					Log.Warning( $"Lute: VillageBuilder piece placement blocked at {worldPos}: {reason}" );
+					throw new ConstructionPlacementBlockedException( $"{CurrentDirectedTaskId} placement blocked at {worldPos}: {reason}" );
+				}
+			}
+
+			var go = Scene.CreateObject( false );
+			go.Name = $"Village_{CurrentTask?.Name ?? "piece"}_{_totalPiecesPlaced}";
+			go.SetParent( parent );
 
 			go.WorldPosition = worldPos;
 
@@ -854,7 +879,6 @@ namespace Lute.Building
 				: MeshComponent.CollisionType.None;
 
 			var mesh = new PolygonMesh();
-			var half = size * 0.5f;
 
 			var v0 = mesh.AddVertex( new Vector3( -half.x, -half.y, -half.z ) );
 			var v1 = mesh.AddVertex( new Vector3(  half.x, -half.y, -half.z ) );
@@ -883,6 +907,13 @@ namespace Lute.Building
 
 			meshComp.Mesh = mesh;
 			go.Enabled = true;
+
+			// Commit exact piece bounds to the occupancy ledger so future
+			// pieces/tasks can't overlap this one.
+			if ( !_reconstructMode && !string.IsNullOrEmpty( CurrentDirectedTaskId ) )
+			{
+				ReservationManager.CommitPlacement( CurrentDirectedTaskId, pieceBounds, go.Name );
+			}
 		}
 
 		// ── Save management ──

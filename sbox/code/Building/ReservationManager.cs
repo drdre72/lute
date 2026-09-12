@@ -127,8 +127,12 @@ namespace Lute.Building
 		{
 			if ( task == null ) return;
 
+			// Compatibility fallback: if the task is complete and has no
+			// piece-level occupancy (e.g. legacy executors that don't commit
+			// individual pieces), commit the coarse task bounds. Skip if
+			// piece-level occupancy already exists for this task.
 			if ( task.Status == TaskStatus.Complete && task.ReservationBounds.HasValue &&
-				!_occupied.Values.Any( o => o.TaskId == task.Id && o.Source == $"task:{task.Id}" ) )
+				!_occupied.Values.Any( o => o.TaskId == task.Id ) )
 			{
 				CommitPlacement( task.Id, task.ReservationBounds.Value, $"task:{task.Id}" );
 			}

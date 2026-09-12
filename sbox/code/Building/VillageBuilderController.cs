@@ -101,6 +101,7 @@ namespace Lute.Building
 		private float _logTimer;
 		private Vector3 _currentTarget;
 		private int _buildingTaskIndex = -1; // tracks which task index we're standing at
+		private string _activeDirectedTaskId; // exact DirectedTask.Id the NPC is currently building (director mode)
 		private string _npcId;       // resolved blackboard identity
 		private string _activeClaimId; // non-null while we hold a build-site claim
 		private bool _npcIdResolved;
@@ -268,7 +269,24 @@ namespace Lute.Building
 					break;
 
 				case ConstructionEventType.TaskCompleted:
-					// Update task history and reputation
+					// Director mode: this is the authoritative completion signal.
+					// The executor (VillageBuilder) completed the exact task we
+					// were building. Transition to Idle so HandleIdle can pick up
+					// the next claimed task.
+					if ( UseDirector && evt.TaskId == _activeDirectedTaskId )
+					{
+						_activeDirectedTaskId = null;
+						_buildingTaskIndex = -1;
+						ReleaseActiveClaim();
+						State = Builder.IsComplete
+							? NpcState.VillageComplete
+							: NpcState.Idle;
+						_stateTimer = 0;
+						Controller.WishVelocity = Vector3.Zero;
+						Log.Info( $"Lute: VillageBuilderController '{_npcId}' task {evt.TaskId} completed (event-driven). Transitioning to {(Builder.IsComplete ? "VillageComplete" : "Idle")}." );
+					}
+
+					// Update task history and reputation for other builders
 					if ( _beliefs != null && evt.Actor != null && evt.Actor != _npcId )
 					{
 						_beliefs.AdjustReputation( evt.Actor, +5 );
@@ -374,7 +392,15 @@ namespace Lute.Building
 				// ConstructionDirector. Just authorize execution.
 				if ( UseDirector && !string.IsNullOrEmpty( Builder.CurrentDirectedTaskId ) )
 				{
-					ConstructionDirector.AuthorizeExecution( Builder.CurrentDirectedTaskId, _npcId );
+					var taskId = Builder.CurrentDirectedTaskId;
+					if ( !ConstructionDirector.AuthorizeExecution( taskId, _npcId ) )
+					{
+						Log.Warning( $"Lute: VillageBuilderController '{_npcId}' could not authorize {taskId}." );
+						Controller.WishVelocity = Vector3.Zero;
+						return;
+					}
+
+					_activeDirectedTaskId = taskId;
 					State = NpcState.Building;
 					_stateTimer = 0;
 					_buildingTaskIndex = Builder.CurrentTaskIndex;
@@ -440,9 +466,35 @@ namespace Lute.Building
 
 		void HandleBuilding()
 		{
+			Controller.WishVelocity = Vector3.Zero;
+
+			// Director mode: the TaskCompleted event drives the transition
+			// out of Building. Do NOT infer completion from CurrentTaskIndex
+			// or CurrentTask.Status — the executor (VillageBuilder) is the
+			// sole authority for task completion. The controller just waits.
+			if ( UseDirector )
+			{
+				// Safety: if the directed task id was cleared (e.g. village
+				// complete or task failed), transition to idle.
+				if ( string.IsNullOrEmpty( _activeDirectedTaskId ) )
+				{
+					if ( Builder.IsComplete )
+					{
+						State = NpcState.VillageComplete;
+						ReleaseActiveClaim();
+						Log.Info( "Lute: VillageBuilderController — village complete!" );
+						return;
+					}
+
+					State = NpcState.Idle;
+					_stateTimer = 0;
+				}
+				return;
+			}
+
+			// Legacy/non-director path: infer completion from task state.
 			if ( Builder.CurrentTask is null )
 			{
-				// No current task — check if village is complete
 				if ( Builder.IsComplete )
 				{
 					State = NpcState.VillageComplete;
@@ -451,17 +503,10 @@ namespace Lute.Building
 					return;
 				}
 
-				// Wait for next task to be assigned
 				Controller.WishVelocity = Vector3.Zero;
 				return;
 			}
 
-			// Detect if the builder has moved on to a new task (race condition fix):
-			// The VillageBuilder completes a task and immediately starts the next one,
-			// so CurrentTask changes before we ever see Status==2. We track the task
-			// index we arrived at — if it's different from CurrentTaskIndex, the builder
-			// finished our task and moved on, so we walk to the new site. Index-based
-			// comparison avoids fragility from duplicate task names.
 			if ( _buildingTaskIndex >= 0 && Builder.CurrentTaskIndex != _buildingTaskIndex )
 			{
 				ReportTaskComplete();
@@ -473,8 +518,6 @@ namespace Lute.Building
 				return;
 			}
 
-			// Also check if the current task is complete (Status == 2) — this handles
-			// the case where the builder hasn't started the next task yet.
 			if ( Builder.CurrentTask.Status == 2 )
 			{
 				ReportTaskComplete();
@@ -485,9 +528,6 @@ namespace Lute.Building
 				Log.Info( $"Lute: VillageBuilderController task '{Builder.CurrentTask.Name}' done. Walking to next site." );
 				return;
 			}
-
-			// Stand by while building — small idle movement
-			Controller.WishVelocity = Vector3.Zero;
 		}
 
 		/// <summary>

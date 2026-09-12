@@ -17,6 +17,12 @@ public sealed class LuteWorld : Component
 	/// </summary>
 	public GameObject Build()
 	{
+		// Reset construction runtime state exactly once at world-build entry,
+		// BEFORE the static occupancy scan. Static fields persist across play
+		// sessions, so stale reservations/task assignments must be cleared.
+		// Builders must NOT call Reset() themselves — it would wipe the scan.
+		Lute.Building.ConstructionDirector.Reset();
+
 		var root = Scene.CreateObject( true );
 		root.Name = "Sanctuary";
 		root.WorldPosition = Vector3.Zero;
