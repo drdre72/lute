@@ -349,7 +349,7 @@ namespace Lute.Building
 
 			tasks.Add( new VillageBuildTask
 			{
-				Position = center + new Vector3( 0, -40f * M, 0 ),
+				Position = center + new Vector3( 0, -60f * M, 0 ),
 				TaskType = "chapel", Name = "Chapel",
 				Priority = 10, WealthFactor = 3.0f,
 				BaseWidth = 5, BaseHeight = 7,
@@ -378,8 +378,8 @@ namespace Lute.Building
 					if ( Math.Abs( y - (-half * 0.5f) ) < crossStreetMargin ) continue;
 					if ( Math.Abs( y - (half * 0.5f) ) < crossStreetMargin ) continue;
 					// Skip buildings near special building positions (Chapel, Smithy, Tavern)
-					float specialMargin = 10f * M; // 10m clearance from special buildings
-					if ( Math.Abs( y - (-40f * M) ) < specialMargin ) continue; // Chapel at y=-40m
+					float specialMargin = 15f * M; // 15m clearance from special buildings
+					if ( Math.Abs( y - (-60f * M) ) < specialMargin ) continue; // Chapel at y=-60m
 					if ( Math.Abs( y - (30f * M) ) < specialMargin ) continue; // Smithy/Tavern at y=30m
 
 					// Pick building type by weight
@@ -412,8 +412,8 @@ namespace Lute.Building
 					if ( Math.Abs( y - (-half * 0.5f) ) < crossStreetMargin ) continue;
 					if ( Math.Abs( y - (half * 0.5f) ) < crossStreetMargin ) continue;
 					// Skip buildings near special building positions (Chapel, Smithy, Tavern)
-					float specialMargin = 10f * M;
-					if ( Math.Abs( y - (-40f * M) ) < specialMargin ) continue; // Chapel at y=-40m
+					float specialMargin = 15f * M;
+					if ( Math.Abs( y - (-60f * M) ) < specialMargin ) continue; // Chapel at y=-60m
 					if ( Math.Abs( y - (30f * M) ) < specialMargin ) continue; // Smithy/Tavern at y=30m
 
 					var (btype, _) = PickWeighted( buildingTypes );
