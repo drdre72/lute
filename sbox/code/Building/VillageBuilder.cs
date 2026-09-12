@@ -1170,18 +1170,33 @@ namespace Lute.Building
 			// models/dev/box.vmdl is 50x50x50 local units. Convert requested
 			// world dimensions into transform scale so rendered bounds match
 			// the same size used by occupancy and collision.
+			// Wall bricks use a pre-textured brick model (materials/medieval/brick.vmdl)
+			// so the stone texture is baked into the model — no MaterialOverride
+			// needed (which doesn't render textures correctly on dev/box.vmdl).
 			var renderer = go.AddComponent<ModelRenderer>();
-			renderer.Model = Model.Load( "models/dev/box.vmdl" );
+			if ( isWallBrick )
+			{
+				renderer.Model = Model.Load( "models/medieval/brick.vmdl" );
+			}
+			else
+			{
+				renderer.Model = Model.Load( "models/dev/box.vmdl" );
+			}
 			go.WorldScale = size / BoxModelNativeSize;
 
-			var material = Material.Load( materialPath );
-			if ( material is null )
+			// Apply material override only for non-wall pieces (wall bricks
+			// already have the texture baked into brick.vmdl).
+			if ( !isWallBrick )
 			{
-				Log.Warning( $"Lute: SpawnBox material '{materialPath}' failed to load, using default." );
-				material = Material.Load( "materials/medieval/castle_wall.vmat" );
+				var material = Material.Load( materialPath );
+				if ( material is null )
+				{
+					Log.Warning( $"Lute: SpawnBox material '{materialPath}' failed to load, using default." );
+					material = Material.Load( "materials/medieval/castle_wall.vmat" );
+				}
+				if ( material is not null )
+					renderer.MaterialOverride = material;
 			}
-			if ( material is not null )
-				renderer.MaterialOverride = material;
 
 			// Per-brick colliders are skipped for wall bricks — a single
 			// segment-level collider is added when the wall segment completes
