@@ -61,6 +61,26 @@ namespace Lute.Building
 		public int TotalPieces = 0;
 
 		/// <summary>
+		/// Runtime: wall segment construction state machine.
+		/// Only used for "wall" task type. Other tasks use Status directly.
+		/// </summary>
+		public WallSegmentState WallState = WallSegmentState.Planned;
+
+		/// <summary>
+		/// Runtime: per-brick placement tracking for structural queries.
+		/// Each entry is (row, col) of a placed brick. Used to compute
+		/// coverage, course continuity, and corner bonding without
+		/// scanning 5,100 GameObjects.
+		/// </summary>
+		public HashSet<(int row, int col)> PlacedBricks = new();
+
+		/// <summary>
+		/// Runtime: the finalized wall mesh GameObject (after representation
+		/// collapse). Null while in BrickLaying mode.
+		/// </summary>
+		public GameObject FinalizedMeshGo;
+
+		/// <summary>
 		/// Multi-builder mode: which builder ID is assigned this task.
 		/// -1 = not yet assigned (single-builder mode or pre-partition).
 		/// Set by VillageBuilder.PartitionTasks during OnStart.

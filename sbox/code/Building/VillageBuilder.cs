@@ -633,6 +633,10 @@ namespace Lute.Building
 							WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base );
 						task.PiecesPlaced = brickIdx + 1;
 						_totalPiecesPlaced++;
+
+						// Track placement for structural queries (not for occupancy —
+						// wall bricks use task-level reservation only).
+						task.PlacedBricks.Add( (row, col) );
 					}
 					brickIdx++;
 
@@ -641,6 +645,25 @@ namespace Lute.Building
 						await Task.DelaySeconds( BuildInterval );
 					MaybeSave();
 				}
+			}
+
+			// Update wall state: check if structurally eligible for finalization.
+			if ( task.PiecesPlaced >= totalBricks )
+			{
+				var query = EvaluateWallStructure( task, bricksPerRow, numRows );
+				if ( query.CanDirectorFinalize )
+				{
+					task.WallState = WallSegmentState.FinalizationEligible;
+					Log.Info( $"Lute: Wall segment '{task.Name}' is FinalizationEligible (coverage={query.Coverage:F2}, courses={query.CoursesContinuous}, foundation={query.FoundationSupported})." );
+				}
+				else
+				{
+					task.WallState = WallSegmentState.BrickLaying;
+				}
+			}
+			else
+			{
+				task.WallState = WallSegmentState.BrickLaying;
 			}
 
 			// Segment-level collider: one BoxCollider for the whole wall segment
@@ -657,6 +680,131 @@ namespace Lute.Building
 				segCollider.Scale = new Vector3( BoxModelNativeSize, BoxModelNativeSize, BoxModelNativeSize );
 				segColliderGo.Enabled = true;
 			}
+		}
+
+		// Wall structural query: NOT brick count, topology-based
+
+		WallStructuralQuery EvaluateWallStructure( VillageBuildTask task, int bricksPerRow, int numRows )
+		{
+			var q = new WallStructuralQuery();
+			q.Coverage = task.TotalPieces > 0 ? (float)task.PlacedBricks.Count / task.TotalPieces : 0f;
+			int foundationCount = 0;
+			for ( int col = 0; col < bricksPerRow; col++ ) { if ( task.PlacedBricks.Contains( (0, col) ) ) foundationCount++; }
+			q.FoundationSupported = foundationCount == bricksPerRow;
+			q.CoursesContinuous = true;
+			for ( int row = 0; row < numRows; row++ )
+			{
+				bool foundGap = false;
+				for ( int col = 0; col < bricksPerRow; col++ )
+				{
+					if ( !task.PlacedBricks.Contains( (row, col) ) && !foundGap )
+					{
+						for ( int c2 = col + 1; c2 < bricksPerRow; c2++ ) { if ( task.PlacedBricks.Contains( (row, c2) ) ) { foundGap = true; break; } }
+					}
+				}
+				if ( foundGap ) { q.CoursesContinuous = false; break; }
+			}
+			int topCount = 0;
+			for ( int col = 0; col < bricksPerRow; col++ ) { if ( task.PlacedBricks.Contains( (numRows - 1, col) ) ) topCount++; }
+			q.TopCourseComplete = topCount == bricksPerRow;
+			q.RequiredCornersBonded = true;
+			for ( int row = 0; row < numRows; row++ )
+			{
+				if ( !task.PlacedBricks.Contains( (row, 0) ) || !task.PlacedBricks.Contains( (row, bricksPerRow - 1) ) ) { q.RequiredCornersBonded = false; break; }
+			}
+			q.NoIllegalGap = q.CoursesContinuous;
+			if ( q.NoIllegalGap )
+			{
+				for ( int row = 1; row < numRows; row++ )
+				{
+					bool rowHas = false, prevHas = false;
+					for ( int col = 0; col < bricksPerRow; col++ ) { if ( task.PlacedBricks.Contains( (row, col) ) ) rowHas = true; if ( task.PlacedBricks.Contains( (row - 1, col) ) ) prevHas = true; }
+					if ( rowHas && !prevHas ) { q.NoIllegalGap = false; break; }
+				}
+			}
+			q.NoPendingStructuralPieces = task.PiecesPlaced >= task.TotalPieces;
+			return q;
+		}
+
+		public bool FinalizeWall( VillageBuildTask task )
+		{
+			if ( task.TaskType != "wall" ) return false;
+			if ( task.WallState != WallSegmentState.FinalizationEligible ) { Log.Warning( $"Lute: FinalizeWall('{task.Name}') rejected - not eligible." ); return false; }
+			float segLen = 10f * M; float wallH = WallHeight;
+			const float brickThick = 0.1f * M; const float brickLen = BrickSpacingX - BrickMortarGap; const float brickH = BrickSpacingZ - BrickMortarGap;
+			int bricksPerRow = (int)MathF.Ceiling( segLen / BrickSpacingX ); int numRows = (int)MathF.Ceiling( wallH / BrickSpacingZ );
+			var vertices = new List<Vertex>(); var indices = new List<int>();
+			for ( int row = 0; row < numRows; row++ )
+			{
+				float rowOffset = (row % 2 == 1) ? BrickSpacingX * 0.5f : 0f;
+				for ( int col = 0; col < bricksPerRow; col++ )
+				{
+					float x = -segLen * 0.5f + col * BrickSpacingX + rowOffset; float z = row * BrickSpacingZ;
+					AddBrickToMesh( vertices, indices, x, 0, z, brickLen, brickThick, brickH );
+				}
+			}
+			var mesh = new Mesh(); mesh.Material = Material.Load( WallMaterial );
+#pragma warning disable CS0618
+			mesh.CreateVertexBuffer( vertices.Count, Vertex.Layout, vertices );
+#pragma warning restore CS0618
+			mesh.CreateIndexBuffer( indices.Count, indices );
+			mesh.Bounds = new BBox( new Vector3( -segLen * 0.5f, -brickThick * 0.5f, 0 ), new Vector3( segLen * 0.5f, brickThick * 0.5f, wallH ) );
+			var model = Model.Builder.AddMesh( mesh ).Create();
+			var wallGo = Scene.CreateObject( false ); wallGo.Name = $"Village_{task.Name}_finalized"; wallGo.SetParent( _villageRoot );
+			wallGo.WorldPosition = task.Position + new Vector3( 0, 0, wallH * 0.5f ); if ( task.Rotation != 0 ) wallGo.WorldRotation = Rotation.FromYaw( task.Rotation );
+			var renderer = wallGo.AddComponent<ModelRenderer>(); renderer.Model = model;
+			wallGo.WorldScale = new Vector3( segLen, brickThick, wallH );
+			var collider = wallGo.AddComponent<BoxCollider>(); collider.Scale = new Vector3( BoxModelNativeSize, BoxModelNativeSize, BoxModelNativeSize );
+			wallGo.Enabled = true; task.FinalizedMeshGo = wallGo;
+			int destroyed = 0;
+			foreach ( var child in _villageRoot.Children )
+			{
+				if ( child.Name != null && child.Name.StartsWith( $"Village_{task.Name}_" ) && !child.Name.EndsWith( "_collider" ) && !child.Name.EndsWith( "_finalized" ) ) { child.Destroy(); destroyed++; }
+			}
+			foreach ( var child in _villageRoot.Children ) { if ( child.Name == $"Village_{task.Name}_collider" ) { child.Destroy(); break; } }
+			task.WallState = WallSegmentState.Finalized;
+			Log.Info( $"Lute: FinalizeWall('{task.Name}') - collapsed {destroyed} bricks to 1 mesh. State=Finalized." );
+			return true;
+		}
+
+		void AddBrickToMesh( List<Vertex> vertices, List<int> indices, float cx, float cy, float cz, float sx, float sy, float sz )
+		{
+			float hx = sx * 0.5f, hy = sy * 0.5f, hz = sz * 0.5f; int baseIdx = vertices.Count;
+			var p = new Vector3[8];
+			p[0] = new Vector3( cx - hx, cy - hy, cz ); p[1] = new Vector3( cx + hx, cy - hy, cz );
+			p[2] = new Vector3( cx + hx, cy + hy, cz ); p[3] = new Vector3( cx - hx, cy + hy, cz );
+			p[4] = new Vector3( cx - hx, cy - hy, cz + sz ); p[5] = new Vector3( cx + hx, cy - hy, cz + sz );
+			p[6] = new Vector3( cx + hx, cy + hy, cz + sz ); p[7] = new Vector3( cx - hx, cy + hy, cz + sz );
+			var uv0 = new Vector4( 0, 0, 0, 0 ); var uv1 = new Vector4( 1, 0, 0, 0 ); var uv2 = new Vector4( 1, 1, 0, 0 ); var uv3 = new Vector4( 0, 1, 0, 0 );
+			vertices.Add( new Vertex( p[3], uv0, Color32.White ) ); vertices.Add( new Vertex( p[2], uv1, Color32.White ) ); vertices.Add( new Vertex( p[6], uv2, Color32.White ) ); vertices.Add( new Vertex( p[7], uv3, Color32.White ) );
+			vertices.Add( new Vertex( p[1], uv0, Color32.White ) ); vertices.Add( new Vertex( p[0], uv1, Color32.White ) ); vertices.Add( new Vertex( p[4], uv2, Color32.White ) ); vertices.Add( new Vertex( p[5], uv3, Color32.White ) );
+			vertices.Add( new Vertex( p[0], uv0, Color32.White ) ); vertices.Add( new Vertex( p[3], uv1, Color32.White ) ); vertices.Add( new Vertex( p[7], uv2, Color32.White ) ); vertices.Add( new Vertex( p[4], uv3, Color32.White ) );
+			vertices.Add( new Vertex( p[2], uv0, Color32.White ) ); vertices.Add( new Vertex( p[1], uv1, Color32.White ) ); vertices.Add( new Vertex( p[5], uv2, Color32.White ) ); vertices.Add( new Vertex( p[6], uv3, Color32.White ) );
+			vertices.Add( new Vertex( p[7], uv0, Color32.White ) ); vertices.Add( new Vertex( p[6], uv1, Color32.White ) ); vertices.Add( new Vertex( p[5], uv2, Color32.White ) ); vertices.Add( new Vertex( p[4], uv3, Color32.White ) );
+			vertices.Add( new Vertex( p[0], uv0, Color32.White ) ); vertices.Add( new Vertex( p[1], uv1, Color32.White ) ); vertices.Add( new Vertex( p[2], uv2, Color32.White ) ); vertices.Add( new Vertex( p[3], uv3, Color32.White ) );
+			for ( int face = 0; face < 6; face++ ) { int i = baseIdx + face * 4; indices.Add( i ); indices.Add( i + 1 ); indices.Add( i + 2 ); indices.Add( i ); indices.Add( i + 2 ); indices.Add( i + 3 ); }
+		}
+
+		public bool DeconstructWall( VillageBuildTask task )
+		{
+			if ( task.TaskType != "wall" ) return false;
+			if ( task.WallState != WallSegmentState.Finalized ) { Log.Warning( $"Lute: DeconstructWall('{task.Name}') rejected - not Finalized." ); return false; }
+			float segLen = 10f * M; float wallH = WallHeight;
+			const float brickThick = 0.1f * M; const float brickLen = BrickSpacingX - BrickMortarGap; const float brickH = BrickSpacingZ - BrickMortarGap;
+			int bricksPerRow = (int)MathF.Ceiling( segLen / BrickSpacingX ); int numRows = (int)MathF.Ceiling( wallH / BrickSpacingZ );
+			if ( task.FinalizedMeshGo is not null ) { task.FinalizedMeshGo.Destroy(); task.FinalizedMeshGo = null; }
+			int topRow = numRows - 1; float rowOffset = (topRow % 2 == 1) ? BrickSpacingX * 0.5f : 0f;
+			for ( int col = 0; col < bricksPerRow; col++ )
+			{
+				float x = -segLen * 0.5f + col * BrickSpacingX + rowOffset; float z = topRow * BrickSpacingZ;
+				var localPos = new Vector3( x, 0, z ); var cos = (float)Math.Cos( task.Rotation * Math.PI / 180 ); var sin = (float)Math.Sin( task.Rotation * Math.PI / 180 );
+				var pos = task.Position + new Vector3( localPos.x * cos - localPos.y * sin, localPos.x * sin + localPos.y * cos, localPos.z );
+				SpawnBox( pos, new Vector3( brickLen, brickThick, brickH ), WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base );
+			}
+			for ( int col = 0; col < bricksPerRow; col++ ) task.PlacedBricks.Remove( (topRow, col) );
+			task.WallState = WallSegmentState.Deconstructing;
+			Log.Info( $"Lute: DeconstructWall('{task.Name}') - expanded top course ({bricksPerRow} bricks). State=Deconstructing." );
+			return true;
 		}
 
 		// ── Gate: two towers + lintel ──
