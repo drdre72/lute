@@ -368,7 +368,22 @@ namespace Lute.Building
 
 			if ( dist <= StopRadius )
 			{
-				// Arrived at site — claim it before building so other NPCs
+				// Arrived at site. If using the director and the builder already
+				// holds a directed task reservation, skip the site claim - the
+				// reservation is already held by the builder through the
+				// ConstructionDirector. Just authorize execution.
+				if ( UseDirector && !string.IsNullOrEmpty( Builder.CurrentDirectedTaskId ) )
+				{
+					ConstructionDirector.AuthorizeExecution( Builder.CurrentDirectedTaskId, _npcId );
+					State = NpcState.Building;
+					_stateTimer = 0;
+					_buildingTaskIndex = Builder.CurrentTaskIndex;
+					Controller.WishVelocity = Vector3.Zero;
+					Log.Info( $"Lute: VillageBuilderController arrived at '{Builder.CurrentTask.Name}'. Building." );
+					return;
+				}
+
+				// Non-director path: claim it before building so other NPCs
 				// don't stack on the same spot.
 				if ( UseBlackboard && !TryClaimSite( _currentTarget ) )
 				{
@@ -376,14 +391,6 @@ namespace Lute.Building
 					// other NPC will release when its task completes.
 					Controller.WishVelocity = Vector3.Zero;
 					return;
-				}
-
-				// Notify the ConstructionDirector that we've arrived and are
-				// ready to build. The executor (VillageBuilder) is waiting for
-				// this authorization before placing any geometry.
-				if ( UseDirector && !string.IsNullOrEmpty( Builder.CurrentDirectedTaskId ) )
-				{
-					ConstructionDirector.AuthorizeExecution( Builder.CurrentDirectedTaskId, _npcId );
 				}
 
 				State = NpcState.Building;
@@ -394,8 +401,41 @@ namespace Lute.Building
 				return;
 			}
 
-			// Move toward target
-			MoveToward( _currentTarget );
+			// Move toward target — teleport when far away (production: no walking)
+			MoveToSite( _currentTarget );
+		}
+
+		/// <summary>
+		/// Teleport the NPC to the build site, spawning warp effects at both
+		/// the departure and arrival points. Each builder gets a distinct
+		/// tint color so the effects are visually distinguishable.
+		/// </summary>
+		void MoveToSite( Vector3 target )
+		{
+			float dist = Vector3.DistanceBetween( WorldPosition, target );
+
+			// Teleport threshold: if more than ~5m away, warp directly.
+			const float TeleportThreshold = 5f * 39.37f; // 5m in inches
+
+			if ( dist > TeleportThreshold )
+			{
+				// Spawn departure poof at current position
+				var tint = WarpEffect.GetBuilderTint( BuilderId );
+				WarpEffect.Spawn( Scene, WorldPosition, tint, 0.4f );
+
+				// Teleport to the target site (slightly above ground)
+				WorldPosition = target + Vector3.Up * 4f;
+				Controller.WishVelocity = Vector3.Zero;
+
+				// Spawn arrival poof at the destination
+				WarpEffect.Spawn( Scene, target, tint, 0.6f );
+
+				Log.Info( $"Lute: VillageBuilderController '{_npcId}' warped to '{Builder.CurrentTask?.Name}' at {target} (dist {dist / 39.37f:F1}m)." );
+				return;
+			}
+
+			// Close enough — walk normally for the last few meters
+			MoveToward( target );
 		}
 
 		void HandleBuilding()

@@ -371,10 +371,10 @@ namespace Lute.Building
 						CurrentTask = task;
 						CurrentTaskIndex = idx;
 						CurrentDirectedTaskId = directed.Id;
-						// Director set status to PendingExecution — wait for the NPC
+						// Director set status to PendingExecution ï¿½ wait for the NPC
 						// controller to arrive at the site and call AuthorizeExecution
 						// before we start placing geometry.
-						Log.Info( $"Lute: VillageBuilder[{BuilderId}] (director) claimed '{task.Name}' ({task.TaskType}) at {task.Position} — waiting for NPC to arrive." );
+						Log.Info( $"Lute: VillageBuilder[{BuilderId}] (director) claimed '{task.Name}' ({task.TaskType}) at {task.Position} ï¿½ waiting for NPC to arrive." );
 
 						while ( !ConstructionDirector.IsExecutionAuthorized( directed.Id ) )
 						{
@@ -382,13 +382,15 @@ namespace Lute.Building
 							await GameTask.DelaySeconds( 0.2f );
 						}
 
-						Log.Info( $"Lute: VillageBuilder[{BuilderId}] (director) building '{task.Name}' ({task.TaskType}) at {task.Position} — NPC arrived." );
+						Log.Info( $"Lute: VillageBuilder[{BuilderId}] (director) building '{task.Name}' ({task.TaskType}) at {task.Position} ï¿½ NPC arrived." );
 
 						await BuildTask( task, token );
 
 						task.Status = 2; // complete
 						ConstructionDirector.CompleteTask( directed.Id );
 						CurrentDirectedTaskId = null;
+						CurrentTask = null;
+						CurrentTaskIndex = -1;
 						int done = Tasks.Count( t => t.Status == 2 );
 						Log.Info( $"Lute: VillageBuilder[{BuilderId}] completed '{task.Name}' â€” {done}/{Tasks.Count} tasks done ({done * 100 / Tasks.Count}%)." );
 						DoSave();
