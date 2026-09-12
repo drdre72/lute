@@ -1,0 +1,84 @@
+LuteToolbar {
+    .toolbar {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+
+        &.player {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        &.npc {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+        }
+    }
+
+    .toolbar-label {
+        color: white;
+        font-size: 14px;
+        font-family: Roboto;
+        text-shadow: 1px 1px 2px black;
+        margin-bottom: 4px;
+    }
+
+    .toolbar-slots {
+        display: flex;
+        gap: 4px;
+    }
+
+    .slot {
+        width: 56px;
+        height: 56px;
+        background: rgba(15, 15, 15, 0.8);
+        border: 2px solid rgba(80, 80, 80, 0.8);
+        border-radius: 4px;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+
+        &.selected {
+            background: rgba(255, 217, 77, 0.9);
+            border-color: yellow;
+        }
+    }
+
+    .slot-num {
+        position: absolute;
+        top: 2px;
+        left: 4px;
+        font-size: 10px;
+        color: rgba(180, 180, 180, 0.8);
+    }
+
+    .item-name {
+        font-size: 11px;
+        color: white;
+        text-align: center;
+        padding: 0 2px;
+    }
+
+    .item-count {
+        position: absolute;
+        bottom: 2px;
+        right: 4px;
+        font-size: 12px;
+        color: white;
+        text-shadow: 1px 1px 1px black;
+    }
+
+    .durability-bar {
+        position: absolute;
+        bottom: 2px;
+        left: 4px;
+        height: 3px;
+        border-radius: 1px;
+    }
+}

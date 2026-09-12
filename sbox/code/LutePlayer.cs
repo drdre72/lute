@@ -59,7 +59,7 @@ public sealed class LutePlayer : Component
 		// Cycle through the eight spell schools with slot keys 1-8.
 		for ( int i = 0; i < 8; i++ )
 		{
-			if ( Input.Pressed( $"slot{i + 1}" ) )
+			if ( Input.Pressed( $"Slot{i + 1}" ) )
 				SelectedSpell = (SpellType)i;
 		}
 

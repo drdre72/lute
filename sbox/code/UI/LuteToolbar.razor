@@ -1,0 +1,71 @@
+@using Sandbox;
+@using Sandbox.UI;
+@using Lute.Items;
+@using Lute.NPC;
+@inherits PanelComponent
+
+<root class="toolbar">
+    @if ( !IsPlayerToolbar && Character != null )
+    {
+        <div class="toolbar-label">@Character.GetStatus()</div>
+    }
+    <div class="toolbar-slots">
+        @for ( int i = 0; i < 6; i++ )
+        {
+            var slotIdx = TargetInventory?.Hotbar[i] ?? -1;
+            var item = ( slotIdx >= 0 && slotIdx < TargetInventory?.SlotCount ) ? TargetInventory.Slots[slotIdx] : default;
+            var isSelected = IsPlayerToolbar && TargetInventory?.SelectedHotbarSlot == i;
+            <div class="slot @(isSelected ? "selected" : "")">
+                <span class="slot-num">@(i + 1)</span>
+                @if ( !item.IsEmpty )
+                {
+                    <span class="item-name">@ItemDefs.GetDisplayName(item.Type)</span>
+                    @if ( item.Count > 1 )
+                    {
+                        <span class="item-count">@item.Count</span>
+                    }
+                    @if ( ItemDefs.IsTool(item.Type) && item.MaxDurability > 0 )
+                    {
+                        <div class="durability-bar" style="width: @(item.Durability * 100)%; background: @(item.Durability > 0.5f ? "#4f4" : item.Durability > 0.25f ? "#ff4" : "#f44")"></div>
+                    }
+                }
+            </div>
+        }
+    </div>
+</root>
+
+@code
+{
+    /// <summary>
+    /// 6-slot toolbar HUD for both player and NPCs.
+    /// Player sees their own toolbar at the bottom center.
+    /// NPC toolbars render as overlay when inspected.
+    /// </summary>
+
+    [Property] public LuteInventory TargetInventory { get; set; }
+    [Property] public LuteCharacter Character { get; set; }
+    [Property] public bool IsPlayerToolbar { get; set; } = true;
+
+    protected override void OnUpdate()
+    {
+        if ( !IsPlayerToolbar || TargetInventory == null )
+            return;
+
+        // Handle hotkey selection (1-6)
+        for ( int i = 0; i < 6; i++ )
+        {
+            if ( Input.Pressed( $"Slot{i + 1}" ) )
+            {
+                TargetInventory.SelectedHotbarSlot = i;
+            }
+        }
+
+        // Scroll wheel to cycle hotbar
+        var wheel = Input.MouseWheel.y;
+        if ( wheel != 0 )
+        {
+            int dir = wheel > 0 ? 1 : -1;
+            TargetInventory.SelectedHotbarSlot = (TargetInventory.SelectedHotbarSlot + dir + 6) % 6;
+        }
+    }
+}
