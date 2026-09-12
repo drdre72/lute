@@ -3,99 +3,146 @@ agent: devin-local
 session: awesome-botany
 created: 2026-09-07T04:16:52Z
 ---
-# Brick-Laying Polish: Sections, Ghost, Animation, Sound, Mortar Glow
+# Brick-Laying Polish: Revised Plan (following Prof's recommendations)
 
 ## Summary
-Add a deterministic section-based wall-building system (1×1, 2×2, 3×3, 4×4 module sections) with per-brick ghost highlight, single-brick arm-place animation, soft sandy plop sound, and a mortar-fill glow effect when a section solidifies.
+Fix foundational brick visual invariance first (half-brick scaling, finalization fidelity, anchor, reference test), then build a reusable masonry work system: WorkPatch, placement event, animation, audio, mortar, and optional debug overlays.
 
 ---
 
-## Current State
+## Revised Implementation Order
 
-- **Wall segments**: 2m × 0.5m × 2m, built one brick at a time at `BuildInterval` (0.5s).
-- **Brick model**: Facepunch `brick_single_04` cloud asset, scaled to `BrickModuleSize`.
-- **NPC facing**: `FaceWall()` rotates NPC toward wall center.
-- **Animation**: `PlayLayAnimation()` cycles the citizen `duck` parameter (crouch → stand).
-- **Sound**: None.
-- **Ghost/preview**: None.
-- **Section concept**: Walls are generated as ~2m segments in `VillageGrammar.GenerateWallTasks()`. No 1×1/2×2/3×3/4×4 section selection.
-- **Finalization**: `WallSegmentState` state machine: `Planned → BrickLaying → FinalizationEligible → Finalized`. `FinalizeWall()` collapses bricks to one mesh.
-- **Glow effect**: `WarpEffect` exists for teleport poofs (tinted box that expands and fades). Reusable pattern.
+### Phase 1: Brick Visual Invariance (FOUNDATIONAL — do this first)
 
----
+**1a. Fix full vs half cloud-brick scaling.**
+- `SpawnBox()` currently scales every wall brick to `BrickModuleSize` (25×12.5×6.25cm), ignoring the requested `size`.
+- Full bricks: scale to `BrickModuleSize` (25×12.5×6.25cm) — correct.
+- Half bricks: scale to `(BrickModuleX * 0.5, BrickModuleY, BrickModuleZ)` = (12.5×12.5×6.25cm).
+- Derive the render envelope from `BrickForm` (Full vs Half), not a fixed `BrickModuleSize`.
+- If Facepunch has a half-brick variant in the cloud pack, use it; otherwise nonuniform X scaling is acceptable initially.
+- **Files**: `VillageBuilder.cs` (SpawnBox scaling logic).
 
-## Plan
+**1b. Make finalization preserve `brick_single_04` visual.**
+- `FinalizeWall()` currently generates box vertices and assigns `Material.Load(WallMaterial)` — this collapses the beautiful cloud brick to flat boxes.
+- Finalization should be **visually lossless**. The player shouldn't see a visual downgrade.
+- Option A: Don't collapse to a mesh — keep the individual `brick_single_04` GameObjects (they're already optimized as cloud assets).
+- Option B: If collapse is needed for performance, bake the cloud brick appearance into the final mesh (capture the model's materials/normals, not just box geometry).
+- **Files**: `VillageBuilder.cs` (FinalizeWall), `ReferenceWallTest.cs` (FinalizeWall).
 
-### Phase 1: Section Selection System
-**Goal**: NPC deterministically selects a section size (1×1, 2×2, 3×3, or 4×4 modules) for each wall build task.
+**1c. Fix reference-wall fixture to use same cloud scaling as production.**
+- `ReferenceWallTest.SpawnBrick()` loads `brick_single_04` but scales using `size / 50` (dev/box pattern).
+- Production uses `renderer.Model.Bounds.Size`. The test must match production.
+- **Files**: `ReferenceWallTest.cs` (SpawnBrick scaling).
 
-- Add `SectionSize` enum: `OneByOne`, `TwoByTwo`, `ThreeByThree`, `FourByFour` (in module units, not meters).
-- Add `[Property] SectionSize SelectedSection` to `VillageBuilderController` (deterministic per-NPC, based on `BuilderId` + task `LayoutSeed`).
-- Map section size to wall dimensions:
-  - 1×1 = 1 module × 1 course × 1 wythe (single brick)
-  - 2×2 = 2 modules × 2 courses × 1 wythe (4 bricks)
-  - 3×3 = 3 modules × 3 courses × 1 wythe (9 bricks)
-  - 4×4 = 4 modules × 4 courses × 1 wythe (16 bricks)
-- The section is a sub-unit within the existing 2m wall segment. The NPC builds one section at a time, then moves to the next section.
-- **Files**: `VillageBuilderController.cs`, `VillageGrammar.cs` (add enum), `VillageBuilder.cs` (section-aware brick loop).
+**1d. Fix ground-anchor (1-inch float).**
+- Bricks placed at `z = row * BrickModuleZ` with `PieceAnchor.Base`, which adds `size.z * 0.5f`.
+- Investigate and fix so bricks sit exactly on the ground at course 0.
+- **Files**: `VillageBuilder.cs` (SpawnBox anchor logic).
 
-### Phase 2: Brick Ghost Highlight
-**Goal**: Before each brick is placed, a translucent ghost version appears at the target position, then gets replaced by the real brick.
+### Phase 2: MasonryWorkPatch (not "Section")
 
-- Add `BrickGhost` component (similar to `WarpEffect`):
-  - Spawns a `brick_single_04` model at the target position.
-  - Tinted with a translucent highlight color (e.g., cyan 0.5 alpha).
-  - Fades in over ~0.15s, holds, then the real brick spawns and the ghost fades out over ~0.1s.
-- In `BuildWallSegment`, before each `SpawnBox` call, spawn the ghost at the brick position.
-- The ghost auto-destroys when the real brick appears.
-- **Files**: New `BrickGhost.cs`, `VillageBuilder.cs` (call ghost spawn before `SpawnBox`).
+**Goal**: Group existing `BrickSlot`s into work patches — NOT new construction geometry.
 
-### Phase 3: Single-Brick Arm-Place Animation
-**Goal**: Replace the crouch-cycle with a proper "arm down" placement motion per brick.
-
-- Enhance `PlayLayAnimation()` to drive a single arm-down motion synced to `BuildInterval`:
-  - Phase 0 (0–0.25s): arm raises slightly (preparation).
-  - Phase 1 (0.25–0.5s): arm swings down to place position.
-  - Phase 2 (0.5s): brick snaps in, arm returns.
-- Use citizen animgraph parameters: `b_grounded=true`, `move_x=0`, and cycle `duck` for the body dip. If arm parameters exist (`aim_*` or `hand_*`), drive them; otherwise keep the duck cycle but sync it to the brick placement moment (not a continuous sine).
-- The key change: the animation should be **per-brick** (one cycle per `BuildInterval`), not continuous.
-- **Files**: `VillageBuilderController.cs` (`PlayLayAnimation`).
-
-### Phase 4: Soft Sandy Plop Sound
-**Goal**: Play a soft "sandy plop" sound at each brick placement position.
-
-- Create a `SoundEvent` resource for the plop sound. Since we don't have a custom sound file, use an existing S&Box sound event or create a minimal `.vsnd` from a short noise burst.
-- In `SpawnBox` (wall brick path), after placing the brick, call:
+- Add `MasonryWorkPatch` struct/class:
   ```csharp
-  Sound.Play( BrickPlopSound, worldPos );
+  MasonryWorkPatch
+  {
+      IReadOnlyList<BrickSlot> Slots;
+      int StartCourse;
+      int CourseCount;
+      int StartModule;
+      int ModuleCount;
+      int Wythe;
+  }
   ```
-  where `BrickPlopSound` is a cached `SoundEvent` loaded once.
-- If no suitable sound asset exists, use `Sound.Play( "sandbox.sounds.ui.click", worldPos )` as a placeholder and note it for replacement.
-- **Files**: `VillageBuilder.cs` (sound load + play), possibly new sound asset.
+- A 4×4 patch means "Builder, work these 16 already-valid BrickSlots" — not "generate a 4×4 mini-wall."
+- Patches clip to available slots (no remainder problem for 3×3 in 8-module walls).
+- **No `SectionSize` enum in `VillageGrammar`** — patches are a work-organization layer, not a geometry layer.
+- **Files**: New `MasonryWorkPatch.cs`, `VillageBuilder.cs` (patch-aware brick loop), `VillageBuilderController.cs` (patch state).
 
-### Phase 5: Mortar-Fill Section Glow
-**Goal**: When a section (1×1, 2×2, 3×3, 4×4) is fully built, a warm glow sweeps over the section and mortar fills visibly.
+### Phase 3: Placement Event + Per-Brick Animation
 
-- Add `SectionGlowEffect` component (extends `WarpEffect` pattern):
-  - Spawns a tinted box (warm amber/gold) covering the section bounds.
-  - Expands slightly and fades over ~0.8s.
-  - Simultaneously, a "mortar fill" visual: the gaps between bricks in the section get a lighter tint (material override or a thin overlay mesh).
-- Trigger: when the last brick of a section is placed, call `SectionGlowEffect.Spawn(scene, sectionCenter, sectionBounds, tint)`.
-- The glow is purely visual — the structural state (`WallSegmentState`) is not changed by the glow. Finalization remains a separate director-approved step.
-- **Files**: New `SectionGlowEffect.cs`, `VillageBuilder.cs` (trigger after section complete).
+**Goal**: Make hand contact the authoritative visual placement moment.
 
-### Phase 6: NPC Section Selection Logic
-**Goal**: The NPC deterministically chooses which section to build next within a wall segment.
+- Add `OnBrickPlacementContact(BrickSlot)` event — everything visual fires from this:
+  - BrickSlot becomes visually occupied
+  - `brick_single_04` appears
+  - Placement sound plays
+  - Mortar/dust effect fires
+- Replace `await DelaySeconds(0.5f); SpawnBrick();` with event-synchronized placement:
+  ```
+  0.00  acquire brick
+  0.10  arm moves toward slot
+  0.35  hand approaches wall
+  0.42  CONTACT EVENT → brick appears, sound plays, dust fires
+  0.50  arm releases/returns
+  ```
+- Animation is **one action per brick**, not continuous crouch cycle.
+- **Files**: `VillageBuilderController.cs` (animation), `VillageBuilder.cs` (placement event).
 
-- Track section progress per wall task: `_currentSection` index, `_sectionsInTask` list.
-- Divide each 2m wall segment into sections based on the selected `SectionSize`:
-  - 1×1: 8 sections per course (8 modules × 1 course)
-  - 2×2: 4 sections per 2 courses
-  - 3×3: 2 sections per 3 courses (with remainder)
-  - 4×4: 2 sections per 4 courses
-- The NPC builds sections in deterministic order (bottom-left to top-right, by course then by module).
-- After all sections in a task are complete, the task transitions to `FinalizationEligible`.
-- **Files**: `VillageBuilder.cs` (section tracking), `VillageBuilderController.cs` (section state).
+### Phase 4: Masonry Audio (varied, not one plop)
+
+**Goal**: Subtle varied positional sound set, not a metronome.
+
+- Use 4–8 subtle variants: `brick_place_01` through `brick_place_04`, `mortar_press_01`, etc.
+- Deterministic volume/pitch variation per placement.
+- Positional attenuation via `Sound.Play(SoundEvent, Vector3 position)`.
+- **No `sandbox.sounds.ui.click`** beyond smoke test — wrong feel.
+- **Files**: `VillageBuilder.cs` (sound load + play), possibly new sound assets.
+
+### Phase 5: Mortar Representation (wet→dry, not glow)
+
+**Goal**: Cheap patch-level wet→dry joint/backing effect.
+
+- Mortar as a thin backing layer behind/between brick beveled edges:
+  ```
+  front view
+  ╔══════╦══════╦══════╗
+  ║brick ║brick ║brick ║
+  ╠══════╬══════╬══════╣
+  ║brick ║brick ║brick ║
+  ╚══════╩══════╩══════╝
+     ↑ thin mortar backing behind brick edges
+  ```
+- During work: mortar = dark/wet.
+- After completion: mortar gradually → lighter/dry.
+- One cheap mesh per WorkPatch.
+- **No supernatural amber glow** in normal gameplay.
+- **Files**: New `MortarLayer.cs`, `VillageBuilder.cs` (mortar spawn per patch).
+
+### Phase 6: Optional Ghost/Debug Overlays
+
+**Goal**: Cyan ghost and completion glow as DEBUG switches, not default gameplay.
+
+- `DebugConstructionVisuals = true` → cyan BrickSlot ghost before placement.
+- `ShowWorkPatchCompletionGlow = true` → patch completion glow for development.
+- Useful for Devin/GPT Eyes verification and possible later player building mode.
+- In normal NPC gameplay: NPC has brick → arm approaches → dust/mortar disturbance → brick appears at hand contact.
+- **Files**: New `BrickGhost.cs` (debug), `VillageBuilder.cs` (debug switches).
+
+### Phase 7: NPC Work-Patch Reasoning
+
+**Goal**: Choose patch from reach, height, obstruction, skill, collaboration — not pseudorandom seed.
+
+```
+available BrickSlots
++ reach
++ work height
++ obstruction
++ other-builder claims
++ craftsmanship
+────────────────────
+WorkPatch
+```
+
+- Ground-level clear wall: 4×4
+- Tight corner: 2×2
+- Repair around missing bricks: 1×1
+- Working from scaffold: 3×3
+- Another mason occupying right side: left-side 2×4
+- Master mason doing detailed bond: smaller deliberate patch
+- Still zero LLM — deterministic rules.
+- **Files**: `VillageBuilderController.cs` (patch selection logic).
 
 ---
 
@@ -105,43 +152,31 @@ After each phase:
 1. `dotnet build sbox/code/lute.csproj` — 0 errors.
 2. Sync changed `.cs` files to `sbox-public-clean\game\addons\lute\code\Building\`.
 3. Restart play mode via MCP.
-4. Capture screenshot from editor camera or 2nd Camera.
-5. Send to GPT vision via `agent/gpt_eyes.py`.
-6. Verify:
-   - Ghost highlight appears before each brick.
-   - Arm animation syncs to brick placement.
-   - Plop sound plays (check via logs or audio confirmation).
-   - Section glow appears when a section completes.
-   - Running bond pattern preserved.
-   - No gaps, no clipping, no floating bricks.
-
----
-
-## Commit Strategy
-
-- Commit after each phase (or grouped phases) with descriptive messages.
-- Push to `origin/main` after verification.
-- Do not commit scratch scripts, screenshots, or sound assets unless intended.
+4. `python agent\wall_camera.py` — set camera to wall view.
+5. Capture screenshot, send to GPT vision via `agent/gpt_eyes.py`.
+6. Verify visual invariance: half bricks correct, finalization lossless, no float, running bond preserved.
 
 ---
 
 ## Files to Create/Modify
 
-| File | Action |
-|------|--------|
-| `sbox/code/Building/VillageGrammar.cs` | Add `SectionSize` enum |
-| `sbox/code/Building/VillageBuilderController.cs` | Section selection, arm animation |
-| `sbox/code/Building/VillageBuilder.cs` | Section-aware brick loop, ghost spawn, sound play, glow trigger |
-| `sbox/code/Building/BrickGhost.cs` | **New** — ghost highlight component |
-| `sbox/code/Building/SectionGlowEffect.cs` | **New** — section mortar glow component |
-| `sbox/code/Building/WarpEffect.cs` | No change (reference pattern) |
+| File | Phase | Action |
+|------|-------|--------|
+| `sbox/code/Building/VillageBuilder.cs` | 1,2,3,4,5,6 | Scaling, finalization, patches, placement, sound, mortar, debug |
+| `sbox/code/Building/ReferenceWallTest.cs` | 1 | Fix cloud scaling to match production |
+| `sbox/code/Building/MasonryWorkPatch.cs` | 2 | **New** — work patch grouping |
+| `sbox/code/Building/VillageBuilderController.cs` | 2,3,7 | Patch state, animation, reasoning |
+| `sbox/code/Building/MortarLayer.cs` | 5 | **New** — mortar backing effect |
+| `sbox/code/Building/BrickGhost.cs` | 6 | **New** — debug ghost overlay |
 
 ---
 
-## Notes
+## Key Principles (from Prof)
 
-- All NPC behavior remains **deterministic** — no LLM for gameplay. Section selection is based on `BuilderId` + `LayoutSeed`.
-- The `BrickSlot` topology remains authoritative. Ghosts and glows are visual only.
-- The `ConstructionDirector` remains the authority for task authorization and finalization.
-- Sound assets: use placeholder S&Box sounds if no custom plop sound is available. Note for replacement.
-- The "1 inch off the ground" observation: bricks are placed at `z = row * BrickModuleZ` with `PieceAnchor.Base`, which adds `size.z * 0.5f`. This may cause a slight float. Investigate and fix if needed.
+- **BrickSlot is truth.** GameObjects are temporary representation. WorkPatches group slots, not generate geometry.
+- **Finalization must be visually lossless.** No downgrade from `brick_single_04` to flat boxes.
+- **Placement is event-synchronized.** `OnBrickPlacementContact` is the authoritative moment, not `await DelaySeconds`.
+- **No supernatural effects in normal gameplay.** Ghost and glow are debug-only.
+- **Mortar is a real material layer**, not a magic glow.
+- **NPC patch choice is contextual**, not pseudorandom.
+- **All NPC behavior remains deterministic** — no LLM for gameplay.
