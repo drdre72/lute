@@ -28,6 +28,8 @@ namespace Lute.Building
 		const float BrickSpacingX = 0.2f * M;
 		const float BrickSpacingZ = 0.05f * M;
 		const float BrickMortarGap = 0.01f * M;
+	/// <summary> Wall segment length in world units. 2m = small Rust-style buildable unit. </summary>
+	const float WallSegmentLength = 2f * M;
 
 		enum PieceAnchor
 		{
@@ -39,6 +41,13 @@ namespace Lute.Building
 		/// <summary> Seconds between placed pieces. 1s = ~73-minute pace. </summary>
 		[Property] public float BuildInterval { get; set; } = 0.5f;
 
+	/// <summary>
+	/// Set this to a wall task name (e.g. "Wall_N_0") to request finalization
+	/// of that segment from MCP/the editor. The builder will call
+	/// FinalizeWall on the next OnUpdate. Cleared after processing.
+	/// </summary>
+	[Property] public string RequestFinalizeWall { get; set; } = "";
+
 		/// <summary> Seconds between save checks. </summary>
 		[Property] public float SaveInterval { get; set; } = 60f; // 1 minute
 
@@ -49,7 +58,7 @@ namespace Lute.Building
 		[Property] public float CellSize { get; set; } = 100f;
 
 		/// <summary> Wall height (inches). </summary>
-		[Property] public float WallHeight { get; set; } = 200f;
+		[Property] public float WallHeight { get; set; } = 80f;
 
 		/// <summary> Floor thickness (inches). </summary>
 		[Property] public float FloorThickness { get; set; } = 10f;
@@ -286,6 +295,26 @@ namespace Lute.Building
 			_cts?.Cancel();
 		}
 
+		protected override void OnUpdate()
+		{
+			// Check for MCP/editor-requested wall finalization
+			if ( !string.IsNullOrEmpty( RequestFinalizeWall ) )
+			{
+				var taskName = RequestFinalizeWall;
+				RequestFinalizeWall = ""; // Clear before processing to avoid loops
+				var task = Tasks?.Find( t => t.Name == taskName );
+				if ( task != null )
+				{
+					Log.Info( $"Lute: MCP requested FinalizeWall('{taskName}')." );
+					FinalizeWall( task );
+				}
+				else
+				{
+					Log.Warning( $"Lute: MCP requested FinalizeWall('{taskName}') but task not found." );
+				}
+			}
+		}
+
 		/// <summary> Cancel the build (e.g. NPC reassigned or destroyed). </summary>
 		public void CancelBuild()
 		{
@@ -294,7 +323,7 @@ namespace Lute.Building
 
 		int EstimateWallPieces()
 		{
-			int bricksPerRow = (int)MathF.Ceiling( (10f * M) / BrickSpacingX );
+			int bricksPerRow = (int)MathF.Ceiling( WallSegmentLength / BrickSpacingX );
 			int numRows = (int)MathF.Ceiling( WallHeight / BrickSpacingZ );
 			return bricksPerRow * numRows;  // no extra odd-row brick
 		}
@@ -592,7 +621,7 @@ namespace Lute.Building
 		// ── Wall segment: individual bricks laid one at a time ──
 		async Task BuildWallSegment( VillageBuildTask task, CancellationToken token )
 		{
-			float segLen = 10f * M;
+			float segLen = WallSegmentLength;
 			float wallH = WallHeight;
 			const float brickThick = 0.1f * M;
 			const float brickLen = BrickSpacingX - BrickMortarGap;
@@ -730,7 +759,7 @@ namespace Lute.Building
 		{
 			if ( task.TaskType != "wall" ) return false;
 			if ( task.WallState != WallSegmentState.FinalizationEligible ) { Log.Warning( $"Lute: FinalizeWall('{task.Name}') rejected - not eligible." ); return false; }
-			float segLen = 10f * M; float wallH = WallHeight;
+			float segLen = WallSegmentLength; float wallH = WallHeight;
 			const float brickThick = 0.1f * M; const float brickLen = BrickSpacingX - BrickMortarGap; const float brickH = BrickSpacingZ - BrickMortarGap;
 			int bricksPerRow = (int)MathF.Ceiling( segLen / BrickSpacingX ); int numRows = (int)MathF.Ceiling( wallH / BrickSpacingZ );
 			var vertices = new List<Vertex>(); var indices = new List<int>();
@@ -789,7 +818,7 @@ namespace Lute.Building
 		{
 			if ( task.TaskType != "wall" ) return false;
 			if ( task.WallState != WallSegmentState.Finalized ) { Log.Warning( $"Lute: DeconstructWall('{task.Name}') rejected - not Finalized." ); return false; }
-			float segLen = 10f * M; float wallH = WallHeight;
+			float segLen = WallSegmentLength; float wallH = WallHeight;
 			const float brickThick = 0.1f * M; const float brickLen = BrickSpacingX - BrickMortarGap; const float brickH = BrickSpacingZ - BrickMortarGap;
 			int bricksPerRow = (int)MathF.Ceiling( segLen / BrickSpacingX ); int numRows = (int)MathF.Ceiling( wallH / BrickSpacingZ );
 			if ( task.FinalizedMeshGo is not null ) { task.FinalizedMeshGo.Destroy(); task.FinalizedMeshGo = null; }

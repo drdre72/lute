@@ -187,9 +187,9 @@ namespace Lute.Building
 		void GenerateWallTasks( Vector3 center, List<VillageBuildTask> tasks, ref int seed )
 		{
 			// Stone curtain wall around the perimeter. Each wall segment
-			// is ~10m long. With 280m perimeter per side, that's 28 segments
+			// is ~2m long (Rust-style small buildable unit). With 280m perimeter per side, that's 140 segments
 			// per side x 4 sides = 112 segments. But we skip the gate openings.
-			float segLen = 10f * M;
+			float segLen = 2f * M;
 			float half = WallOuterHalfWidth;
 			int segsPerSide = (int)( ( half * 2f ) / segLen );
 
