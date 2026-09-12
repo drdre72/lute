@@ -43,6 +43,33 @@ namespace Lute.Building
 		const float M = 39.37f;
 		const float DefaultCell = 100f;
 		const float TouchTolerance = 0.5f;
+		// Join tolerance for structural connections (wall corners, road
+		// intersections, road-gate, road-market). These are intentional
+		// overlaps where structural pieces meet. Much larger than
+		// TouchTolerance so small join-zone overlaps don't block.
+		const float JoinTolerance = 1.5f * M; // ~1.5m
+
+		/// <summary>
+		/// Returns true if two task types are allowed to structurally
+		/// join/overlap at their boundaries. This covers wall corners,
+		/// road intersections, road-gate connections, and road-market
+		/// square connections.
+		/// </summary>
+		static bool IsJoinCompatible( string typeA, string typeB )
+		{
+			if ( string.IsNullOrEmpty( typeA ) || string.IsNullOrEmpty( typeB ) )
+				return false;
+
+			// Same-type structural joins: wall-wall corners, road-road intersections
+			if ( typeA == typeB )
+				return typeA == "wall" || typeA == "road";
+
+			// Cross-type structural joins
+			var pair = (typeA, typeB);
+			return pair == ("road", "gate") || pair == ("gate", "road") ||
+				pair == ("road", "market_square") || pair == ("market_square", "road") ||
+				pair == ("wall", "gate") || pair == ("gate", "wall");
+		}
 
 		static readonly Dictionary<string, ConstructionOccupancy> _occupied = new();
 		static long _occupancySeq;
@@ -66,7 +93,7 @@ namespace Lute.Building
 			var bounds = task.ReservationBounds ?? EstimateTaskBounds( task.BuildTask );
 			task.ReservationBounds = bounds;
 
-			var occupied = FindBlockingOccupancy( bounds, task.Id );
+			var occupied = FindBlockingOccupancy( bounds, task.Id, task.BuildTask?.TaskType );
 			if ( occupied != null )
 			{
 				var ixMins = new Vector3( Math.Max( bounds.Mins.x, occupied.Bounds.Mins.x ), Math.Max( bounds.Mins.y, occupied.Bounds.Mins.y ), Math.Max( bounds.Mins.z, occupied.Bounds.Mins.z ) );
@@ -167,7 +194,8 @@ namespace Lute.Building
 			if ( !TryGetTaskClaim( taskId, out var claim ) ) { reason = $"task {taskId} has no active reservation"; return false; }
 			if ( claim.Id != task.ReservationId ) { reason = $"task {taskId} reservation identity mismatch"; return false; }
 
-			var blocked = FindBlockingOccupancy( bounds, taskId );
+			var requestTask = ConstructionDirector.GetTask( taskId );
+			var blocked = FindBlockingOccupancy( bounds, taskId, requestTask?.BuildTask?.TaskType );
 			if ( blocked != null )
 			{
 				var ixMins = new Vector3( Math.Max( bounds.Mins.x, blocked.Bounds.Mins.x ), Math.Max( bounds.Mins.y, blocked.Bounds.Mins.y ), Math.Max( bounds.Mins.z, blocked.Bounds.Mins.z ) );
@@ -236,10 +264,29 @@ namespace Lute.Building
 			return new BBox( center - half, center + half );
 		}
 
-		static ConstructionOccupancy FindBlockingOccupancy( BBox bounds, string taskId )
+		static ConstructionOccupancy FindBlockingOccupancy( BBox bounds, string taskId, string requestTaskType = null )
 		{
-			return _occupied.Values.FirstOrDefault( o =>
-				o.TaskId != taskId && AabbOverlapsVolume( bounds, o.Bounds, TouchTolerance ) );
+			foreach ( var o in _occupied.Values )
+			{
+				if ( o.TaskId == taskId ) continue;
+
+				// Determine tolerance: if both tasks are structurally
+				// join-compatible, use the larger JoinTolerance to allow
+				// small overlaps at corners/intersections.
+				float tol = TouchTolerance;
+				if ( requestTaskType != null && !string.IsNullOrEmpty( o.Source ) )
+				{
+					// Check if the blocker's task type is join-compatible
+					var blockerTask = o.TaskId != null ? ConstructionDirector.GetTask( o.TaskId ) : null;
+					var blockerType = blockerTask?.BuildTask?.TaskType;
+					if ( IsJoinCompatible( requestTaskType, blockerType ) )
+						tol = JoinTolerance;
+				}
+
+				if ( AabbOverlapsVolume( bounds, o.Bounds, tol ) )
+					return o;
+			}
+			return null;
 		}
 
 		static bool TryGetTaskClaim( string taskId, out SpatialClaim claim )
