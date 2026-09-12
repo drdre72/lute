@@ -327,9 +327,17 @@ namespace Lute.Building
 			};
 
 			// Special buildings (fixed positions)
+			// Pre-compute special building footprints for overlap checking.
+			// Footprint = BaseWidth * WealthFactor * CellSize (inches), centered on position.
+			var specialBuildings = new List<(Vector3 pos, float halfW, float halfD)>();
+
+			float smithyHalfW = 5 * 2.0f * 100f * 0.5f;  // 500in = 12.7m
+			float smithyHalfD = 5 * 2.0f * 100f * 0.5f;
+			var smithyPos = center + new Vector3( 25f * M, 30f * M, 0 );
+			specialBuildings.Add( (smithyPos, smithyHalfW, smithyHalfD) );
 			tasks.Add( new VillageBuildTask
 			{
-				Position = center + new Vector3( 25f * M, 30f * M, 0 ),
+				Position = smithyPos,
 				TaskType = "smithy", Name = "Smithy",
 				Priority = 10, WealthFactor = 2.0f,
 				BaseWidth = 5, BaseHeight = 5,
@@ -337,9 +345,13 @@ namespace Lute.Building
 				Style = ArchitecturalStyle.Vernacular,
 			} );
 
+			float tavernHalfW = 6 * 2.5f * 100f * 0.5f;  // 750in = 19.05m
+			float tavernHalfD = 5 * 2.5f * 100f * 0.5f;
+			var tavernPos = center + new Vector3( -25f * M, 30f * M, 0 );
+			specialBuildings.Add( (tavernPos, tavernHalfW, tavernHalfD) );
 			tasks.Add( new VillageBuildTask
 			{
-				Position = center + new Vector3( -25f * M, 30f * M, 0 ),
+				Position = tavernPos,
 				TaskType = "tavern", Name = "Tavern",
 				Priority = 10, WealthFactor = 2.5f,
 				BaseWidth = 6, BaseHeight = 5,
@@ -347,15 +359,34 @@ namespace Lute.Building
 				Style = ArchitecturalStyle.Vernacular,
 			} );
 
+			float chapelHalfW = 5 * 3.0f * 100f * 0.5f;  // 750in = 19.05m
+			float chapelHalfD = 7 * 3.0f * 100f * 0.5f;  // 1050in = 26.67m
+			var chapelPos = center + new Vector3( 0, -60f * M, 0 );
+			specialBuildings.Add( (chapelPos, chapelHalfW, chapelHalfD) );
 			tasks.Add( new VillageBuildTask
 			{
-				Position = center + new Vector3( 0, -60f * M, 0 ),
+				Position = chapelPos,
 				TaskType = "chapel", Name = "Chapel",
 				Priority = 10, WealthFactor = 3.0f,
 				BaseWidth = 5, BaseHeight = 7,
 				LayoutSeed = seed++,
 				Style = ArchitecturalStyle.Gothic,
 			} );
+
+			// Helper: check if a candidate position overlaps any special building.
+			// Uses AABB overlap with a 2m clearance margin.
+			float cottageHalf = 4 * 1.5f * 100f * 0.5f;  // max cottage half-size
+			float clearance = 2f * M;
+			bool OverlapsSpecial( Vector3 pos )
+			{
+				foreach ( var (sp, sw, sd) in specialBuildings )
+				{
+					if ( Math.Abs( pos.x - sp.x ) < sw + cottageHalf + clearance &&
+						 Math.Abs( pos.y - sp.y ) < sd + cottageHalf + clearance )
+						return true;
+				}
+				return false;
+			}
 
 			// Generate cottages and shops along roads
 			// Place buildings in rows parallel to the main road, offset
@@ -373,14 +404,13 @@ namespace Lute.Building
 					float y = -half + inset + buildingSpacing * (i + 1);
 					if ( Math.Abs( y ) < 15f * M ) continue; // skip center (well/market)
 					// Skip buildings on cross-street Y lines (roads at ±half*0.5)
-					// Margin = road half-width + building half-size + clearance
 					float crossStreetMargin = 5f * M + 2f * M + 2f * M; // 9m total
 					if ( Math.Abs( y - (-half * 0.5f) ) < crossStreetMargin ) continue;
 					if ( Math.Abs( y - (half * 0.5f) ) < crossStreetMargin ) continue;
-					// Skip buildings near special building positions (Chapel, Smithy, Tavern)
-					float specialMargin = 15f * M; // 15m clearance from special buildings
-					if ( Math.Abs( y - (-60f * M) ) < specialMargin ) continue; // Chapel at y=-60m
-					if ( Math.Abs( y - (30f * M) ) < specialMargin ) continue; // Smithy/Tavern at y=30m
+
+					// Skip buildings that overlap special building footprints
+					var candidatePos = center + new Vector3( rowOffset, y, 0 );
+					if ( OverlapsSpecial( candidatePos ) ) continue;
 
 					// Pick building type by weight
 					var (btype, _) = PickWeighted( buildingTypes );
@@ -411,10 +441,10 @@ namespace Lute.Building
 					float crossStreetMargin = 5f * M + 2f * M + 2f * M; // 9m total
 					if ( Math.Abs( y - (-half * 0.5f) ) < crossStreetMargin ) continue;
 					if ( Math.Abs( y - (half * 0.5f) ) < crossStreetMargin ) continue;
-					// Skip buildings near special building positions (Chapel, Smithy, Tavern)
-					float specialMargin = 15f * M;
-					if ( Math.Abs( y - (-60f * M) ) < specialMargin ) continue; // Chapel at y=-60m
-					if ( Math.Abs( y - (30f * M) ) < specialMargin ) continue; // Smithy/Tavern at y=30m
+
+					// Skip buildings that overlap special building footprints
+					var candidatePos = center + new Vector3( -rowOffset, y, 0 );
+					if ( OverlapsSpecial( candidatePos ) ) continue;
 
 					var (btype, _) = PickWeighted( buildingTypes );
 					float wealth = btype == "cottage" ? 1.0f + (float)(_rng.NextDouble() * 0.5) : 1.5f;
