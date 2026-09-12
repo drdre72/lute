@@ -289,7 +289,28 @@ namespace Lute.Building
 			go.WorldPosition = worldPos;
 			var renderer = go.AddComponent<ModelRenderer>();
 			renderer.Model = Cloud.Model( "facepunch.brick_single_04" );
-			go.WorldScale = size / BoxModelNativeSize;
+			// Scale based on the cloud model's actual bounds (matches production).
+			// Half bricks get half X module; full bricks get full module.
+			if ( renderer.Model is not null )
+			{
+				var modelSize = renderer.Model.Bounds.Size;
+				if ( modelSize.x > 0 && modelSize.y > 0 && modelSize.z > 0 )
+				{
+					bool isHalf = size.x < BrickBodySize.x * 0.75f;
+					var renderSize = isHalf
+						? new Vector3( BrickModuleX * 0.5f, BrickModuleY, BrickModuleZ )
+						: BrickModuleSize;
+					go.WorldScale = renderSize / modelSize;
+				}
+				else
+				{
+					go.WorldScale = size / BoxModelNativeSize;
+				}
+			}
+			else
+			{
+				go.WorldScale = size / BoxModelNativeSize;
+			}
 			go.Enabled = true;
 		}
 

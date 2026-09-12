@@ -1324,13 +1324,18 @@ namespace Lute.Building
 		// ── Helper: spawn a box mesh piece ──
 		void SpawnBox( Vector3 worldPos, Vector3 size, string materialPath, bool collides, GameObject parent, float yaw = 0f, PieceAnchor anchor = PieceAnchor.Center )
 		{
+			// Wall bricks are scaled to module size, so the anchor lift
+			// must use the module height (BrickModuleZ), not the body size.
+			var isWallBrick = CurrentTask is not null && CurrentTask.TaskType == "wall";
+			var anchorHeight = isWallBrick ? BrickModuleZ : size.z;
+
 			switch ( anchor )
 			{
 				case PieceAnchor.Base:
-					worldPos = worldPos.WithZ( worldPos.z + size.z * 0.5f );
+					worldPos = worldPos.WithZ( worldPos.z + anchorHeight * 0.5f );
 					break;
 				case PieceAnchor.Top:
-					worldPos = worldPos.WithZ( worldPos.z - size.z * 0.5f );
+					worldPos = worldPos.WithZ( worldPos.z - anchorHeight * 0.5f );
 					break;
 				case PieceAnchor.Center:
 					break;
@@ -1340,7 +1345,6 @@ namespace Lute.Building
 			// Wall bricks rely on the task-level reservation (the whole
 			// segment bounds are reserved by ConstructionDirector). This
 			// avoids 550,000+ dictionary entries and O(n) CanPlace scans.
-			var isWallBrick = CurrentTask is not null && CurrentTask.TaskType == "wall";
 			var rot = yaw != 0f ? Rotation.FromYaw( yaw ) : Rotation.Identity;
 			if ( !_reconstructMode && !isWallBrick && !string.IsNullOrEmpty( CurrentDirectedTaskId ) )
 			{
@@ -1379,11 +1383,20 @@ namespace Lute.Building
 			// Scale: dev/box.vmdl is 50x50x50, but cloud brick models have
 			// their own native bounds. Scale wall bricks to the MODULE size
 			// (which includes mortar gap) so courses fill without blue gaps.
+			// Half bricks get half the X module; full bricks get full module.
 			if ( isWallBrick && renderer.Model is not null )
 			{
 				var modelSize = renderer.Model.Bounds.Size;
 				if ( modelSize.x > 0 && modelSize.y > 0 && modelSize.z > 0 )
-					go.WorldScale = BrickModuleSize / modelSize;
+				{
+					// Derive render envelope from the requested size ratio.
+					// Full brick: BrickModuleSize. Half brick: half X module.
+					bool isHalf = size.x < BrickBodySize.x * 0.75f;
+					var renderSize = isHalf
+						? new Vector3( BrickModuleX * 0.5f, BrickModuleY, BrickModuleZ )
+						: BrickModuleSize;
+					go.WorldScale = renderSize / modelSize;
+				}
 				else
 					go.WorldScale = size / BoxModelNativeSize;
 			}
