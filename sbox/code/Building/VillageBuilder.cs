@@ -1377,12 +1377,13 @@ namespace Lute.Building
 				renderer.Model = Model.Load( "models/dev/box.vmdl" );
 			}
 			// Scale: dev/box.vmdl is 50x50x50, but cloud brick models have
-			// their own native bounds. Scale based on the model's actual size.
+			// their own native bounds. Scale wall bricks to the MODULE size
+			// (which includes mortar gap) so courses fill without blue gaps.
 			if ( isWallBrick && renderer.Model is not null )
 			{
 				var modelSize = renderer.Model.Bounds.Size;
 				if ( modelSize.x > 0 && modelSize.y > 0 && modelSize.z > 0 )
-					go.WorldScale = size / modelSize;
+					go.WorldScale = BrickModuleSize / modelSize;
 				else
 					go.WorldScale = size / BoxModelNativeSize;
 			}
