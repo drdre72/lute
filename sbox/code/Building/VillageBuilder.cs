@@ -782,6 +782,94 @@ namespace Lute.Building
 				return false;
 			}
 
+		// ------------------------------------------------------------
+		// Junction-based corner frame
+		// Computes the corner junction point and inward direction vectors
+		// for both the owner wall and the perpendicular (non-owner) wall.
+		// The header is positioned in this frame, not the owner wall's
+		// local grid, so it never projects past the exterior planes.
+		bool TryGetCornerFrame( out Vector3 junction, out Vector3 ownerInward, out Vector3 nonOwnerInward )
+		{
+			junction = default;
+			ownerInward = default;
+			nonOwnerInward = default;
+			if ( task.CornerButtSide == 0 ) return false;
+
+			float segLen = WallSegmentLength;
+			float localEndX = task.CornerButtSide == 1 ? -segLen * 0.5f : segLen * 0.5f;
+			Vector3 ownerEndpoint = task.Position + RotateLocal( new Vector3( localEndX, 0, 0 ) );
+
+			VillageBuildTask nonOwner = null;
+			float bestDist = float.MaxValue;
+			foreach ( var other in Tasks )
+			{
+				if ( other == task || other.TaskType != "wall" ) continue;
+				float rotDiff = MathF.Abs( MathF.Abs( other.Rotation - task.Rotation ) - 90f );
+				if ( rotDiff > 1f ) continue;
+				for ( int side = 1; side <= 2; side++ )
+				{
+					float otherEndX = side == 1 ? -segLen * 0.5f : segLen * 0.5f;
+					float rad = other.Rotation * MathF.PI / 180f;
+					float cos = MathF.Cos( rad );
+					float sin = MathF.Sin( rad );
+					Vector3 otherEndpoint = other.Position + new Vector3(
+						otherEndX * cos, otherEndX * sin, 0 );
+					float d = Vector3.DistanceBetween( ownerEndpoint, otherEndpoint );
+					if ( d < bestDist ) { bestDist = d; nonOwner = other; }
+				}
+			}
+			if ( nonOwner == null || bestDist > BrickModuleX ) return false;
+
+			junction = ownerEndpoint;
+			ownerInward = (task.Position - junction).Normal;
+			nonOwnerInward = (nonOwner.Position - junction).Normal;
+			return true;
+		}
+
+		// Place a corner header using the junction-based frame.
+		bool PlaceCornerHeader( int row, float z, BrickForm form, int col, int wythe )
+		{
+			if ( !TryGetCornerFrame( out var junction, out var ownerInward, out var nonOwnerInward ) )
+				return false;
+
+			float brickLength = form == BrickForm.Half ? BrickModuleX * 0.5f : BrickModuleX;
+			Vector3 center = junction
+				+ ownerInward * (BrickModuleY * 0.5f)
+				+ nonOwnerInward * (brickLength * 0.5f);
+			center.z = z;
+
+			float yaw = MathF.Atan2( nonOwnerInward.y, nonOwnerInward.x ) * 180f / MathF.PI;
+
+			float bLen = BrickBodySize.x;
+			float bDepth = BrickBodySize.y;
+			float bH = BrickBodySize.z;
+			Vector3 size = form == BrickForm.Half
+				? new Vector3( bLen * 0.5f, bDepth, bH )
+				: new Vector3( bLen, bDepth, bH );
+
+			SpawnBox( center, size, WallMaterial, true, _villageRoot, yaw, PieceAnchor.Base,
+				form, BrickOrientation.Header );
+			task.PiecesPlaced = brickIdx + 1;
+			_totalPiecesPlaced++;
+			task.PlacedBricks.Add( new BrickSlot( col, wythe, row, form, BrickOrientation.Header ) );
+			return true;
+		}
+
+		// Fallback: if the corner frame cannot be resolved, place a normal
+		// stretcher at the grid position so the wall does not have a gap.
+		void PlaceCornerFallback( Vector3 pos, float bw, float bd, float bh,
+			BrickForm form, int col, int wythe, int row )
+		{
+			SpawnBox( pos, new Vector3( bw, bd, bh ),
+				WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base,
+				form, BrickOrientation.Stretcher );
+			task.PiecesPlaced = brickIdx + 1;
+			_totalPiecesPlaced++;
+			task.PlacedBricks.Add( form == BrickForm.Half
+				? BrickSlot.HalfStretcher( col, wythe, row )
+				: BrickSlot.Stretcher( col, wythe, row ) );
+		}
+
 			// Count how many bricks will be skipped for correct TotalPieces.
 			int skipCount = 0;
 			for ( int row = 0; row < numRows; row++ )
@@ -824,32 +912,10 @@ namespace Lute.Building
 							bool placeHeaderLeft = IsCornerOwnerCourse( row ) && task.CornerButtSide == 1;
 							if ( placeHeaderLeft )
 							{
-								// One header per owner course (wythe 0 only).
-								// Offset inward by half the header length so the
-								// header spans from the joint into the wall, not
-								// half outside the perimeter.
-								if ( wythe == 0 )
-								{
-									float headerLX = -segLen * 0.5f + BrickModuleX * 0.25f;
-									var headerPos = RotateLocal( new Vector3( headerLX, yCenter, z ) );
-									SpawnBox( headerPos, new Vector3( brickLen * 0.5f, brickDepth, brickH ),
-										WallMaterial, true, _villageRoot, task.Rotation + 90f, PieceAnchor.Base,
-										BrickForm.Half, BrickOrientation.Header );
-									task.PiecesPlaced = brickIdx + 1;
-									_totalPiecesPlaced++;
-									task.PlacedBricks.Add( new BrickSlot( 0, wythe, row,
-										BrickForm.Half, BrickOrientation.Header ) );
-								}
-								else
-								{
-									// Non-corner wythes: normal half stretcher
-									SpawnBox( pos, new Vector3( brickLen * 0.5f, brickDepth, brickH ),
-										WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base,
-										BrickForm.Half, BrickOrientation.Stretcher );
-									task.PiecesPlaced = brickIdx + 1;
-									_totalPiecesPlaced++;
-									task.PlacedBricks.Add( BrickSlot.HalfStretcher( 0, wythe, row ) );
-								}
+								// Junction-based corner frame: one header per owner course.
+								// The header is placed in the corner frame, not the wall grid.
+								if ( !PlaceCornerHeader( row, z, BrickForm.Half, 0, wythe ) )
+									PlaceCornerFallback( pos, brickLen * 0.5f, brickDepth, brickH, BrickForm.Half, 0, wythe, row );
 							}
 							else
 							{
@@ -908,31 +974,9 @@ namespace Lute.Building
 								bool placeHeaderRight = IsCornerOwnerCourse( row ) && task.CornerButtSide == 2;
 								if ( placeHeaderRight )
 								{
-									// One header per owner course (wythe 0 only).
-									// Offset inward by half the header length so the
-									// header spans from the joint into the wall.
-									if ( wythe == 0 )
-									{
-										float headerRX = segLen * 0.5f - BrickModuleX * 0.25f;
-										var headerPos = RotateLocal( new Vector3( headerRX, yCenter, z ) );
-										SpawnBox( headerPos, new Vector3( brickLen * 0.5f, brickDepth, brickH ),
-											WallMaterial, true, _villageRoot, task.Rotation + 90f, PieceAnchor.Base,
-											BrickForm.Half, BrickOrientation.Header );
-										task.PiecesPlaced = brickIdx + 1;
-										_totalPiecesPlaced++;
-										task.PlacedBricks.Add( new BrickSlot( modulesX, wythe, row,
-											BrickForm.Half, BrickOrientation.Header ) );
-									}
-									else
-									{
-										// Non-corner wythes: normal half stretcher
-										SpawnBox( pos, new Vector3( brickLen * 0.5f, brickDepth, brickH ),
-											WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base,
-											BrickForm.Half, BrickOrientation.Stretcher );
-										task.PiecesPlaced = brickIdx + 1;
-										_totalPiecesPlaced++;
-										task.PlacedBricks.Add( BrickSlot.HalfStretcher( modulesX, wythe, row ) );
-									}
+									// Junction-based corner frame: one header per owner course.
+									if ( !PlaceCornerHeader( row, z, BrickForm.Half, modulesX, wythe ) )
+										PlaceCornerFallback( pos, brickLen * 0.5f, brickDepth, brickH, BrickForm.Half, modulesX, wythe, row );
 								}
 								else
 								{
@@ -977,31 +1021,9 @@ namespace Lute.Building
 									&& IsCornerColumn( col, isLeft, isRight );
 								if ( placeHeader )
 								{
-									// One header per owner course (wythe 0 only).
-									// Offset inward by half the header length so the
-									// header spans from the joint into the wall.
-									if ( wythe == 0 )
-									{
-										float headerX = isLeft ? -segLen * 0.5f + BrickModuleX * 0.5f : segLen * 0.5f - BrickModuleX * 0.5f;
-										var headerPos = RotateLocal( new Vector3( headerX, yCenter, z ) );
-										SpawnBox( headerPos, new Vector3( brickLen, brickDepth, brickH ),
-											WallMaterial, true, _villageRoot, task.Rotation + 90f, PieceAnchor.Base,
-											BrickForm.Full, BrickOrientation.Header );
-										task.PiecesPlaced = brickIdx + 1;
-										_totalPiecesPlaced++;
-										task.PlacedBricks.Add( new BrickSlot( col, wythe, row,
-											BrickForm.Full, BrickOrientation.Header ) );
-									}
-									else
-									{
-										// Non-corner wythes: normal stretcher
-										SpawnBox( pos, new Vector3( brickLen, brickDepth, brickH ),
-											WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base,
-											BrickForm.Full, BrickOrientation.Stretcher );
-										task.PiecesPlaced = brickIdx + 1;
-										_totalPiecesPlaced++;
-										task.PlacedBricks.Add( BrickSlot.Stretcher( col, wythe, row ) );
-									}
+									// Junction-based corner frame: one header per owner course.
+									if ( !PlaceCornerHeader( row, z, BrickForm.Full, col, wythe ) )
+										PlaceCornerFallback( pos, brickLen, brickDepth, brickH, BrickForm.Full, col, wythe, row );
 								}
 								else
 								{
