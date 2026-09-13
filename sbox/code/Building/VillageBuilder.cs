@@ -1671,6 +1671,8 @@ namespace Lute.Building
 			SpawnBox( placement.Position, placement.Size,
 				materialPath, collides, parent, placement.Yaw, anchor,
 				form, orientation, placement.Size.x ); // overrideLength = exact size
+			// Register in the spatial registry for NPC queries
+			SpatialRegistry.Register( placement );
 		}
 
 		/// <summary>
