@@ -710,13 +710,18 @@ namespace Lute.Building
 			}
 
 			int brickIdx = 0;
+			// Foundation snap: raycast down at the task center to find the
+			// actual ground surface height. Row 0 bricks snap so their
+			// bottom face sits exactly on the ground. All other rows use
+			// the standard row * BrickModuleZ offset from the snapped base.
+			float groundZ = SnapToGround( task.Position );
 			for ( int wythe = 0; wythe < numWythes; wythe++ )
 			{
 				float yCenter = -wallDepth * 0.5f + BrickModuleY * 0.5f + wythe * BrickModuleY;
 
 				for ( int row = 0; row < numRows; row++ )
 				{
-					float z = row * BrickModuleZ;
+					float z = groundZ + row * BrickModuleZ;
 					bool isOdd = (row % 2 == 1);
 
 					if ( isOdd )
@@ -1317,7 +1322,52 @@ namespace Lute.Building
 			}
 		}
 
-		// ── Helper: spawn a box mesh piece ──
+		// ── Helper: snap foundation to ground ──
+	// Raycasts downward from the task position to find the actual ground
+	// surface height. Returns the z value where the bottom of row 0 should
+	// sit so the foundation rests on the ground instead of floating.
+	// Filters out market/plaza floors and wall pieces so only the real
+	// ground (WorldGround or terrain) is used. If no ground is hit,
+	// returns a small negative offset so the foundation overlaps the
+	// ground surface slightly (eliminates visible gap from model offset).
+	float SnapToGround( Vector3 taskPos )
+	{
+		// Raycast from well above the task position straight down.
+		var start = taskPos + new Vector3( 0, 0, 10000 );
+		var end = taskPos - new Vector3( 0, 0, 10000 );
+		var tr = Scene.Trace.Ray( start, end ).Run();
+
+		if ( tr.Hit && tr.GameObject is not null )
+		{
+			// Skip market/plaza floors and wall pieces — we want the
+			// actual ground (WorldGround, terrain, or similar).
+			var name = tr.GameObject.Name ?? "";
+			if ( name.Contains( "Plaza" ) || name.Contains( "Market" ) || name.Contains( "Wall" ) || name.Contains( "Floor" ) || name.Contains( "Inner" ) )
+			{
+				Log.Info( $"Lute: SnapToGround({taskPos}) skipped '{name}' at z={tr.HitPosition.z:F3}, using ground offset." );
+				// Fall through to ground offset below
+			}
+			else
+			{
+				// Subtract a small overlap so the brick bottom sinks
+				// slightly into the ground, eliminating any visible gap
+				// caused by model surface vs collider offset.
+				float hitZ = tr.HitPosition.z - BrickModuleZ * 0.5f;
+				Log.Info( $"Lute: SnapToGround({taskPos}) hit ground '{name}' at z={tr.HitPosition.z:F3}, snapped to z={hitZ:F3}." );
+				return hitZ;
+			}
+		}
+
+		// No ground hit (or skipped) — the WorldGround top surface is at
+		// z=0. Sink the foundation by a tiny fraction of a brick module
+		// to eliminate the rendering seam at z=0 (Z-fighting between the
+		// brick bottom face and the ground top face).
+		float groundZ = taskPos.z - BrickModuleZ * 0.5f;
+		Log.Info( $"Lute: SnapToGround({taskPos}) no ground hit, using z={groundZ:F3} (seam offset from {taskPos.z:F3})." );
+		return groundZ;
+	}
+
+	// ── Helper: spawn a box mesh piece ──
 		void SpawnBox( Vector3 worldPos, Vector3 size, string materialPath, bool collides, GameObject parent, float yaw = 0f, PieceAnchor anchor = PieceAnchor.Center )
 		{
 			// Wall bricks are scaled to module size, so the anchor lift
