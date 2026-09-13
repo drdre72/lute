@@ -116,6 +116,8 @@ namespace Lute.Building
 				UnownedCourses = r.UnownedCourses,
 				DuplicateBrickPairs = r.DuplicateBrickPairs,
 				OwnershipAlternates = r.OwnershipAlternates,
+				BondDepth = r.BondDepth,
+				IsBonded = r.IsBonded,
 			} ).ToArray();
 		}
 
@@ -220,5 +222,9 @@ namespace Lute.Building
 		public int UnownedCourses { get; set; }
 		public int DuplicateBrickPairs { get; set; }
 		public bool OwnershipAlternates { get; set; }
+		/// <summary> Minimum bond depth across courses, in S&Box units (inches). 0 = butt joint. </summary>
+		public float BondDepth { get; set; }
+		/// <summary> True if BondDepth meets the required minimum (0.25m = header crossing the joint). </summary>
+		public bool IsBonded { get; set; }
 	}
 }

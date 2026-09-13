@@ -757,6 +757,31 @@ namespace Lute.Building
 				return col == 1; // first full stretcher after left half-brick
 			}
 
+			// Corner bond: returns true if this wall is the OWNER of the corner
+			// volume on this course (i.e. the course where ShouldButt does NOT
+			// skip). On owner courses, the corner brick is placed as a HEADER
+			// (long axis perpendicular to the wall) crossing the joint, creating
+			// an interlocking bond instead of a butt joint. This is the
+			// CornerBondResolver.HeaderBond pattern.
+			bool IsCornerOwnerCourse( int row )
+			{
+				if ( task.CornerButtCourses == 0 || task.CornerButtSide == 0 )
+					return false;
+				bool isOdd = (row % 2 == 1);
+				bool buttOnOdd = task.CornerButtCourses == 2;
+				bool courseButts = isOdd == buttOnOdd;
+				return !courseButts; // owner = the course that does NOT butt/skip
+			}
+
+			// Whether this column is the corner column (the endpoint column
+			// where the corner volume sits).
+			bool IsCornerColumn( int col, bool isLeftEdge, bool isRightEdge )
+			{
+				if ( task.CornerButtSide == 1 ) return isLeftEdge;
+				if ( task.CornerButtSide == 2 ) return isRightEdge;
+				return false;
+			}
+
 			// Count how many bricks will be skipped for correct TotalPieces.
 			int skipCount = 0;
 			for ( int row = 0; row < numRows; row++ )
@@ -795,11 +820,29 @@ namespace Lute.Building
 						if ( !buttLeftHalf && brickIdx >= task.PiecesPlaced )
 						{
 							var pos = RotateLocal( new Vector3( lx, yCenter, z ) );
-							SpawnBox( pos, new Vector3( brickLen * 0.5f, brickDepth, brickH ),
-								WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base );
-							task.PiecesPlaced = brickIdx + 1;
-							_totalPiecesPlaced++;
-							task.PlacedBricks.Add( BrickSlot.HalfStretcher( 0, wythe, row ) );
+							// Corner bond: header on owner courses at left corner.
+							bool placeHeaderLeft = IsCornerOwnerCourse( row ) && task.CornerButtSide == 1;
+							if ( placeHeaderLeft )
+							{
+								// Position at the wall endpoint (joint line) so the header
+								// spans across the joint into the perpendicular wall.
+								float headerLX = -segLen * 0.5f;
+								var headerPos = RotateLocal( new Vector3( headerLX, yCenter, z ) );
+								SpawnBox( headerPos, new Vector3( brickDepth, brickLen * 0.5f, brickH ),
+									WallMaterial, true, _villageRoot, task.Rotation + 90f, PieceAnchor.Base );
+								task.PiecesPlaced = brickIdx + 1;
+								_totalPiecesPlaced++;
+								task.PlacedBricks.Add( new BrickSlot( 0, wythe, row,
+									BrickForm.Half, BrickOrientation.Header ) );
+							}
+							else
+							{
+								SpawnBox( pos, new Vector3( brickLen * 0.5f, brickDepth, brickH ),
+									WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base );
+								task.PiecesPlaced = brickIdx + 1;
+								_totalPiecesPlaced++;
+								task.PlacedBricks.Add( BrickSlot.HalfStretcher( 0, wythe, row ) );
+							}
 						}
 						brickIdx++;
 						ElapsedTime += BuildInterval;
@@ -845,11 +888,29 @@ namespace Lute.Building
 							if ( !buttRightHalf && brickIdx >= task.PiecesPlaced )
 							{
 								var pos = RotateLocal( new Vector3( rx, yCenter, z ) );
-								SpawnBox( pos, new Vector3( brickLen * 0.5f, brickDepth, brickH ),
-									WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base );
-								task.PiecesPlaced = brickIdx + 1;
-								_totalPiecesPlaced++;
-								task.PlacedBricks.Add( BrickSlot.HalfStretcher( modulesX, wythe, row ) );
+								// Corner bond: header on owner courses at right corner.
+								bool placeHeaderRight = IsCornerOwnerCourse( row ) && task.CornerButtSide == 2;
+								if ( placeHeaderRight )
+								{
+									// Position at the wall endpoint (joint line) so the header
+									// spans across the joint into the perpendicular wall.
+									float headerRX = segLen * 0.5f;
+									var headerPos = RotateLocal( new Vector3( headerRX, yCenter, z ) );
+									SpawnBox( headerPos, new Vector3( brickDepth, brickLen * 0.5f, brickH ),
+										WallMaterial, true, _villageRoot, task.Rotation + 90f, PieceAnchor.Base );
+									task.PiecesPlaced = brickIdx + 1;
+									_totalPiecesPlaced++;
+									task.PlacedBricks.Add( new BrickSlot( modulesX, wythe, row,
+										BrickForm.Half, BrickOrientation.Header ) );
+								}
+								else
+								{
+									SpawnBox( pos, new Vector3( brickLen * 0.5f, brickDepth, brickH ),
+										WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base );
+									task.PiecesPlaced = brickIdx + 1;
+									_totalPiecesPlaced++;
+									task.PlacedBricks.Add( BrickSlot.HalfStretcher( modulesX, wythe, row ) );
+								}
 							}
 							brickIdx++;
 							ElapsedTime += BuildInterval;
@@ -877,11 +938,35 @@ namespace Lute.Building
 							if ( brickIdx >= task.PiecesPlaced )
 							{
 								var pos = RotateLocal( new Vector3( x, yCenter, z ) );
-								SpawnBox( pos, new Vector3( brickLen, brickDepth, brickH ),
-									WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base );
-								task.PiecesPlaced = brickIdx + 1;
-								_totalPiecesPlaced++;
-								task.PlacedBricks.Add( BrickSlot.Stretcher( col, wythe, row ) );
+								// Corner bond: on owner courses, place a header brick
+								// (long axis perpendicular to wall) at the corner column
+								// to interlock across the joint. This is the
+								// CornerBondResolver.HeaderBond pattern.
+								bool placeHeader = IsCornerOwnerCourse( row )
+									&& IsCornerColumn( col, isLeft, isRight );
+								if ( placeHeader )
+								{
+									// Header: rotate 90° so long axis crosses the joint.
+									// Position at the wall endpoint (joint line), not the
+									// column center, so the header spans across the joint
+									// into the perpendicular wall's volume.
+									float headerX = isLeft ? -segLen * 0.5f : segLen * 0.5f;
+									var headerPos = RotateLocal( new Vector3( headerX, yCenter, z ) );
+									SpawnBox( headerPos, new Vector3( brickDepth, brickLen, brickH ),
+										WallMaterial, true, _villageRoot, task.Rotation + 90f, PieceAnchor.Base );
+									task.PiecesPlaced = brickIdx + 1;
+									_totalPiecesPlaced++;
+									task.PlacedBricks.Add( new BrickSlot( col, wythe, row,
+										BrickForm.Full, BrickOrientation.Header ) );
+								}
+								else
+								{
+									SpawnBox( pos, new Vector3( brickLen, brickDepth, brickH ),
+										WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base );
+									task.PiecesPlaced = brickIdx + 1;
+									_totalPiecesPlaced++;
+									task.PlacedBricks.Add( BrickSlot.Stretcher( col, wythe, row ) );
+								}
 							}
 							brickIdx++;
 							ElapsedTime += BuildInterval;
@@ -1520,10 +1605,17 @@ namespace Lute.Building
 				{
 					// Derive render envelope from the requested size ratio.
 					// Full brick: BrickModuleSize. Half brick: half X module.
-					bool isHalf = size.x < BrickBodySize.x * 0.75f;
-					var renderSize = isHalf
-						? new Vector3( BrickModuleX * 0.5f, BrickModuleY, BrickModuleZ )
-						: BrickModuleSize;
+					// Header brick (size.y > size.x): rotated 90°, so X and Y
+					// module dimensions swap — narrow along wall, long across.
+					bool isHalf = size.x < BrickBodySize.x * 0.75f && size.y <= BrickBodySize.y * 1.5f;
+					bool isHeader = size.y > size.x && size.x < BrickBodySize.x * 0.75f;
+					Vector3 renderSize;
+					if ( isHeader )
+						renderSize = new Vector3( BrickModuleY, BrickModuleX, BrickModuleZ );
+					else if ( isHalf )
+						renderSize = new Vector3( BrickModuleX * 0.5f, BrickModuleY, BrickModuleZ );
+					else
+						renderSize = BrickModuleSize;
 					go.WorldScale = renderSize / modelSize;
 				}
 				else

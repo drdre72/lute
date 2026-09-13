@@ -37,9 +37,32 @@ namespace Lute.Building
 		public bool OwnershipAlternates { get; set; } = true;
 
 		/// <summary>
+		/// Minimum bond depth across all checked courses, in meters.
+		/// 0 = no brick crosses the joint (butt joint). 0.25 = one header
+		/// crosses (header bond). 0.5 = quoin interlock. Measured by
+		/// <see cref="CornerBondResolver.MeasureBondDepth"/>.
+		/// </summary>
+		public float BondDepth { get; set; } = 0f;
+
+		/// <summary>
+		/// Required bond depth for the corner to count as bonded, in meters.
+		/// Default 0.25m (one module — a single header crossing the joint).
+		/// </summary>
+		public float RequiredBondDepth { get; set; } = 0.25f * 39.37f;
+
+		/// <summary>
+		/// True if the corner's bond depth meets the required minimum.
+		/// A butt joint reports IsValid=true (geometry is exclusive and
+		/// alternating) but IsBonded=false (no brick crosses the joint).
+		/// </summary>
+		public bool IsBonded => BondDepth >= RequiredBondDepth;
+
+		/// <summary>
 		/// A corner passes only when its walls meet, are perpendicular, every
 		/// common course is present, the shared corner volume has one owner,
 		/// there are no duplicate brick-volume overlaps, and ownership alternates.
+		/// This is the GEOMETRY check. Use <see cref="IsBonded"/> for the
+		/// masonry-bond check.
 		/// </summary>
 		public bool IsValid =>
 			IsPerpendicular
@@ -57,7 +80,8 @@ namespace Lute.Building
 				+ $"meet={EndpointsMeet} endpointDist={EndpointDistance:F3} courses={CoursesChecked} "
 				+ $"incomplete={IncompleteCourses} doubleOwned={DoubleOwnedCourses} "
 				+ $"unowned={UnownedCourses} duplicatePairs={DuplicateBrickPairs} "
-				+ $"alternates={OwnershipAlternates}";
+				+ $"alternates={OwnershipAlternates} "
+				+ $"bondDepth={BondDepth / 39.37f:F3}m bonded={IsBonded}";
 		}
 	}
 
@@ -186,6 +210,12 @@ namespace Lute.Building
 				}
 
 				result.CoursesChecked++;
+
+				// Measure masonry bond depth for this course (header/quarter
+				// bricks crossing the joint). A butt joint reports 0.
+				float courseBond = CornerBondResolver.MeasureBondDepth( wallA, wallB, course );
+				if ( result.CoursesChecked == 1 || courseBond < result.BondDepth )
+					result.BondDepth = courseBond;
 
 				var aCore = FootprintsIntersectingCore( wallA, aCourse, cornerCore );
 				var bCore = FootprintsIntersectingCore( wallB, bCourse, cornerCore );
