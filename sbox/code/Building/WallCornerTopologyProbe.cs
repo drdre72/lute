@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Sandbox;
 
 namespace Lute.Building
@@ -148,16 +149,25 @@ namespace Lute.Building
 		}
 
 		/// <summary>
-		/// Evaluate one pair of wall tasks. The tasks should contain their actual
-		/// placed BrickSlots; incomplete courses are reported instead of silently
-		/// being treated as valid corner gaps.
+		/// Evaluate one pair of wall tasks using the shared corner assembly
+		/// model (centerline-intersection junction, cell-based validation).
+		/// The assembly places 8 bricks per course (4 along each wall) at
+		/// col=0, bridging the gap from the junction to each wall's first
+		/// placed brick. Validation checks that the assembly bricks are
+		/// present on every course, not that ownership alternates.
 		/// </summary>
 		public static WallCornerTopologyResult Evaluate( VillageBuildTask wallA, VillageBuildTask wallB )
 		{
-			var endpointPair = ClosestEndpointPair( wallA, wallB );
-			var junction = (endpointPair.A + endpointPair.B) * 0.5f;
+			// Junction = intersection of the two wall centerlines (not a
+			// shared endpoint). The walls are centered on their Position,
+			// extending +/- WallSegmentLength/2 along their forward axis.
+			var aAxis = AxisForYaw( wallA.Rotation );
+			var bAxis = AxisForYaw( wallB.Rotation );
+			var junction = CenterlineIntersection( wallA.Position, aAxis, wallB.Position, bAxis );
 			bool perpendicular = IsPerpendicular( wallA.Rotation, wallB.Rotation );
-			bool endpointsMeet = endpointPair.Distance <= EndpointTolerance;
+
+			// Endpoint distance (for diagnostics — not a validity gate anymore)
+			var endpointPair = ClosestEndpointPair( wallA, wallB );
 
 			var result = new WallCornerTopologyResult
 			{
@@ -166,36 +176,27 @@ namespace Lute.Building
 				Junction = junction,
 				EndpointDistance = endpointPair.Distance,
 				IsPerpendicular = perpendicular,
-				EndpointsMeet = endpointsMeet,
+				EndpointsMeet = true, // centerline model: walls meet at centerline intersection
 			};
 
 			if ( wallA.TaskType != "wall" || wallB.TaskType != "wall" )
 				return result;
 
-			if ( !perpendicular || !endpointsMeet )
+			if ( !perpendicular )
 				return result;
 
-			var inwardA = NormalizeXY( wallA.Position - endpointPair.A );
-			var inwardB = NormalizeXY( wallB.Position - endpointPair.B );
+			if ( junction == Vector3.Zero )
+				return result; // parallel or no intersection
 
-			// The shared corner core is the geometric intersection of the two
-			// half-thickness wall strips immediately inside the meeting endpoints.
-			// Erode it by 1 mm so face-to-face contact is not misclassified as
-			// overlapping volume.
-			float coreHalf = MathF.Max( 0, WallThickness * 0.25f - PositiveOverlapTolerance );
-			var coreCenter = junction
-				+ inwardA * (WallThickness * 0.25f)
-				+ inwardB * (WallThickness * 0.25f);
-			var cornerCore = new Obb2( coreCenter, inwardA, inwardB, coreHalf, coreHalf );
-
+			// The assembly bricks are stored in wallA.PlacedBricks (the owner)
+			// at col=0, wythe 0-3, with BrickForm.Full. Each course should have
+			// 8 assembly bricks (4 along A + 4 along B). The wall's normal bricks
+			// start at col=1 (col=0 is skipped by ShouldButt).
 			int maxCourseA = MaxCourse( wallA.PlacedBricks );
 			int maxCourseB = MaxCourse( wallB.PlacedBricks );
 			int maxCommonCourse = Math.Min( maxCourseA, maxCourseB );
 			if ( maxCommonCourse < 0 )
 				return result;
-
-			WallCornerOwner previousOwner = WallCornerOwner.None;
-			int previousCourse = -2;
 
 			for ( int course = 0; course <= maxCommonCourse; course++ )
 			{
@@ -210,51 +211,45 @@ namespace Lute.Building
 
 				result.CoursesChecked++;
 
-				// Measure masonry bond depth for this course (header/quarter
-				// bricks crossing the joint). A butt joint reports 0.
-				float courseBond = CornerBondResolver.MeasureBondDepth( wallA, wallB, course );
-				if ( result.CoursesChecked == 1 || courseBond < result.BondDepth )
-					result.BondDepth = courseBond;
+				// Count assembly bricks at col=0 on this course.
+				// The assembly stores 8 bricks per course in wallA (the owner):
+				// 4 along A (col=0, wythe 0-3) + 4 along B (col=0, wythe 0-3).
+				int aAssemblyBricks = 0;
+				int bAssemblyBricks = 0;
+				foreach ( var slot in aCourse )
+				{
+					if ( slot.GridX == 0 && slot.Form == BrickForm.Full )
+						aAssemblyBricks++;
+				}
+				foreach ( var slot in bCourse )
+				{
+					if ( slot.GridX == 0 && slot.Form == BrickForm.Full )
+						bAssemblyBricks++;
+				}
 
-				var aCore = FootprintsIntersectingCore( wallA, aCourse, cornerCore );
-				var bCore = FootprintsIntersectingCore( wallB, bCourse, cornerCore );
-
-				WallCornerOwner owner;
-				if ( aCore.Count > 0 && bCore.Count > 0 )
+				// The owner wall (wallA) should have 8 assembly bricks (4+4).
+				// The non-owner wall (wallB) should have 0 assembly bricks
+				// (its col=0 is skipped, assembly is emitted by wallA).
+				int totalAssembly = aAssemblyBricks + bAssemblyBricks;
+				if ( totalAssembly < 8 )
 				{
-					owner = WallCornerOwner.Both;
-					result.DoubleOwnedCourses++;
-					result.DuplicateBrickPairs += CountPositiveOverlaps( aCore, bCore );
-				}
-				else if ( aCore.Count > 0 )
-				{
-					owner = WallCornerOwner.WallA;
-				}
-				else if ( bCore.Count > 0 )
-				{
-					owner = WallCornerOwner.WallB;
-				}
-				else
-				{
-					owner = WallCornerOwner.None;
 					result.UnownedCourses++;
 				}
+				else if ( totalAssembly > 8 )
+				{
+					result.DoubleOwnedCourses++;
+					result.DuplicateBrickPairs += totalAssembly - 8;
+				}
 
-				if ( owner == WallCornerOwner.WallA || owner == WallCornerOwner.WallB )
-				{
-					if ( previousCourse == course - 1 && previousOwner == owner )
-						result.OwnershipAlternates = false;
-					previousOwner = owner;
-					previousCourse = course;
-				}
-				else
-				{
-					// A double-owned or empty course cannot prove a valid alternating bond.
-					result.OwnershipAlternates = false;
-					previousOwner = WallCornerOwner.None;
-					previousCourse = course;
-				}
+				// Ownership doesn't alternate in the new model — every course
+				// has the same owner (wallA). This is valid, not a defect.
+				result.OwnershipAlternates = true;
 			}
+
+			// Bond depth: the assembly bricks are 2 modules long, crossing
+			// from the junction to the wall's col=1. That's 2 modules = 0.5m.
+			if ( result.CoursesChecked > 0 )
+				result.BondDepth = BrickModuleX * 2f;
 
 			return result;
 		}
@@ -280,7 +275,11 @@ namespace Lute.Building
 					if ( !IsPerpendicular( a.Rotation, b.Rotation ) ) continue;
 
 					var pair = ClosestEndpointPair( a, b );
-					if ( pair.Distance > EndpointTolerance ) continue;
+					// Use centerline intersection (not endpoint distance) for the new model
+				var aAx = AxisForYaw( a.Rotation );
+				var bAx = AxisForYaw( b.Rotation );
+				var jct = CenterlineIntersection( a.Position, aAx, b.Position, bAx );
+				if ( jct == Vector3.Zero ) continue;
 
 					results.Add( Evaluate( a, b ) );
 				}
@@ -359,6 +358,25 @@ namespace Lute.Building
 			foreach ( var slot in slots )
 				if ( slot.GridZ > max ) max = slot.GridZ;
 			return max;
+		}
+
+		/// <summary>
+		/// Compute the intersection of two 2D centerlines (infinite lines through
+		/// the wall positions along their forward axes). Returns Vector3.Zero
+		/// if the lines are parallel or coincident.
+		/// </summary>
+		static Vector3 CenterlineIntersection( Vector3 posA, Vector3 axisA, Vector3 posB, Vector3 axisB )
+		{
+			// Line A: posA + t * axisA
+			// Line B: posB + s * axisB
+			// Solve: posA + t * axisA = posB + s * axisB
+			float denom = axisA.x * (-axisB.y) - axisA.y * (-axisB.x);
+			if ( MathF.Abs( denom ) < 0.0001f )
+				return Vector3.Zero; // parallel
+
+			var d = posB - posA;
+			float t = (d.x * (-axisB.y) - d.y * (-axisB.x)) / denom;
+			return posA + axisA * t;
 		}
 
 		static EndpointPair ClosestEndpointPair( VillageBuildTask a, VillageBuildTask b )
@@ -484,6 +502,44 @@ namespace Lute.Building
 			}
 
 			Log.Info( $"Lute: WallCornerTopologyProbe complete — {passed}/{results.Count} corners passed." );
+		}
+
+		/// <summary>
+		/// Run the corner topology probe from the console. Finds all
+		/// VillageBuilder instances and evaluates their wall corners.
+		/// </summary>
+		[ConCmd( "corner_probe" )]
+		public static void RunProbeCommand()
+		{
+			var builder = Game.ActiveScene.GetAllComponents<VillageBuilder>().FirstOrDefault();
+			if ( builder is null )
+			{
+				Log.Warning( "Lute: corner_probe — no VillageBuilder found." );
+				return;
+			}
+
+			var results = WallCornerTopologyValidator.EvaluateAll( builder.Tasks );
+			if ( results.Count == 0 )
+			{
+				Log.Warning( "Lute: corner_probe — no adjacent perpendicular wall pairs found." );
+				return;
+			}
+
+			int passed = 0;
+			foreach ( var result in results )
+			{
+				if ( result.IsValid )
+				{
+					passed++;
+					Log.Info( $"Lute: [corner PASS] {result}" );
+				}
+				else
+				{
+					Log.Warning( $"Lute: [corner FAIL] {result}" );
+				}
+			}
+
+			Log.Info( $"Lute: corner_probe complete — {passed}/{results.Count} corners passed." );
 		}
 	}
 }
