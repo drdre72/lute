@@ -65,4 +65,13 @@ public static class LuteSpatialMcp
 	{
 		return LuteSpatialApi.GetTaskState();
 	}
+
+	/// <summary>
+	/// Evaluate all wall corner junctions and return topology validation results.
+	/// </summary>
+	[McpTool.ReadOnly( "lute_get_corner_topology" )]
+	public static CornerProbeResult[] GetCornerTopology()
+	{
+		return LuteSpatialApi.GetCornerTopology();
+	}
 }

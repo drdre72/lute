@@ -92,6 +92,34 @@ namespace Lute.Building
 		}
 
 		/// <summary>
+		/// Evaluate all wall corner junctions and return topology results.
+		/// </summary>
+		public static CornerProbeResult[] GetCornerTopology()
+		{
+			var tasks = ConstructionDirector.AllTasks()
+				.Where( t => t.BuildTask != null )
+				.Select( t => t.BuildTask )
+				.ToList();
+			var results = WallCornerTopologyValidator.EvaluateAll( tasks );
+			return results.Select( r => new CornerProbeResult
+			{
+				WallAName = r.WallAName ?? "",
+				WallBName = r.WallBName ?? "",
+				Junction = $"{r.Junction.x:F1},{r.Junction.y:F1},{r.Junction.z:F1}",
+				EndpointDistance = r.EndpointDistance,
+				IsPerpendicular = r.IsPerpendicular,
+				EndpointsMeet = r.EndpointsMeet,
+				IsValid = r.IsValid,
+				CoursesChecked = r.CoursesChecked,
+				IncompleteCourses = r.IncompleteCourses,
+				DoubleOwnedCourses = r.DoubleOwnedCourses,
+				UnownedCourses = r.UnownedCourses,
+				DuplicateBrickPairs = r.DuplicateBrickPairs,
+				OwnershipAlternates = r.OwnershipAlternates,
+			} ).ToArray();
+		}
+
+		/// <summary>
 		/// Get the current construction task state.
 		/// </summary>
 		public static TaskStateResult GetTaskState()
@@ -175,5 +203,22 @@ namespace Lute.Building
 		public string CurrentTaskId { get; set; }
 		public int PiecesBuilt { get; set; }
 		public bool Active { get; set; }
+	}
+
+	public class CornerProbeResult
+	{
+		public string WallAName { get; set; }
+		public string WallBName { get; set; }
+		public string Junction { get; set; }
+		public float EndpointDistance { get; set; }
+		public bool IsPerpendicular { get; set; }
+		public bool EndpointsMeet { get; set; }
+		public bool IsValid { get; set; }
+		public int CoursesChecked { get; set; }
+		public int IncompleteCourses { get; set; }
+		public int DoubleOwnedCourses { get; set; }
+		public int UnownedCourses { get; set; }
+		public int DuplicateBrickPairs { get; set; }
+		public bool OwnershipAlternates { get; set; }
 	}
 }
