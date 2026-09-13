@@ -171,6 +171,7 @@ namespace Lute.Building
 		protected override async void OnStart()
 		{
 			_cts = new CancellationTokenSource();
+			ReservationManager.SetScene( Scene );
 
 			// Force build speed — 0.5s per brick lay with LAY animation.
 			BuildInterval = 0.5f;

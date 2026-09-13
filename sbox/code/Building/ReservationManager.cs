@@ -56,6 +56,187 @@ namespace Lute.Building
 		const float JoinTolerance = 1.5f * M; // ~1.5m
 
 		/// <summary>
+		/// Ghost-placement validation: check if a candidate structure can be
+		/// placed at the given position/rotation without colliding with
+		/// existing committed occupancy, active reservations, or scene
+		/// geometry. Does NOT modify any state — pure query.
+		///
+		/// Returns a structured result with the blocking entity, intersection
+		/// volume, and nearest valid position if invalid.
+		/// </summary>
+		public static PlacementValidation ValidatePlacement(
+			Vector3 position, float rotation, string taskType,
+			Vector3? overrideSize = null, string excludeTaskId = null )
+		{
+			// Compute OBB footprint
+			var (halfExtents, height) = GetStructureHalfExtents( taskType, overrideSize );
+			var center = position + new Vector3( 0, 0, height * 0.5f );
+			var obb = new OBB( center, new Vector3( halfExtents.x, halfExtents.y, height * 0.5f ), rotation );
+			var aabb = obb.ToAABB();
+
+			// 1. Check against committed occupancy (built structures)
+			foreach ( var o in _occupied.Values )
+			{
+				if ( o.TaskId == excludeTaskId ) continue;
+
+				// Check join compatibility
+				bool isJoin = false;
+				if ( taskType != null )
+				{
+					var blockerTask = o.TaskId != null ? ConstructionDirector.GetTask( o.TaskId ) : null;
+					var blockerType = blockerTask?.BuildTask?.TaskType;
+					isJoin = IsJoinCompatible( taskType, blockerType );
+				}
+
+				if ( isJoin && AabbJoinOverlap( aabb, o.Bounds ) )
+					continue;
+
+				if ( AabbOverlapsVolume( aabb, o.Bounds, TouchTolerance ) )
+				{
+					var ixMins = new Vector3(
+						Math.Max( aabb.Mins.x, o.Bounds.Mins.x ),
+						Math.Max( aabb.Mins.y, o.Bounds.Mins.y ),
+						Math.Max( aabb.Mins.z, o.Bounds.Mins.z ) );
+					var ixMaxs = new Vector3(
+						Math.Min( aabb.Maxs.x, o.Bounds.Maxs.x ),
+						Math.Min( aabb.Maxs.y, o.Bounds.Maxs.y ),
+						Math.Min( aabb.Maxs.z, o.Bounds.Maxs.z ) );
+					var ixSize = ixMaxs - ixMins;
+					float ixVol = Math.Max( 0, ixSize.x ) * Math.Max( 0, ixSize.y ) * Math.Max( 0, ixSize.z );
+					return PlacementValidation.Invalid( "collision with built structure",
+						o.Source ?? o.Id, ixVol,
+						FindNearestValidPosition( position, rotation, taskType, halfExtents, height, excludeTaskId ) );
+				}
+			}
+
+			// 2. Check against active reservations
+			var blocker = FindBlockingClaim( aabb, excludeTaskId ?? "" );
+			if ( blocker.HasValue )
+			{
+				return PlacementValidation.Invalid( "collision with active reservation",
+					blocker.Value.Owner ?? "unknown", 0f,
+					FindNearestValidPosition( position, rotation, taskType, halfExtents, height, excludeTaskId ) );
+			}
+
+			// 3. Check against scene geometry (raycast at center + corners)
+			if ( CheckSceneGeometryCollision( aabb, taskType ) )
+			{
+				return PlacementValidation.Invalid( "collision with scene geometry",
+					"scene", 0f,
+					FindNearestValidPosition( position, rotation, taskType, halfExtents, height, excludeTaskId ) );
+			}
+
+			return PlacementValidation.Valid();
+		}
+
+		/// <summary>
+		/// Get the half-extents (XY) and height for a structure type.
+		/// </summary>
+		static (Vector2 halfExtents, float height) GetStructureHalfExtents( string taskType, Vector3? overrideSize )
+		{
+			float width, depth, height;
+			switch ( taskType )
+			{
+				case "wall": width = 2.5f * M; depth = 1f * M; height = 6f * M; break;
+				case "gate": width = 16f * M; depth = 4f * M; height = 15f * M; break;
+				case "road": width = 10f * M; depth = 10f * M; height = 2f * M; break;
+				case "well": width = depth = 8f * M; height = 10f * M; break;
+				case "market_square": width = depth = 20f * M; height = 2f * M; break;
+				default:
+					width = DefaultCell;
+					depth = DefaultCell;
+					height = 12f * M;
+					break;
+			}
+
+			if ( overrideSize.HasValue )
+			{
+				width = overrideSize.Value.x;
+				depth = overrideSize.Value.y;
+				height = overrideSize.Value.z;
+			}
+
+			return (new Vector2( width * 0.5f, depth * 0.5f ), height);
+		}
+
+		/// <summary>
+		/// Check if the AABB collides with existing scene geometry via raycasts.
+		/// Casts rays downward at the center and 4 corners of the footprint.
+		/// </summary>
+		static bool CheckSceneGeometryCollision( BBox bounds, string taskType )
+		{
+			// Skip scene checks for roads (they sit on terrain) and
+			// market_square (large flat areas that always overlap terrain).
+			if ( taskType == "road" || taskType == "market_square" )
+				return false;
+
+			// Skip if no scene available (e.g. during unit tests)
+			if ( _scene == null )
+				return false;
+
+			// Cast rays from above the bounds downward at 5 points
+			var points = new[]
+			{
+				new Vector3( (bounds.Mins.x + bounds.Maxs.x) * 0.5f, (bounds.Mins.y + bounds.Maxs.y) * 0.5f, bounds.Maxs.z + 100f ),
+				new Vector3( bounds.Mins.x, bounds.Mins.y, bounds.Maxs.z + 100f ),
+				new Vector3( bounds.Maxs.x, bounds.Mins.y, bounds.Maxs.z + 100f ),
+				new Vector3( bounds.Mins.x, bounds.Maxs.y, bounds.Maxs.z + 100f ),
+				new Vector3( bounds.Maxs.x, bounds.Maxs.y, bounds.Maxs.z + 100f ),
+			};
+
+			foreach ( var origin in points )
+			{
+				var end = origin with { z = bounds.Mins.z - 100f };
+				var tr = _scene.Trace.Ray( origin, end )
+					.WithoutTags( "construction", "player" )
+					.Run();
+
+				if ( tr.Hit && tr.GameObject != null )
+				{
+					// Check if the hit object is a construction piece (skip those —
+					// they're tracked by the occupancy system already)
+					var name = tr.GameObject.Name;
+					if ( name.StartsWith( "Village_" ) || name.StartsWith( "Brick_" ) )
+						continue;
+					return true;
+				}
+			}
+			return false;
+		}
+
+		/// <summary>
+		/// Search nearby positions for the nearest valid placement.
+		/// Tries positions in expanding rings around the original position.
+		/// </summary>
+		static Vector3? FindNearestValidPosition(
+			Vector3 position, float rotation, string taskType,
+			Vector2 halfExtents, float height, string excludeTaskId )
+		{
+			float stepSize = 1f * M; // 1m steps
+			int maxRadius = 5; // search up to 5m away
+
+			for ( int radius = 1; radius <= maxRadius; radius++ )
+			{
+				int numPoints = radius * 8;
+				for ( int i = 0; i < numPoints; i++ )
+				{
+					float angle = (float)( i * 2.0 * Math.PI / numPoints );
+					var offset = new Vector3(
+						(float)Math.Cos( angle ) * radius * stepSize,
+						(float)Math.Sin( angle ) * radius * stepSize,
+						0 );
+					var candidate = position + offset;
+
+					var validation = ValidatePlacement( candidate, rotation, taskType,
+						new Vector3( halfExtents.x * 2, halfExtents.y * 2, height ), excludeTaskId );
+					if ( validation.IsValid )
+						return candidate;
+				}
+			}
+			return null;
+		}
+
+		/// <summary>
 		/// Returns true if two task types are allowed to structurally
 		/// join/overlap at their boundaries. This covers wall corners,
 		/// road intersections, road-gate connections, and road-market
@@ -79,6 +260,10 @@ namespace Lute.Building
 
 		static readonly Dictionary<string, ConstructionOccupancy> _occupied = new();
 		static long _occupancySeq;
+
+		/// <summary>Scene reference for raycast-based geometry checks. Set by VillageBuilder.OnStart.</summary>
+		static Scene _scene;
+		public static void SetScene( Scene scene ) => _scene = scene;
 
 		public static ReservationResult TryAcquire( DirectedTask task, string npcName )
 		{
@@ -262,14 +447,12 @@ namespace Lute.Building
 					break;
 			}
 
-			float angle = task.Rotation * (float)Math.PI / 180f;
-			float c = Math.Abs( (float)Math.Cos( angle ) );
-			float s = Math.Abs( (float)Math.Sin( angle ) );
-			float aabbWidth = width * c + depth * s;
-			float aabbDepth = width * s + depth * c;
-			var half = new Vector3( aabbWidth * 0.5f, aabbDepth * 0.5f, height * 0.5f );
-			var center = task.Position + new Vector3( 0, 0, height * 0.5f );
-			return new BBox( center - half, center + half );
+			// Use OBB for accurate rotated footprint, then convert to AABB
+			var obb = new OBB(
+				task.Position + new Vector3( 0, 0, height * 0.5f ),
+				new Vector3( width * 0.5f, depth * 0.5f, height * 0.5f ),
+				task.Rotation );
+			return obb.ToAABB();
 		}
 
 		static ConstructionOccupancy FindBlockingOccupancy( BBox bounds, string taskId, string requestTaskType = null )
