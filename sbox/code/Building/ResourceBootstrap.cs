@@ -147,6 +147,9 @@ namespace Lute.Building
 			stockyard.Deposit( ItemType.Timber, 50 );
 
 			Log.Info( $"Lute: ResourceBootstrap initialized — {discovered} discovered + {synthetic} synthetic sources, {ResourceRegistry.AllStockpiles().Count} stockpiles." );
+
+			// Discover all CraftingBench components in the scene as workstations.
+			WorkstationRegistry.DiscoverAll();
 		}
 
 		/// <summary>

@@ -121,6 +121,39 @@ public static class Recipes
 			Inputs = new() { { ItemType.Wood, 5 } },
 			CraftTime = 12f,
 		},
+
+		// Plank (crafted by Carpenter at sawmill)
+		// 1 wood = 2 planks
+		["plank"] = new CraftRecipe
+		{
+			Name = "Plank",
+			OutputType = ItemType.Plank,
+			OutputCount = 2,
+			Inputs = new() { { ItemType.Wood, 1 } },
+			CraftTime = 1f,
+		},
+
+		// Timber (crafted by Carpenter at sawmill)
+		// 3 wood = 1 timber
+		["timber"] = new CraftRecipe
+		{
+			Name = "Timber",
+			OutputType = ItemType.Timber,
+			OutputCount = 1,
+			Inputs = new() { { ItemType.Wood, 3 } },
+			CraftTime = 3f,
+		},
+
+		// Ingot (crafted by Smith at smelter)
+		// 2 ore = 1 ingot
+		["ingot"] = new CraftRecipe
+		{
+			Name = "Ingot",
+			OutputType = ItemType.Ingot,
+			OutputCount = 1,
+			Inputs = new() { { ItemType.Ore, 2 } },
+			CraftTime = 5f,
+		},
 	};
 
 	public static CraftRecipe? Get( string name )
@@ -136,6 +169,8 @@ public enum BenchType
 {
 	BrickBench,   // Builders craft bricks here
 	Forge,        // Smith crafts tools, concrete, containers here
+	Sawmill,      // Carpenter crafts planks/timber here
+	Smelter,      // Smith crafts ingots here
 }
 
 /// <summary>
@@ -168,6 +203,8 @@ public sealed class CraftingBench : Component
 		{
 			BenchType.BrickBench => new() { "brick" },
 			BenchType.Forge => new() { "concrete", "spade", "pickaxe", "shovel", "trowel", "storage_crate" },
+			BenchType.Sawmill => new() { "plank", "timber" },
+			BenchType.Smelter => new() { "ingot" },
 			_ => new(),
 		};
 	}
