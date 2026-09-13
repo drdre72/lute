@@ -797,7 +797,7 @@ namespace Lute.Building
 
 			float segLen = WallSegmentLength;
 			float localEndX = task.CornerButtSide == 1 ? -segLen * 0.5f : segLen * 0.5f;
-			Vector3 ownerEndpoint = task.Position + RotateLocal( new Vector3( localEndX, 0, 0 ) );
+			Vector3 ownerEndpoint = RotateLocal( new Vector3( localEndX, 0, 0 ) );
 
 			VillageBuildTask nonOwner = null;
 			float bestDist = float.MaxValue;
@@ -818,11 +818,16 @@ namespace Lute.Building
 					if ( d < bestDist ) { bestDist = d; nonOwner = other; }
 				}
 			}
-			if ( nonOwner == null || bestDist > BrickModuleX ) return false;
+			if ( nonOwner == null || bestDist > BrickModuleX )
+			{
+				Log.Info( $"Lute: [corner_frame] FAIL task={task.Name} side={task.CornerButtSide} tasksCount={Tasks?.Count ?? -1} bestDist={bestDist} nonOwner={(nonOwner?.Name ?? "null")}" );
+				return false;
+			}
 
 			junction = ownerEndpoint;
 			ownerInward = (task.Position - junction).Normal;
 			nonOwnerInward = (nonOwner.Position - junction).Normal;
+			Log.Info( $"Lute: [corner_frame] OK task={task.Name} nonOwner={nonOwner.Name} junction={junction} ownerInward={ownerInward} nonOwnerInward={nonOwnerInward}" );
 			return true;
 		}
 
@@ -1798,6 +1803,22 @@ namespace Lute.Building
 				int done = Tasks.Count( t => t.Status == 2 );
 				Log.Info( $"Lute: VillageBuilder saved — {done}/{Tasks.Count} tasks complete, {_totalPiecesPlaced} pieces, elapsed={ElapsedTime/60:F1} min." );
 			}
+		}
+
+		/// <summary>
+		/// Set the build interval (seconds per piece) on all VillageBuilder
+		/// instances. Use 0.01 for fast acceleration, 0.5 for normal pace.
+		/// </summary>
+		[ConCmd( "village_set_interval" )]
+		public static void SetBuildIntervalCommand( float interval )
+		{
+			int count = 0;
+			foreach ( var vb in Game.ActiveScene.GetAllComponents<VillageBuilder>() )
+			{
+				vb.BuildInterval = MathF.Max( interval, 0.01f );
+				count++;
+			}
+			Log.Info( $"Lute: village_set_interval {interval} applied to {count} builder(s)." );
 		}
 	}
 }
