@@ -27,9 +27,37 @@ namespace Lute.NLP
 	public static class NlpParser
 	{
 		// ── Intent type keywords ──
-		// Ordered by specificity — longer phrases checked first.
+		// Ordered by specificity — extended/specific phrases checked
+		// BEFORE their generic base forms so that e.g. "i need help"
+		// matches RequestHelp, not Request. This is critical: the
+		// first-match-wins loop in MatchIntentType means a generic
+		// pattern placed before a specific one will shadow it.
 		static readonly (string[] keywords, IntentType type)[] _intentPatterns =
 		{
+			// ── Extended construction coordination intents (specific) ──
+			// These must be checked before the generic forms below.
+			( new[] { "i need help", "help me", "can you help", "need a hand", "requesting help" }, IntentType.RequestHelp ),
+			( new[] { "i can help", "i'll help", "offering help", "let me help", "i can assist" }, IntentType.OfferHelp ),
+			( new[] { "i accept your help", "accept help", "yes, help", "i'll take your help" }, IntentType.AcceptHelp ),
+			( new[] { "i don't need help", "decline help", "no help needed", "i can manage" }, IntentType.DeclineHelp ),
+			( new[] { "problem with", "blocked by", "is blocked", "can't build", "obstacle" }, IntentType.ReportProblem ),
+			( new[] { "task complete", "finished building", "construction done", "built the", "completed the" }, IntentType.ReportCompletion ),
+			( new[] { "i claim resource", "claiming resource", "dibs on resource" }, IntentType.ClaimResource ),
+			( new[] { "i release resource", "releasing resource", "done with resource" }, IntentType.ReleaseResource ),
+			( new[] { "i need resource", "requesting resource", "give me resource", "need materials" }, IntentType.RequestResource ),
+			( new[] { "i have resource", "offering resource", "extra resource", "spare resource" }, IntentType.OfferResource ),
+			( new[] { "i need a task", "requesting task", "give me a task", "what should i build" }, IntentType.RequestTask ),
+			( new[] { "you should build", "i'm offering task", "here's a task", "take this task" }, IntentType.OfferTask ),
+			( new[] { "you are assigned", "assigned to build", "your task is" }, IntentType.AssignTask ),
+			( new[] { "i accept task", "i'll build the", "i'll take the task", "accepting task" }, IntentType.AcceptTask ),
+			( new[] { "i'm at", "my location is", "currently at", "position is" }, IntentType.ReportLocation ),
+			( new[] { "i'm available", "ready to work", "i'm free", "available for" }, IntentType.ReportAvailability ),
+			( new[] { "i agree", "that's right", "correct" }, IntentType.Agree ),
+			( new[] { "i disagree", "that's wrong", "incorrect", "i don't agree" }, IntentType.Disagree ),
+
+			// ── Generic intents (base forms) ──
+			// Checked after the specific forms above so they only match
+			// when no extended intent applies.
 			( new[] { "hello", "hi ", "greetings", "good morning", "good day", "hey" }, IntentType.Greet ),
 			( new[] { "bye", "farewell", "goodbye", "see you", "later" }, IntentType.Farewell ),
 			( new[] { "i need", "give me", "can i have", "i want", "requesting", "request" }, IntentType.Request ),
@@ -50,26 +78,6 @@ namespace Lute.NLP
 			( new[] { "i can't do", "i won't", "i decline the", "decline" }, IntentType.Decline ),
 			( new[] { "finished", "done with", "completed", "status report", "report" }, IntentType.Report ),
 			( new[] { "understood", "acknowledged", "got it", "noted", "roger" }, IntentType.Acknowledge ),
-
-			// ── Extended construction coordination intents ──
-			( new[] { "i need help", "help me", "can you help", "need a hand", "requesting help" }, IntentType.RequestHelp ),
-			( new[] { "i can help", "i'll help", "offering help", "let me help", "i can assist" }, IntentType.OfferHelp ),
-			( new[] { "i accept your help", "accept help", "yes, help", "i'll take your help" }, IntentType.AcceptHelp ),
-			( new[] { "i don't need help", "decline help", "no help needed", "i can manage" }, IntentType.DeclineHelp ),
-			( new[] { "problem with", "blocked by", "is blocked", "can't build", "obstacle" }, IntentType.ReportProblem ),
-			( new[] { "task complete", "finished building", "construction done", "built the", "completed the" }, IntentType.ReportCompletion ),
-			( new[] { "i claim resource", "claiming resource", "dibs on resource" }, IntentType.ClaimResource ),
-			( new[] { "i release resource", "releasing resource", "done with resource" }, IntentType.ReleaseResource ),
-			( new[] { "i need resource", "requesting resource", "give me resource", "need materials" }, IntentType.RequestResource ),
-			( new[] { "i have resource", "offering resource", "extra resource", "spare resource" }, IntentType.OfferResource ),
-			( new[] { "i need a task", "requesting task", "give me a task", "what should i build" }, IntentType.RequestTask ),
-			( new[] { "you should build", "i'm offering task", "here's a task", "take this task" }, IntentType.OfferTask ),
-			( new[] { "you are assigned", "assigned to build", "your task is" }, IntentType.AssignTask ),
-			( new[] { "i accept task", "i'll build the", "i'll take the task", "accepting task" }, IntentType.AcceptTask ),
-			( new[] { "i'm at", "my location is", "currently at", "position is" }, IntentType.ReportLocation ),
-			( new[] { "i'm available", "ready to work", "i'm free", "available for" }, IntentType.ReportAvailability ),
-			( new[] { "i agree", "agreed", "that's right", "correct" }, IntentType.Agree ),
-			( new[] { "i disagree", "that's wrong", "incorrect", "i don't agree" }, IntentType.Disagree ),
 		};
 
 		// ── Topic keywords ──
