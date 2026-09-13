@@ -912,6 +912,23 @@ Do not add yet:
 - unrestricted free-form building creativity;
 - large new item catalogs before the current resource loop works.
 
+**Player-facing natural-language dialogue is out of scope for the
+autonomous-town benchmark.** NPC-to-NPC communication is an internal
+deterministic coordination protocol (AgentCommunication). A future
+PlayerDialogue subsystem will provide unrestricted plain-English
+player interaction through an independent parsing/dialogue pipeline,
+with only validated requests crossing into authoritative agent
+cognition.
+
+For now, the town NPCs don't need to be brilliant conversationalists.
+They need to be brilliant coworkers. Later, the player-facing layer
+can make those same deterministic NPCs feel conversationally alive
+without compromising the machinery that makes the town function.
+
+See `AGENTS.md` (Three-Domain Separation) for the full architectural
+boundary between AgentCommunication, PlayerDialogue, and the shared
+read-only world model.
+
 The objective is to prove **deterministic cooperative autonomy** first.
 
 ---

@@ -50,6 +50,18 @@ NPC simulation still works, the architecture is correct.
 NPC systems are split into three domains with separate execution
 machinery. They may share knowledge, but **not** execution paths.
 
+**Terminology (use these names to avoid confusion):**
+- **AgentCommunication** = NPC ↔ NPC structured coordination
+  (`AgentCommunicationBus`, `AgentCommunicationManager` — current
+  `CommunicationBus` / `ConversationManager` will be renamed)
+- **PlayerDialogue** = Player ↔ NPC natural conversation
+  (`PlayerDialogueManager`, `PlayerDialogueSession`,
+  `PlayerDialogueParser` — not yet implemented)
+
+Do **not** call both systems "Conversation" — that becomes confusing
+as the codebase grows. The coordination system is deliberately
+constrained; the dialogue system is rich and contextual.
+
 ### 1. Agent cognition (authoritative behavior)
 
 Drives all NPC behavior deterministically:
@@ -61,31 +73,118 @@ Drives all NPC behavior deterministically:
 
 This is what actually moves NPCs and mutates the world.
 
-### 2. NPC-to-NPC coordination (construction communication)
+### 2. AgentCommunication — NPC-to-NPC coordination
 
-Surface representation of structured coordination:
+Deliberately constrained, highly reliable structured coordination:
 
-- `CommunicationBus` + `ConversationManager`
+- `"I need 20 stone."`
+- `"Wall four is blocked."`
+- `"I'll handle the gate."`
+- `"Bring timber to the workshop."`
+
+Components:
+- `CommunicationBus` + `ConversationManager` (to be renamed
+  `AgentCommunicationBus` + `AgentCommunicationManager`)
 - `WorldFactProvider` (world state → structured Intent → text)
 - `SpeechGenerator` (Intent → text)
 - `NlpParser` (text → Intent, for free-text sources)
+- `IntentEnvelope` (structured intent transmission, no lossy round-trip)
+- `NpcActionDispatcher` (typed action verbs → domain authorities)
+- `BlackboardProtocol` (binding intents → typed transactions)
 
 The human-readable sentence is presentation. The structured `Intent` is
 the operational truth. Speech does **not** mutate inventories or tasks
 directly — it submits validated requests to domain authorities.
 
-### 3. Player-to-NPC dialogue (future, not yet implemented)
+### 3. PlayerDialogue — Player-to-NPC dialogue (future, not yet implemented)
 
-Separate system for player conversation:
+Rich, contextual natural-language conversation. Tolerates pronouns,
+elliptical sentences, conversation history, named entities, temporal
+references, correction, interruption, and topic changes:
 
-- `PlayerDialogueManager`, `PlayerLanguageParser`, `DialogueState`
+- `"Hey, do you know what happened over by the western wall?"`
+- `"I thought you said Marcus was bringing the stone."`
+- `"Why don't you two work on the smithy instead?"`
+
+Components (future):
+- `PlayerDialogueManager`, `PlayerDialogueParser`, `DialogueState`
 - `ReferenceResolution`, `ResponsePlanner`, `SurfaceRealizer`
+- `PlayerActionBridge` → typed `AgentRequest`
 
 **Architectural rule (non-negotiable):** Player dialogue can *request*
 world actions, but cannot *perform* them. It submits a validated request
 across a narrow bridge (`PlayerActionBridge` → typed `AgentRequest`),
 and the NPC's normal cognition decides whether/how to act. This
 preserves NPC autonomy.
+
+### Shared read-only world model
+
+Both systems may query (read-only) a shared world knowledge service:
+
+```
+WorldKnowledgeService
+├── EntityRegistry
+├── SpatialRegistry
+├── TaskRegistry
+├── ResourceRegistry
+├── NPCRegistry
+└── EventHistory
+```
+
+This lets the dialogue layer answer questions like "Why is the
+blacksmith standing around?" by retrieving `Blacksmith_01` state
+(`WAITING_RESOURCE`, `resource=Ore`, `request=REQ_91`, `duration=14.2s`)
+and rendering: *"I'm waiting on another load of ore. I can't make the
+tools without it."* — completely deterministic, no LLM.
+
+### Two memory types
+
+Keep these separate so ordinary conversation doesn't contaminate task
+planning, and task outcomes don't force NPCs to send themselves
+sentences:
+
+**AgentMemory** (authoritative, drives behavior):
+- task outcomes, resource knowledge, skills, trust, reputation,
+  locations, world facts
+
+**DialogueMemory** (conversational, player-facing):
+- what player said, questions asked, promises made, topics discussed,
+  references, conversation-specific context
+
+A useful event can cross the boundary intentionally (e.g. player names
+an NPC → validated persistent identity update → agent profile), but
+ordinary conversation should not contaminate task planning.
+
+### Reputation chain
+
+The reputation system is causal, not just a score:
+
+```
+EVENT
+  ↓
+MEMORY (remembered actions)
+  ↓
+PERSONAL OPINION (per-NPC trust/respect/reliability)
+  ↓
+WORD OF MOUTH (social propagation)
+  ↓
+GROUP REPUTATION (faction/profession/settlement)
+  ↓
+BEHAVIOR (willingness to help, trade, cooperate)
+  ↓
+PLAIN-ENGLISH DIALOGUE (future player-facing layer)
+```
+
+Reputation can collapse into convenient numbers for gameplay
+(`PersonalOpinion=74`, `BuilderFactionRep=61`), but when the dialogue
+layer asks why, the NPC has a causal answer: *"You've helped us before,
+but I'm still waiting on that timber you promised."*
+
+Modeled on:
+- **Oblivion**: disposition concept
+- **KCD2**: layered reputation (individual → group → settlement) with
+  social propagation
+- **Façade**: richer conversational interface
 
 ### Removed from runtime
 
