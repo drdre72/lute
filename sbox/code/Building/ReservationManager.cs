@@ -162,6 +162,7 @@ namespace Lute.Building
 		/// <summary>
 		/// Check if the AABB collides with existing scene geometry via raycasts.
 		/// Casts rays downward at the center and 4 corners of the footprint.
+		/// Wrapped in try-catch to avoid editor crashes if the scene is stale.
 		/// </summary>
 		static bool CheckSceneGeometryCollision( BBox bounds, string taskType )
 		{
@@ -174,32 +175,42 @@ namespace Lute.Building
 			if ( _scene == null )
 				return false;
 
-			// Cast rays from above the bounds downward at 5 points
-			var points = new[]
+			try
 			{
-				new Vector3( (bounds.Mins.x + bounds.Maxs.x) * 0.5f, (bounds.Mins.y + bounds.Maxs.y) * 0.5f, bounds.Maxs.z + 100f ),
-				new Vector3( bounds.Mins.x, bounds.Mins.y, bounds.Maxs.z + 100f ),
-				new Vector3( bounds.Maxs.x, bounds.Mins.y, bounds.Maxs.z + 100f ),
-				new Vector3( bounds.Mins.x, bounds.Maxs.y, bounds.Maxs.z + 100f ),
-				new Vector3( bounds.Maxs.x, bounds.Maxs.y, bounds.Maxs.z + 100f ),
-			};
-
-			foreach ( var origin in points )
-			{
-				var end = origin with { z = bounds.Mins.z - 100f };
-				var tr = _scene.Trace.Ray( origin, end )
-					.WithoutTags( "construction", "player" )
-					.Run();
-
-				if ( tr.Hit && tr.GameObject != null )
+				// Cast rays from above the bounds downward at 5 points
+				var points = new[]
 				{
-					// Check if the hit object is a construction piece (skip those —
-					// they're tracked by the occupancy system already)
-					var name = tr.GameObject.Name;
-					if ( name.StartsWith( "Village_" ) || name.StartsWith( "Brick_" ) )
-						continue;
-					return true;
+					new Vector3( (bounds.Mins.x + bounds.Maxs.x) * 0.5f, (bounds.Mins.y + bounds.Maxs.y) * 0.5f, bounds.Maxs.z + 100f ),
+					new Vector3( bounds.Mins.x, bounds.Mins.y, bounds.Maxs.z + 100f ),
+					new Vector3( bounds.Maxs.x, bounds.Mins.y, bounds.Maxs.z + 100f ),
+					new Vector3( bounds.Mins.x, bounds.Maxs.y, bounds.Maxs.z + 100f ),
+					new Vector3( bounds.Maxs.x, bounds.Maxs.y, bounds.Maxs.z + 100f ),
+				};
+
+				foreach ( var origin in points )
+				{
+					var end = origin with { z = bounds.Mins.z - 100f };
+					var tr = _scene.Trace.Ray( origin, end )
+						.WithoutTags( "construction", "player" )
+						.Run();
+
+					if ( tr.Hit && tr.GameObject != null )
+					{
+						// Check if the hit object is a construction piece (skip those —
+						// they're tracked by the occupancy system already)
+						var name = tr.GameObject.Name;
+						if ( name.StartsWith( "Village_" ) || name.StartsWith( "Brick_" ) )
+							continue;
+						return true;
+					}
 				}
+			}
+			catch
+			{
+				// If raycasting fails (stale scene, disposed objects, etc.),
+				// don't block placement — the occupancy system handles
+				// construction conflicts.
+				return false;
 			}
 			return false;
 		}
