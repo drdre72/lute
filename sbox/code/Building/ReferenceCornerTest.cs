@@ -5,23 +5,6 @@ using Sandbox;
 
 namespace Lute.Building
 {
-	/// <summary>
-	/// Canonical Lute reference corner test fixture.
-	///
-	/// Builds two perpendicular walls (Wall A at 0°, Wall B at 90°) whose
-	/// endpoints meet at a shared corner, then runs the
-	/// WallCornerTopologyValidator against them and logs a structured
-	/// pass/fail report.
-	///
-	/// The expected result with the current independent straight-wall
-	/// generators is a FAIL: both walls occupy the shared corner volume,
-	/// producing double ownership and duplicate brick pairs. This test
-	/// provides the objective gate for the next change (alternating
-	/// corner ownership by course).
-	///
-	/// Trigger by setting <see cref="RunTest"/> to true from the editor
-	/// or MCP.
-	/// </summary>
 	public sealed class ReferenceCornerTest : Component
 	{
 		const float M = 39.37f;
@@ -36,6 +19,9 @@ namespace Lute.Building
 		const float WallSegmentLength = 2f * M;
 		const float WallThickness = 0.5f * M;
 		const float WallHeight = 2f * M;
+
+		enum CornerButtSide { None, Left, Right }
+		enum CornerButtCourses { None, Even, Odd }
 
 		[Property] public bool RunTest { get; set; } = false;
 		[Property] public Vector3 CornerOrigin { get; set; } = new( 5000, 5000, 0 );
@@ -65,16 +51,7 @@ namespace Lute.Building
 			_root.Name = "ReferenceCornerTest";
 			_root.WorldPosition = CornerOrigin;
 
-			// Wall A: rotation 0 (along +X). Position so its right endpoint
-			// is at CornerOrigin.
-			// Endpoint = Position + axis * (segLen/2). axis for yaw 0 = (1,0).
-			// So Position = CornerOrigin - (segLen/2, 0).
 			var posA = CornerOrigin - new Vector3( WallSegmentLength * 0.5f, 0, 0 );
-
-			// Wall B: rotation 90 (along +Y). Position so its left endpoint
-			// is at CornerOrigin.
-			// Endpoint = Position - axis * (segLen/2). axis for yaw 90 = (0,1).
-			// So Position = CornerOrigin + (0, segLen/2).
 			var posB = CornerOrigin + new Vector3( 0, WallSegmentLength * 0.5f, 0 );
 
 			var taskA = new VillageBuildTask
@@ -95,49 +72,47 @@ namespace Lute.Building
 				Priority = 0,
 			};
 
-			// ── Stage 1: Build both walls ──
-			Log.Info( "Lute: ReferenceCornerTest Stage 1: Build two perpendicular walls" );
-			int expectedPieces = ComputeExpectedPieces();
-			Log.Info( $"  Expected pieces per wall: {expectedPieces}" );
+			Log.Info( "Lute: ReferenceCornerTest Stage 1: Build two perpendicular walls (alternating ownership)" );
+			int fullPieces = ComputeExpectedPieces();
+			Log.Info( $"  Full pieces per wall (no butt): {fullPieces}" );
 
-			await BuildWall( taskA, "A" );
-			await BuildWall( taskB, "B" );
+			await BuildWall( taskA, "A", CornerButtSide.Right, CornerButtCourses.Odd );
+			await BuildWall( taskB, "B", CornerButtSide.Left, CornerButtCourses.Even );
 
-			Check( "Wall A piece count",
-				taskA.PiecesPlaced == expectedPieces,
-				$"{taskA.PiecesPlaced} vs {expectedPieces}" );
-			Check( "Wall B piece count",
-				taskB.PiecesPlaced == expectedPieces,
-				$"{taskB.PiecesPlaced} vs {expectedPieces}" );
+			int numRows = (int)MathF.Round( WallHeight / BrickModuleZ );
+			int numWythes = (int)MathF.Round( WallThickness / BrickModuleY );
+			int oddCourses = numRows / 2;
+			int evenCourses = (numRows + 1) / 2;
+			// Wall A butts on odd courses: skips 2 bricks per wythe (last full + right half)
+			int expectedA = fullPieces - oddCourses * numWythes * 2;
+			// Wall B butts on even courses: skips 1 brick per wythe (first full stretcher)
+			int expectedB = fullPieces - evenCourses * numWythes;
+			Log.Info( $"  Expected A pieces (butt odd {oddCourses}c x {numWythes}w x 2 = {oddCourses*numWythes*2}): {expectedA}" );
+			Log.Info( $"  Expected B pieces (butt even {evenCourses}c x {numWythes}w = {evenCourses*numWythes}): {expectedB}" );
 
-			// ── Stage 2: Verify geometry ──
+			Check( "Wall A piece count", taskA.PiecesPlaced == expectedA, $"{taskA.PiecesPlaced} vs {expectedA}" );
+			Check( "Wall B piece count", taskB.PiecesPlaced == expectedB, $"{taskB.PiecesPlaced} vs {expectedB}" );
+
 			Log.Info( "Lute: ReferenceCornerTest Stage 2: Verify corner geometry" );
 
-			// Wall A right endpoint should be at CornerOrigin
 			var aAxis = AxisForYaw( 0 );
 			var aRight = posA + aAxis * (WallSegmentLength * 0.5f);
 			Check( "Wall A right endpoint at corner",
 				MathF.Abs( aRight.x - CornerOrigin.x ) < 0.01f && MathF.Abs( aRight.y - CornerOrigin.y ) < 0.01f,
 				$"{aRight} vs {CornerOrigin}" );
 
-			// Wall B left endpoint should be at CornerOrigin
 			var bAxis = AxisForYaw( 90 );
 			var bLeft = posB - bAxis * (WallSegmentLength * 0.5f);
 			Check( "Wall B left endpoint at corner",
 				MathF.Abs( bLeft.x - CornerOrigin.x ) < 0.01f && MathF.Abs( bLeft.y - CornerOrigin.y ) < 0.01f,
 				$"{bLeft} vs {CornerOrigin}" );
 
-			// ── Stage 3: Run corner topology validator ──
 			Log.Info( "Lute: ReferenceCornerTest Stage 3: WallCornerTopologyValidator" );
 			var result = WallCornerTopologyValidator.Evaluate( taskA, taskB );
 			Log.Info( $"  Result: {result}" );
 
-			Check( "Walls are perpendicular",
-				result.IsPerpendicular,
-				$"perpendicular={result.IsPerpendicular}" );
-			Check( "Endpoints meet",
-				result.EndpointsMeet,
-				$"endpointDist={result.EndpointDistance:F3}" );
+			Check( "Walls are perpendicular", result.IsPerpendicular, $"perpendicular={result.IsPerpendicular}" );
+			Check( "Endpoints meet", result.EndpointsMeet, $"endpointDist={result.EndpointDistance:F3}" );
 
 			Log.Info( $"  CoursesChecked={result.CoursesChecked}" );
 			Log.Info( $"  IncompleteCourses={result.IncompleteCourses}" );
@@ -147,21 +122,13 @@ namespace Lute.Building
 			Log.Info( $"  OwnershipAlternates={result.OwnershipAlternates}" );
 			Log.Info( $"  IsValid={result.IsValid}" );
 
-			// With independent straight-wall generators, we EXPECT a FAIL:
-			// both walls occupy the shared corner volume.
-			Check( "Courses were checked (both walls built)",
-				result.CoursesChecked > 0,
-				$"courses={result.CoursesChecked}" );
+			Check( "Courses were checked (both walls built)", result.CoursesChecked > 0, $"courses={result.CoursesChecked}" );
+			Check( "No double-owned courses", result.DoubleOwnedCourses == 0, $"doubleOwned={result.DoubleOwnedCourses}" );
+			Check( "No unowned courses", result.UnownedCourses == 0, $"unowned={result.UnownedCourses}" );
+			Check( "No duplicate brick pairs", result.DuplicateBrickPairs == 0, $"duplicatePairs={result.DuplicateBrickPairs}" );
+			Check( "Ownership alternates", result.OwnershipAlternates, $"alternates={result.OwnershipAlternates}" );
+			Check( "Corner is VALID", result.IsValid, $"valid={result.IsValid}" );
 
-			// Document the expected failure mode
-			if ( result.DoubleOwnedCourses > 0 )
-			{
-				Log.Info( $"  EXPECTED FAIL: {result.DoubleOwnedCourses} double-owned courses " +
-					$"with {result.DuplicateBrickPairs} duplicate brick pairs. " +
-					"This confirms independent walls overlap at the corner." );
-			}
-
-			// ── Report ──
 			Log.Info( "Lute: ReferenceCornerTest REPORT ======================================" );
 			Log.Info( $"  PASSED: {_passed}" );
 			Log.Info( $"  FAILED: {_failed}" );
@@ -182,7 +149,9 @@ namespace Lute.Building
 			return (modulesX * evenRows + (modulesX + 1) * oddRows) * numWythes;
 		}
 
-		async Task BuildWall( VillageBuildTask task, string label )
+		async Task BuildWall( VillageBuildTask task, string label,
+			CornerButtSide buttSide = CornerButtSide.None,
+			CornerButtCourses buttCourses = CornerButtCourses.None )
 		{
 			float segLen = WallSegmentLength;
 			float wallH = WallHeight;
@@ -210,7 +179,21 @@ namespace Lute.Building
 					local.z );
 			}
 
+			bool ShouldButt( bool isLeftEdge, bool isRightEdge, int row )
+			{
+				if ( buttSide == CornerButtSide.None || buttCourses == CornerButtCourses.None )
+					return false;
+				bool isOdd = (row % 2 == 1);
+				bool buttOnOdd = buttCourses == CornerButtCourses.Odd;
+				bool courseButts = isOdd == buttOnOdd;
+				if ( !courseButts ) return false;
+				if ( buttSide == CornerButtSide.Left && isLeftEdge ) return true;
+				if ( buttSide == CornerButtSide.Right && isRightEdge ) return true;
+				return false;
+			}
+
 			int brickIdx = 0;
+			int skipCount = 0;
 			for ( int wythe = 0; wythe < numWythes; wythe++ )
 			{
 				float yCenter = -wallDepth * 0.5f + BrickModuleY * 0.5f + wythe * BrickModuleY;
@@ -222,18 +205,30 @@ namespace Lute.Building
 
 					if ( isOdd )
 					{
+						// Left half-brick (col 0)
+						if ( ShouldButt( true, false, row ) )
+							skipCount++;
+						else
 						{
 							float lx = -segLen * 0.5f + halfLen * 0.5f;
 							var pos = RotateLocal( new Vector3( lx, yCenter, z ) );
 							SpawnBrick( pos, new Vector3( brickLen * 0.5f, brickDepth, brickH ) );
 							task.PiecesPlaced = brickIdx + 1;
 							task.PlacedBricks.Add( BrickSlot.HalfStretcher( 0, wythe, row ) );
+							brickIdx++;
+							if ( !InstantBuild ) await Task.DelaySeconds( 0.01f );
 						}
-						brickIdx++;
-						if ( !InstantBuild ) await Task.DelaySeconds( 0.01f );
 
 						for ( int col = 1; col < modulesX; col++ )
 						{
+							// On odd courses, the last full stretcher (col=modulesX-1)
+							// also overlaps the corner core, so butt it too.
+							bool isRightEdgeFull = (col == modulesX - 1);
+							if ( ShouldButt( false, isRightEdgeFull, row ) )
+							{
+								skipCount++;
+								continue;
+							}
 							float x = -segLen * 0.5f + col * BrickModuleX;
 							var pos = RotateLocal( new Vector3( x, yCenter, z ) );
 							SpawnBrick( pos, new Vector3( brickLen, brickDepth, brickH ) );
@@ -243,20 +238,32 @@ namespace Lute.Building
 							if ( !InstantBuild ) await Task.DelaySeconds( 0.01f );
 						}
 
+						// Right half-brick (col modulesX)
+						if ( ShouldButt( false, true, row ) )
+							skipCount++;
+						else
 						{
 							float rx = segLen * 0.5f - halfLen * 0.5f;
 							var pos = RotateLocal( new Vector3( rx, yCenter, z ) );
 							SpawnBrick( pos, new Vector3( brickLen * 0.5f, brickDepth, brickH ) );
 							task.PiecesPlaced = brickIdx + 1;
 							task.PlacedBricks.Add( BrickSlot.HalfStretcher( modulesX, wythe, row ) );
+							brickIdx++;
+							if ( !InstantBuild ) await Task.DelaySeconds( 0.01f );
 						}
-						brickIdx++;
-						if ( !InstantBuild ) await Task.DelaySeconds( 0.01f );
 					}
 					else
 					{
 						for ( int col = 0; col < modulesX; col++ )
 						{
+							bool isLeft = (col == 0);
+							bool isRight = (col == modulesX - 1);
+							if ( ShouldButt( isLeft, isRight, row ) )
+							{
+								skipCount++;
+								continue;
+							}
+
 							float x = -segLen * 0.5f + BrickModuleX * 0.5f + col * BrickModuleX;
 							var pos = RotateLocal( new Vector3( x, yCenter, z ) );
 							SpawnBrick( pos, new Vector3( brickLen, brickDepth, brickH ) );
@@ -268,7 +275,7 @@ namespace Lute.Building
 					}
 				}
 			}
-			Log.Info( $"  Wall {label}: built {brickIdx} bricks, {task.PlacedBricks.Count} slots." );
+			Log.Info( $"  Wall {label}: built {brickIdx} bricks, {task.PlacedBricks.Count} slots, skipped {skipCount} (buttSide={buttSide} buttCourses={buttCourses})." );
 		}
 
 		static int task_counter = 0;
