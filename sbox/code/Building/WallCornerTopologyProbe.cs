@@ -109,10 +109,9 @@ namespace Lute.Building
 		const float BrickModuleX = 0.25f * M;
 		const float BrickModuleY = 0.125f * M;
 
-		// Tolerances: widened to account for the West wall half-brick inset
-		// (0.125m toward center) so corner pairs with Wall_W segments are still
-		// detected as meeting at the corner.
-		const float EndpointTolerance = 0.2f * M;        // 20 cm (was 2 cm)
+		// Tolerances: canonical wall positions (all at +/-half) meet
+		// mathematically at corners, so a tight tolerance suffices.
+		const float EndpointTolerance = 0.02f * M;        // 2 cm (restored)
 		const float PerpendicularToleranceDeg = 1.0f;
 		const float PositiveOverlapTolerance = 0.001f * M; // 1 mm
 
