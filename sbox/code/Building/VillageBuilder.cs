@@ -1651,10 +1651,13 @@ namespace Lute.Building
 		void SpawnBox( Vector3 worldPos, Vector3 size, string materialPath, bool collides, GameObject parent, float yaw = 0f, PieceAnchor anchor = PieceAnchor.Center,
 		BrickForm form = BrickForm.Full, BrickOrientation orientation = BrickOrientation.Stretcher, float? overrideLength = null )
 		{
-			// Wall bricks are scaled to module size, so the anchor lift
-			// must use the module height (BrickModuleZ), not the body size.
+			// When overrideLength is set, the caller (e.g. corner assembly)
+			// is authoritative — size is the exact render size, not the
+			// form-based module size. This avoids the dual-truth mismatch
+			// between placement.WorldSize and form-based scaling.
 			var isWallBrick = CurrentTask is not null && CurrentTask.TaskType == "wall";
-			var anchorHeight = isWallBrick ? BrickModuleZ : size.z;
+			var isExactSize = overrideLength.HasValue;
+			var anchorHeight = isWallBrick ? (isExactSize ? size.z : BrickModuleZ) : size.z;
 
 			switch ( anchor )
 			{
@@ -1719,14 +1722,25 @@ namespace Lute.Building
 				var modelSize = renderer.Model.Bounds.Size;
 				if ( modelSize.x > 0 && modelSize.y > 0 && modelSize.z > 0 )
 				{
-					float length = overrideLength ?? form switch
+					if ( isExactSize )
 					{
-						BrickForm.Half    => BrickModuleX * 0.5f,
-						BrickForm.Quarter => BrickModuleX * 0.25f,
-						_                 => BrickModuleX
-					};
-					var renderSize = new Vector3( length, BrickModuleY, BrickModuleZ );
-					go.WorldScale = renderSize / modelSize;
+						// Caller is authoritative — use the exact requested
+						// size as the render size (e.g. corner assembly 2-module
+						// bricks). This makes placement.WorldSize the single
+						// source of truth for special assemblies.
+						go.WorldScale = size / modelSize;
+					}
+					else
+					{
+						float length = form switch
+						{
+							BrickForm.Half    => BrickModuleX * 0.5f,
+							BrickForm.Quarter => BrickModuleX * 0.25f,
+							_                 => BrickModuleX
+						};
+						var renderSize = new Vector3( length, BrickModuleY, BrickModuleZ );
+						go.WorldScale = renderSize / modelSize;
+					}
 				}
 				else
 					go.WorldScale = size / BoxModelNativeSize;
