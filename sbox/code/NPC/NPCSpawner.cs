@@ -58,6 +58,9 @@ namespace Lute.Npc
 				case "VillageBuilder":
 					SpawnVillageBuilder( marker, parent, name );
 					break;
+				case "Hauler":
+					SpawnHauler( marker, parent, name );
+					break;
 				default:
 					Log.Warning( $"Lute: NPCSpawner unknown NpcType '{marker.NpcType}' on marker '{marker.GameObject.Name}' — skipped." );
 					break;
@@ -158,11 +161,94 @@ namespace Lute.Npc
 				if ( controller is not null )
 					controller.NpcName = builderName;
 			}
-		}
+	}
 
-		/// <summary>
-		/// Spawn a citizen body with the standard collider/rigidbody/
-		/// PlayerController stack and attach a VillageBuilderController wired
+	/// <summary>
+	/// Spawn a hauler NPC: citizen body + HaulerController + LuteInventory.
+	/// The hauler claims logistics jobs, walks to the source, picks up
+	/// material into its own inventory, walks to the destination, and
+	/// drops it. No material teleports.
+	/// </summary>
+	static void SpawnHauler( SpawnMarker marker, GameObject parent, string name )
+	{
+		var pos = marker.WorldPosition;
+
+		var go = marker.Scene.CreateObject( true );
+		go.Name = name;
+		go.SetParent( parent );
+		go.WorldPosition = pos;
+		go.WorldRotation = Rotation.Identity;
+
+		// Body — citizen model.
+		var bodyGo = marker.Scene.CreateObject( true );
+		bodyGo.Name = "Body";
+		bodyGo.SetParent( go );
+		bodyGo.LocalPosition = Vector3.Zero;
+		bodyGo.WorldRotation = Rotation.Identity;
+		var bodyRenderer = bodyGo.AddComponent<SkinnedModelRenderer>();
+		bodyRenderer.Model = Model.Load( "models/citizen/citizen.vmdl" );
+
+		// Colliders — capsule + box.
+		var collidersGo = marker.Scene.CreateObject( true );
+		collidersGo.Name = "Colliders";
+		collidersGo.SetParent( go );
+		var capsule = collidersGo.AddComponent<CapsuleCollider>();
+		capsule.Radius = 16f;
+		capsule.Start = new Vector3( 0, 0, 0 );
+		capsule.End = new Vector3( 0, 0, 72f );
+		var box = collidersGo.AddComponent<BoxCollider>();
+		box.Scale = new Vector3( 32f, 32f, 72f );
+
+		// Rigidbody.
+		var rb = go.AddComponent<Rigidbody>();
+		rb.Gravity = true;
+
+		// PlayerController — input disabled.
+		var controller = go.AddComponent<PlayerController>();
+		controller.UseInputControls = false;
+		controller.UseCameraControls = false;
+		controller.UseAnimatorControls = true;
+		controller.Renderer = bodyRenderer;
+
+		// NavMeshAgent.
+		var navAgent = go.AddComponent<NavMeshAgent>();
+		navAgent.Height = 64f;
+		navAgent.Radius = 16f;
+		navAgent.MaxSpeed = 5f * 39.37f;
+		navAgent.Acceleration = 5f * 39.37f;
+		navAgent.UpdatePosition = false;
+		navAgent.UpdateRotation = false;
+
+		// LuteInventory — the hauler carries material in this.
+		var inventory = go.AddComponent<Lute.Items.LuteInventory>();
+
+		// Hauler controller.
+		var hauler = go.AddComponent<Lute.Building.HaulerController>();
+		hauler.NpcName = name;
+		hauler.Inventory = inventory;
+
+		// Eyes — camera for GPT-5 vision inspection.
+		var eyesGo = marker.Scene.CreateObject( true );
+		eyesGo.Name = "Eyes";
+		eyesGo.SetParent( go );
+		eyesGo.LocalPosition = new Vector3( 0, -10f, 64f );
+		var camera = eyesGo.AddComponent<CameraComponent>();
+		camera.FieldOfView = 90f;
+
+		// Interaction.
+		var interactable = go.AddComponent<Interactable>();
+		interactable.NpcMode = true;
+		interactable.DisplayName = name;
+		interactable.Range = 150f;
+		interactable.IsAvailable = true;
+
+		Log.Info( $"Lute: NPCSpawner hauler body '{name}' at {go.WorldPosition}." );
+	}
+
+	/// <summary>
+	/// Spawn a citizen body with the standard collider/rigidbody/
+	/// PlayerController stack and attach a VillageBuilderController wired
+
 		/// to the given village builder. Same body setup as SpawnCitizenBody
 		/// but with the village-scale controller.
 		/// </summary>
