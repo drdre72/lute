@@ -45,6 +45,55 @@ of the world. These are separate AI systems:
 If you can compile Lute with the LLM components completely absent and the
 NPC simulation still works, the architecture is correct.
 
+## GOVERNING RULE — Three-Domain Separation
+
+NPC systems are split into three domains with separate execution
+machinery. They may share knowledge, but **not** execution paths.
+
+### 1. Agent cognition (authoritative behavior)
+
+Drives all NPC behavior deterministically:
+
+- `Intent`, `BeliefModel`, `NpcState`, capabilities
+- `ConstructionDirector` task DAG + reservations
+- `SpatialRegistry` / `ReservationManager`
+- `GoalActionEvaluator` / `SocialRules`
+
+This is what actually moves NPCs and mutates the world.
+
+### 2. NPC-to-NPC coordination (construction communication)
+
+Surface representation of structured coordination:
+
+- `CommunicationBus` + `ConversationManager`
+- `WorldFactProvider` (world state → structured Intent → text)
+- `SpeechGenerator` (Intent → text)
+- `NlpParser` (text → Intent, for free-text sources)
+
+The human-readable sentence is presentation. The structured `Intent` is
+the operational truth. Speech does **not** mutate inventories or tasks
+directly — it submits validated requests to domain authorities.
+
+### 3. Player-to-NPC dialogue (future, not yet implemented)
+
+Separate system for player conversation:
+
+- `PlayerDialogueManager`, `PlayerLanguageParser`, `DialogueState`
+- `ReferenceResolution`, `ResponsePlanner`, `SurfaceRealizer`
+
+**Architectural rule (non-negotiable):** Player dialogue can *request*
+world actions, but cannot *perform* them. It submits a validated request
+across a narrow bridge (`PlayerActionBridge` → typed `AgentRequest`),
+and the NPC's normal cognition decides whether/how to act. This
+preserves NPC autonomy.
+
+### Removed from runtime
+
+`NPCConversation.cs` was a parallel implementation that competed with
+`ConversationManager` for the same NPC state. It has been moved to
+`docs/history/NPCConversation.cs.legacy` and compile-gated. Do not
+resurrect it.
+
 ## Project layout
 
 - `PRD.md` — product/design spec (game design, not engine-specific). Read
