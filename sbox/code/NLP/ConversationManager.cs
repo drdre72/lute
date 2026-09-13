@@ -258,8 +258,11 @@ namespace Lute.NLP
 						break;
 				}
 
-				// Also process through BlackboardProtocol for CLAIM/RELEASE intents
-				BlackboardProtocol.ProcessIntent( intent );
+				// Also process through BlackboardProtocol for binding intents
+				// (Claim, Release, ClaimResource, RequestTask, AssignTask, etc.)
+				var tx = BlackboardProtocol.ProcessIntent( intent );
+				if ( tx.Status != BlackboardTransaction.TransactionStatus.Ignore )
+					Log.Info( $"[NLP] {npcName} blackboard tx: {tx}" );
 			}
 		}
 

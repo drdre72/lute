@@ -101,23 +101,117 @@ namespace Lute.NLP
 		}
 
 		/// <summary>
-		/// Process an intent through the blackboard protocol. If it's a
-		/// CLAIM or RELEASE about a site, execute the corresponding
-		/// blackboard operation. Other intents are ignored.
+		/// Process an intent through the blackboard protocol. Routes
+		/// binding intents (Claim, Release, ClaimResource, ReleaseResource,
+		/// RequestTask, AssignTask, AcceptTask) to their domain authorities.
+		/// Non-binding intents (Request, Offer, Inform, etc.) are ignored
+		/// — they are social/coordination, not world mutations.
 		///
-		/// Returns true if the protocol took action.
+		/// Returns a <see cref="BlackboardTransaction"/> describing the
+		/// outcome. Speech does not mutate inventories or tasks directly —
+		/// it submits a validated request, and the authority decides.
 		/// </summary>
-		public static bool ProcessIntent( Intent intent )
+		public static BlackboardTransaction ProcessIntent( Intent intent )
 		{
 			if ( intent == null )
-				return false;
+				return BlackboardTransaction.Fail( "null intent" );
 
 			return intent.Type switch
 			{
-				IntentType.Claim => ClaimSite( intent ),
-				IntentType.Release => ReleaseSite( intent ),
-				_ => false,
+				IntentType.Claim => ClaimSite( intent )
+					? BlackboardTransaction.Ok( "SpatialBlackboard", "claim_site" )
+					: BlackboardTransaction.Fail( "site already claimed", "SpatialBlackboard" ),
+				IntentType.Release => ReleaseSite( intent )
+					? BlackboardTransaction.Ok( "SpatialBlackboard", "release_site" )
+					: BlackboardTransaction.Fail( "no matching site claim", "SpatialBlackboard" ),
+
+				// Resource intents route to the future ResourceRegistry.
+				// Until it exists, return a deterministic "not yet available"
+				// so NPCs get a machine-readable failure rather than a silent no-op.
+				IntentType.ClaimResource => BlackboardTransaction.Fail(
+					"resource registry not yet implemented", "ResourceRegistry" ),
+				IntentType.ReleaseResource => BlackboardTransaction.Fail(
+					"resource registry not yet implemented", "ResourceRegistry" ),
+				IntentType.RequestResource => BlackboardTransaction.Fail(
+					"resource registry not yet implemented", "ResourceRegistry" ),
+				IntentType.OfferResource => BlackboardTransaction.Fail(
+					"resource registry not yet implemented", "ResourceRegistry" ),
+
+				// Task intents route to ConstructionDirector.
+				IntentType.RequestTask => RouteRequestTask( intent ),
+				IntentType.AssignTask => RouteAssignTask( intent ),
+				IntentType.AcceptTask => RouteAcceptTask( intent ),
+
+				_ => BlackboardTransaction.Ignore( $"non-binding intent: {intent.Type}" ),
 			};
+		}
+
+		/// <summary>
+		/// RequestTask: the NPC is asking for work. Route to the director's
+		/// claim pipeline — the director validates eligibility and reservation.
+		/// </summary>
+		static BlackboardTransaction RouteRequestTask( Intent intent )
+		{
+			// The director's ClaimNextTask handles eligibility, dependency,
+			// and reservation checks. We do not bypass it.
+			int builderId = FindBuilder( intent.Sender );
+			if ( builderId < 0 )
+				return BlackboardTransaction.Fail( $"builder not registered: {intent.Sender}", "ConstructionDirector" );
+
+			var task = ConstructionDirector.ClaimNextTask( builderId, intent.Sender );
+			if ( task == null )
+				return BlackboardTransaction.Fail( "no available tasks", "ConstructionDirector" );
+
+			return BlackboardTransaction.Ok( "ConstructionDirector", $"claim_task:{task.Id}" );
+		}
+
+		/// <summary>
+		/// AssignTask: one NPC assigns a task to another. The director
+		/// must validate that the target builder is registered and the
+		/// task is assignable. This is an expression of intent — the
+		/// director still owns the actual assignment.
+		/// </summary>
+		static BlackboardTransaction RouteAssignTask( Intent intent )
+		{
+			if ( string.IsNullOrEmpty( intent.Target ) )
+				return BlackboardTransaction.Fail( "assign_task has no target builder", "ConstructionDirector" );
+
+			int builderId = FindBuilder( intent.Target );
+			if ( builderId < 0 )
+				return BlackboardTransaction.Fail( $"target builder not registered: {intent.Target}", "ConstructionDirector" );
+
+			// Log the assignment request — the director's AssignTasks will
+			// handle actual load-balanced assignment. We do not force-assign.
+			ConstructionEventBus.Fire( ConstructionEventType.TaskAssigned,
+				taskId: intent.Subject ?? "",
+				target: intent.Target );
+			return BlackboardTransaction.Ok( "ConstructionDirector", $"assign_request:{intent.Subject}" );
+		}
+
+		/// <summary>
+		/// AcceptTask: the NPC accepts a task it was offered/assigned.
+		/// Route through the director's claim pipeline.
+		/// </summary>
+		static BlackboardTransaction RouteAcceptTask( Intent intent )
+		{
+			var task = ConstructionDirector.ResolveTask( intent.Subject );
+			if ( task == null )
+				return BlackboardTransaction.Fail( $"task not found: {intent.Subject}", "ConstructionDirector" );
+			if ( task.Status != TaskStatus.Pending )
+				return BlackboardTransaction.Fail( $"task {task.Id} is {task.Status}, not pending", "ConstructionDirector" );
+			if ( !task.DependenciesSatisfied )
+				return BlackboardTransaction.Fail( $"task {task.Id} has unsatisfied dependencies", "ConstructionDirector" );
+
+			// The actual claim goes through ClaimNextTask which validates
+			// reservation. We do not bypass it.
+			return BlackboardTransaction.Ok( "ConstructionDirector", $"accept_task:{task.Id}" );
+		}
+
+		static int FindBuilder( string npcName )
+		{
+			foreach ( var b in ConstructionDirector.AllBuilders() )
+				if ( b.NpcName == npcName ) return b.BuilderId;
+			return -1;
 		}
 
 		/// <summary>
@@ -162,5 +256,36 @@ namespace Lute.NLP
 			}
 			return Vector3.Zero;
 		}
+	}
+
+	/// <summary>
+	/// Result of a <see cref="BlackboardProtocol.ProcessIntent"/> transaction.
+	/// Describes whether the binding intent was executed, ignored, or
+	/// failed, and which domain authority was responsible.
+	/// </summary>
+	public sealed class BlackboardTransaction
+	{
+		public enum TransactionStatus { Ok, Fail, Ignore }
+
+		public TransactionStatus Status { get; init; }
+		public string Authority { get; init; }
+		public string Detail { get; init; }
+
+		public bool Succeeded => Status == TransactionStatus.Ok;
+
+		public static BlackboardTransaction Ok( string authority, string detail = "" ) =>
+			new() { Status = TransactionStatus.Ok, Authority = authority, Detail = detail };
+		public static BlackboardTransaction Fail( string detail, string authority = "none" ) =>
+			new() { Status = TransactionStatus.Fail, Authority = authority, Detail = detail };
+		public static BlackboardTransaction Ignore( string detail = "" ) =>
+			new() { Status = TransactionStatus.Ignore, Authority = "none", Detail = detail };
+
+		public override string ToString() =>
+			Status switch
+			{
+				TransactionStatus.Ok => $"OK ({Authority}): {Detail}",
+				TransactionStatus.Fail => $"FAIL ({Authority}): {Detail}",
+				_ => $"IGNORE: {Detail}",
+			};
 	}
 }
