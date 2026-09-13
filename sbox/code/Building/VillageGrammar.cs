@@ -87,6 +87,22 @@ namespace Lute.Building
 		/// Set by VillageBuilder.PartitionTasks during OnStart.
 		/// </summary>
 		public int BuilderAssignment = -1;
+
+		/// <summary>
+		/// Corner butt configuration for walls meeting a perpendicular wall.
+		/// When set, this wall skips the corner-overlapping bricks on the
+		/// specified courses so the other wall owns the corner volume.
+		/// 0 = no butt (independent wall). 1 = butt on even courses.
+		/// 2 = butt on odd courses.
+		/// </summary>
+		public int CornerButtCourses = 0;
+
+		/// <summary>
+		/// Which end of the wall butts into the corner.
+		/// 0 = none, 1 = left/start endpoint, 2 = right/end endpoint.
+		/// Only meaningful when CornerButtCourses != 0.
+		/// </summary>
+		public int CornerButtSide = 0;
 	}
 
 	/// <summary>
@@ -139,6 +155,7 @@ namespace Lute.Building
 
 			// ── Priority 0: Stone wall segments ──
 			GenerateWallTasks( center, tasks, ref seedCounter );
+			AssignCornerButtFlags( center, tasks );
 
 			// ── Priority 1: Gates (N and S) ──
 			GenerateGateTasks( center, tasks, ref seedCounter );
@@ -263,6 +280,43 @@ namespace Lute.Building
 					Priority = 0,
 					LayoutSeed = seed++,
 				} );
+			}
+		}
+
+		/// <summary>
+		/// Assign corner butt flags to wall segments that meet a perpendicular
+		/// wall at a corner. Alternating ownership: N/S walls (rotation 0)
+		/// own even courses and butt on odd courses; E/W walls (rotation 90)
+		/// own odd courses and butt on even courses.
+		/// CornerButtSide: 1=left/start endpoint, 2=right/end endpoint.
+		/// CornerButtCourses: 1=even, 2=odd.
+		/// </summary>
+		void AssignCornerButtFlags( Vector3 center, List<VillageBuildTask> tasks )
+		{
+			float half = WallOuterHalfWidth;
+			float segLen = 2f * M;
+			float tol = 0.01f * M;
+
+			foreach ( var task in tasks )
+			{
+				if ( task.TaskType != "wall" ) continue;
+				bool isNS = MathF.Abs( task.Rotation ) < 1f;
+				bool isEW = MathF.Abs( task.Rotation - 90f ) < 1f;
+				if ( !isNS && !isEW ) continue;
+
+				var local = task.Position - center;
+				float along = isNS ? local.x : local.y;
+				float perp = isNS ? local.y : local.x;
+
+				bool atCorner = MathF.Abs( MathF.Abs( perp ) - half ) < tol;
+				if ( !atCorner ) continue;
+
+				bool isLeftSegment = MathF.Abs( along - (-half + segLen * 0.5f) ) < tol;
+				bool isRightSegment = MathF.Abs( along - (half - segLen * 0.5f) ) < tol;
+				if ( !isLeftSegment && !isRightSegment ) continue;
+
+				task.CornerButtCourses = isNS ? 2 : 1;
+				task.CornerButtSide = isLeftSegment ? 1 : 2;
 			}
 		}
 

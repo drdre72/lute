@@ -715,6 +715,42 @@ namespace Lute.Building
 			// bottom face sits exactly on the ground. All other rows use
 			// the standard row * BrickModuleZ offset from the snapped base.
 			float groundZ = SnapToGround( task.Position );
+
+			// Corner butt helper: returns true if this brick should be
+			// skipped (not spawned) because the other wall owns the corner
+			// volume on this course. CornerButtCourses: 0=none, 1=even,
+			// 2=odd. CornerButtSide: 0=none, 1=left, 2=right.
+			bool ShouldButt( bool isLeftEdge, bool isRightEdge, int row )
+			{
+				if ( task.CornerButtCourses == 0 || task.CornerButtSide == 0 )
+					return false;
+				bool isOdd = (row % 2 == 1);
+				bool buttOnOdd = task.CornerButtCourses == 2;
+				bool courseButts = isOdd == buttOnOdd;
+				if ( !courseButts ) return false;
+				if ( task.CornerButtSide == 1 && isLeftEdge ) return true;
+				if ( task.CornerButtSide == 2 && isRightEdge ) return true;
+				return false;
+			}
+
+			// Count how many bricks will be skipped for correct TotalPieces.
+			int skipCount = 0;
+			for ( int row = 0; row < numRows; row++ )
+			{
+				bool isOdd = (row % 2 == 1);
+				if ( isOdd )
+				{
+					if ( ShouldButt( true, false, row ) ) skipCount += numWythes;
+					if ( ShouldButt( false, true, row ) ) skipCount += numWythes * 2;
+				}
+				else
+				{
+					if ( ShouldButt( true, false, row ) ) skipCount += numWythes;
+					if ( ShouldButt( false, true, row ) ) skipCount += numWythes;
+				}
+			}
+			totalBricks -= skipCount;
+			task.TotalPieces = totalBricks;
 			for ( int wythe = 0; wythe < numWythes; wythe++ )
 			{
 				float yCenter = -wallDepth * 0.5f + BrickModuleY * 0.5f + wythe * BrickModuleY;
@@ -729,7 +765,8 @@ namespace Lute.Building
 						// Odd course: half + (modulesX-1) full + half
 						float halfLen = BrickModuleX * 0.5f;
 						float lx = -segLen * 0.5f + halfLen * 0.5f;
-						if ( brickIdx >= task.PiecesPlaced )
+						bool buttLeftHalf = ShouldButt( true, false, row );
+						if ( !buttLeftHalf && brickIdx >= task.PiecesPlaced )
 						{
 							var pos = RotateLocal( new Vector3( lx, yCenter, z ) );
 							SpawnBox( pos, new Vector3( brickLen * 0.5f, brickDepth, brickH ),
@@ -750,6 +787,15 @@ namespace Lute.Building
 						for ( int col = 1; col < modulesX; col++ )
 						{
 							token.ThrowIfCancellationRequested();
+							bool buttThisFull = ShouldButt( false, col == modulesX - 1, row );
+							if ( buttThisFull )
+							{
+								brickIdx++;
+								ElapsedTime += BuildInterval;
+								if ( !_reconstructMode ) await Task.DelaySeconds( BuildInterval );
+								MaybeSave();
+								continue;
+							}
 							float x = -segLen * 0.5f + col * BrickModuleX;
 							if ( brickIdx >= task.PiecesPlaced )
 							{
@@ -768,8 +814,9 @@ namespace Lute.Building
 
 						// Right half: center at +segLen/2 - moduleX*0.25
 						{
+							bool buttRightHalf = ShouldButt( false, true, row );
 							float rx = segLen * 0.5f - halfLen * 0.5f;
-							if ( brickIdx >= task.PiecesPlaced )
+							if ( !buttRightHalf && brickIdx >= task.PiecesPlaced )
 							{
 								var pos = RotateLocal( new Vector3( rx, yCenter, z ) );
 								SpawnBox( pos, new Vector3( brickLen * 0.5f, brickDepth, brickH ),
@@ -790,6 +837,16 @@ namespace Lute.Building
 						for ( int col = 0; col < modulesX; col++ )
 						{
 							token.ThrowIfCancellationRequested();
+							bool isLeft = (col == 0);
+							bool isRight = (col == modulesX - 1);
+							if ( ShouldButt( isLeft, isRight, row ) )
+							{
+								brickIdx++;
+								ElapsedTime += BuildInterval;
+								if ( !_reconstructMode ) await Task.DelaySeconds( BuildInterval );
+								MaybeSave();
+								continue;
+							}
 							float x = -segLen * 0.5f + BrickModuleX * 0.5f + col * BrickModuleX;
 							if ( brickIdx >= task.PiecesPlaced )
 							{

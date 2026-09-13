@@ -45,18 +45,45 @@ namespace Lute.Building
 		public BBox? ReservationBounds { get; set; }
 		public List<string> Conflicts { get; set; } = new();
 
+		/// <summary>
+		/// 8-digit spatial grid key (XXXXYYYY) for contiguous wall assignment.
+		/// Computed from the build task position. Used to order tasks so
+		/// builders work on adjacent wall segments instead of jumping around.
+		/// </summary>
+		public string Grid8 { get; set; }
+
 		public bool DependenciesSatisfied =>
 			DependsOn.All( depId => ConstructionDirector.GetTask( depId )?.Status == TaskStatus.Complete );
 
 		public bool PreconditionsSatisfied => ConstructionDirector.CheckPreconditions( Preconditions );
+
+		/// <summary>
+		/// Compute an 8-digit spatial grid key from a world position.
+		/// Format: XXXXYYYY where each is 4 digits of position in decimeters
+		/// (10 units = 1 dm). This gives a deterministic spatial sort key
+		/// so wall segments near each other sort together.
+		/// </summary>
+		public static string ComputeGrid8( Vector3 pos )
+		{
+			int x = (int)( pos.x / 10f );
+			int y = (int)( pos.y / 10f );
+			// Clamp to 4 digits (0..9999), wrap negatives
+			x = ( ( x % 10000 ) + 10000 ) % 10000;
+			y = ( ( y % 10000 ) + 10000 ) % 10000;
+			return $"{x:D4}{y:D4}";
+		}
 	}
 
+	/// <summary>
+	/// Per-builder runtime state.
+	/// </summary>
 	public class BuilderState
 	{
 		public int BuilderId { get; set; }
 		public string NpcName { get; set; }
 		public string CurrentTaskId { get; set; }
 		public int PiecesBuilt { get; set; }
+		public string LastCompletedTaskId { get; set; }
 		public bool Active { get; set; }
 	}
 
@@ -138,6 +165,7 @@ namespace Lute.Building
 				DependsOn = dependsOn ?? new(),
 				PiecesPlaced = buildTask?.PiecesPlaced ?? 0,
 				ReservationBounds = buildTask != null ? ReservationManager.EstimateTaskBounds( buildTask ) : null,
+				Grid8 = buildTask != null ? DirectedTask.ComputeGrid8( buildTask.Position ) : "",
 				// Completed persistence entries stay complete. An old in-progress
 				// entry is made pending because runtime reservations do not survive reload.
 				Status = buildTask?.Status == 2 ? TaskStatus.Complete : TaskStatus.Pending,
@@ -249,7 +277,7 @@ namespace Lute.Building
 				var pending = _tasks.Values
 					.Where( t => t.AssignedBuilder == b.BuilderId &&
 						t.Status == TaskStatus.Pending && !locked.Contains( t.Id ) )
-					.OrderByDescending( t => t.EstimatedPieces )
+					.OrderBy( t => t.Grid8 ?? "" )
 					.ThenBy( t => t.Id )
 					.ToList();
 
@@ -270,7 +298,7 @@ namespace Lute.Building
 
 			var assignable = _tasks.Values
 				.Where( t => t.Status == TaskStatus.Pending && t.AssignedBuilder == -1 && !locked.Contains( t.Id ) )
-				.OrderByDescending( t => t.EstimatedPieces )
+				.OrderBy( t => t.Grid8 ?? "" )
 				.ThenBy( t => t.Id )
 				.ToList();
 
@@ -304,10 +332,25 @@ namespace Lute.Building
 			// We try each candidate until one reserves successfully, so a
 			// spatial reservation conflict on one task doesn't block the
 			// builder from working on a different task.
+			// Spatial ordering: prefer tasks near the builder's last completed
+			// task so the builder works on contiguous wall segments instead of
+			// jumping around. Fall back to Grid8 then Id for determinism.
+			Vector3? lastPos = null;
+			if ( _builders.TryGetValue( builderId, out var bs ) && !string.IsNullOrEmpty( bs.LastCompletedTaskId ) )
+			{
+				var lastTask = GetTask( bs.LastCompletedTaskId );
+				if ( lastTask?.BuildTask != null )
+					lastPos = lastTask.BuildTask.Position;
+			}
+
 			var candidates = _tasks.Values
 				.Where( t => t.AssignedBuilder == builderId &&
 					t.Status == TaskStatus.Pending && t.DependenciesSatisfied && t.PreconditionsSatisfied )
-				.OrderBy( t => t.Id )
+				.OrderBy( t => lastPos.HasValue
+					? ( t.BuildTask != null ? ( t.BuildTask.Position - lastPos.Value ).LengthSquared : float.MaxValue )
+					: 0f )
+				.ThenBy( t => t.Grid8 ?? "" )
+				.ThenBy( t => t.Id )
 				.ToList();
 
 			// Add stealable tasks from other builders.
@@ -439,7 +482,10 @@ namespace Lute.Building
 			if ( t.BuildTask != null )
 				t.PiecesPlaced = Math.Max( t.PiecesPlaced, t.BuildTask.PiecesPlaced );
 			if ( t.AssignedBuilder >= 0 && _builders.TryGetValue( t.AssignedBuilder, out var b ) )
+			{
 				b.CurrentTaskId = null;
+				b.LastCompletedTaskId = t.Id;
+			}
 
 			ReservationManager.Release( t );
 			ConstructionEventBus.Fire( ConstructionEventType.TaskCompleted,
