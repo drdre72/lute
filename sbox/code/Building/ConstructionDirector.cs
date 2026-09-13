@@ -53,6 +53,25 @@ namespace Lute.Building
 		public List<string> Conflicts { get; set; } = new();
 
 		/// <summary>
+		/// Material requirements for this task. When set, the task
+		/// cannot start (claim proceeds but execution is gated) until
+		/// all requirements are satisfied via <see cref="LogisticsBoard"/>
+		/// deliveries. Null = no material requirements (backward
+		/// compatibility with existing tasks).
+		/// </summary>
+		public List<MaterialRequirement> MaterialRequirements { get; set; }
+
+		/// <summary>
+		/// True when all material requirements are satisfied (or there
+		/// are none). Distinct from <see cref="DependenciesSatisfied"/>
+		/// (task prerequisites) and <see cref="PreconditionsSatisfied"/>
+		/// (spatial preconditions).
+		/// </summary>
+		public bool MaterialsSatisfied =>
+			MaterialRequirements == null ||
+			MaterialRequirements.All( r => r.Satisfied );
+
+		/// <summary>
 		/// 8-digit spatial grid key (XXXXYYYY) for contiguous wall assignment.
 		/// Computed from the build task position. Used to order tasks so
 		/// builders work on adjacent wall segments instead of jumping around.
@@ -120,6 +139,16 @@ namespace Lute.Building
 		static readonly Dictionary<string, List<string>> _dependents = new();
 		static int _nextTaskSeq;
 
+		/// <summary>
+		/// When true, <see cref="ClaimNextTask"/> will only claim tasks
+		/// whose <see cref="DirectedTask.MaterialsSatisfied"/> is true.
+		/// Default false — material requirements are computed and
+		/// tracked but do not gate construction until hauler NPCs are
+		/// active and the logistics loop is proven. Flip to true when
+		/// the autonomous-town benchmark runs with haulers.
+		/// </summary>
+		public static bool EnforceMaterialGating { get; set; } = false;
+
 		public static void Reset()
 		{
 			ReservationManager.Reset();
@@ -129,6 +158,7 @@ namespace Lute.Building
 			_dependents.Clear();
 			_nextTaskSeq = 0;
 			WorldFactProvider.Reset();
+			LogisticsBoard.Clear();
 		}
 
 		/// <summary>
@@ -182,6 +212,62 @@ namespace Lute.Building
 			AssignTasks();
 		}
 
+		/// <summary>
+		/// Compute default material requirements for a task based on its
+		/// TaskType and estimated piece count. Masonry tasks (wall, gate,
+		/// road, well, chapel) need Brick; wooden tasks (cottage, shop,
+		/// tavern, storage) need Plank + Timber. Returns null for unknown
+		/// types or zero-piece tasks (backward compatibility — no
+		/// material gating).
+		/// </summary>
+		static List<MaterialRequirement> ComputeMaterialRequirements( DirectedTask dt )
+		{
+			if ( dt?.BuildTask == null || dt.EstimatedPieces <= 0 )
+				return null;
+
+			var taskType = dt.BuildTask.TaskType;
+			var pieces = dt.EstimatedPieces;
+
+			// Scale: roughly 1 material unit per 50 pieces (tunable)
+			int brickAmount = 0, plankAmount = 0, timberAmount = 0;
+
+			switch ( taskType )
+			{
+				case "wall":
+				case "gate":
+				case "road":
+				case "well":
+				case "chapel":
+				case "smithy":
+					brickAmount = Math.Max( 1, pieces / 50 );
+					break;
+				case "cottage":
+				case "shop":
+				case "tavern":
+				case "storage":
+				case "guardhouse":
+					plankAmount = Math.Max( 1, pieces / 60 );
+					timberAmount = Math.Max( 1, pieces / 200 );
+					break;
+				case "market_square":
+					// Market is mostly ground work — minimal materials
+					brickAmount = Math.Max( 1, pieces / 100 );
+					break;
+				default:
+					return null; // unknown type = no requirements
+			}
+
+			var reqs = new List<MaterialRequirement>();
+			if ( brickAmount > 0 )
+				reqs.Add( new MaterialRequirement { Type = ResourceType.Brick, Amount = brickAmount } );
+			if ( plankAmount > 0 )
+				reqs.Add( new MaterialRequirement { Type = ResourceType.Plank, Amount = plankAmount } );
+			if ( timberAmount > 0 )
+				reqs.Add( new MaterialRequirement { Type = ResourceType.Timber, Amount = timberAmount } );
+
+			return reqs.Count > 0 ? reqs : null;
+		}
+
 		public static string RegisterTask( VillageBuildTask buildTask,
 			List<string> dependsOn = null, string blueprintId = null )
 		{
@@ -200,6 +286,14 @@ namespace Lute.Building
 				// entry is made pending because runtime reservations do not survive reload.
 				Status = buildTask?.Status == 2 ? TaskStatus.Complete : TaskStatus.Pending,
 			};
+
+			// Assign default material requirements based on task type.
+			// This connects the construction pipeline to the resource
+			// loop — tasks need materials, LogisticsBoard creates haul
+			// jobs to supply them. Null = no requirements (backward
+			// compatibility for tasks without a known type).
+			dt.MaterialRequirements = ComputeMaterialRequirements( dt );
+
 			_tasks[id] = dt;
 
 			if ( dependsOn != null )
@@ -446,6 +540,12 @@ namespace Lute.Building
 				t.BuildTask == null ||
 				CapabilityRegistry.CanPerformTask( builderCaps, t.BuildTask.TaskType );
 
+			// Material gating: when EnforceMaterialGating is true, only
+			// claim tasks whose material requirements are satisfied.
+			// Default false — existing builds continue without haulers.
+			bool MaterialsOk( DirectedTask t ) =>
+				!EnforceMaterialGating || t.MaterialsSatisfied;
+
 			// Build a candidate list: tasks assigned to this builder first,
 			// then stealable tasks from other builders, then unassigned tasks.
 			// We try each candidate until one reserves successfully, so a
@@ -470,7 +570,7 @@ namespace Lute.Building
 			var candidates = _tasks.Values
 				.Where( t => t.AssignedBuilder == builderId &&
 					t.Status == TaskStatus.Pending && t.DependenciesSatisfied && t.PreconditionsSatisfied &&
-					CanPerform( t ) )
+					CanPerform( t ) && MaterialsOk( t ) )
 				.OrderBy( t =>
 				{
 					// Same wall line as last task = 0, different = 1
@@ -497,7 +597,7 @@ namespace Lute.Building
 			foreach ( var t in _tasks.Values
 				.Where( t => t.AssignedBuilder != builderId && t.AssignedBuilder >= 0 &&
 					t.Status == TaskStatus.Pending && t.DependenciesSatisfied && t.PreconditionsSatisfied &&
-					CanPerform( t ) )
+					CanPerform( t ) && MaterialsOk( t ) )
 				.OrderBy( t =>
 				{
 					string thisLine = t.BuildTask != null ? ExtractWallLine( t.BuildTask.Name ) : null;
@@ -513,7 +613,7 @@ namespace Lute.Building
 			foreach ( var t in _tasks.Values
 				.Where( t => t.AssignedBuilder == -1 &&
 					t.Status == TaskStatus.Pending && t.DependenciesSatisfied && t.PreconditionsSatisfied &&
-					CanPerform( t ) )
+					CanPerform( t ) && MaterialsOk( t ) )
 				.OrderBy( t =>
 				{
 					string thisLine = t.BuildTask != null ? ExtractWallLine( t.BuildTask.Name ) : null;
