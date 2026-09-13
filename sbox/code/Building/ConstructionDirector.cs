@@ -277,12 +277,40 @@ namespace Lute.Building
 				var pending = _tasks.Values
 					.Where( t => t.AssignedBuilder == b.BuilderId &&
 						t.Status == TaskStatus.Pending && !locked.Contains( t.Id ) )
+					.ToList();
+
+				// Group pending tasks by wall line so we release entire wall
+				// lines at a time, keeping wall-line groups intact.
+				var rebalanceWallGroups = pending
+					.Where( t => t.BuildTask != null && t.BuildTask.Name.StartsWith( "Wall_" ) )
+					.GroupBy( t => ExtractWallLine( t.BuildTask.Name ) ?? "Wall_?" )
+					.OrderBy( g => g.Key )
+					.ToList();
+
+				var nonWall = pending
+					.Where( t => t.BuildTask == null || !t.BuildTask.Name.StartsWith( "Wall_" ) )
 					.OrderBy( t => t.Grid8 ?? "" )
 					.ThenBy( t => t.Id )
 					.ToList();
 
 				int kept = load[b.BuilderId];
-				foreach ( var t in pending )
+				// Release entire wall line groups first (biggest groups first
+				// to minimize the number of groups released).
+				foreach ( var group in rebalanceWallGroups.OrderByDescending( g => g.Sum( t => t.EstimatedPieces ) ) )
+				{
+					if ( kept <= avgPerBuilder ) break;
+					int groupPieces = group.Sum( t => t.EstimatedPieces );
+					if ( kept - groupPieces >= 0 || kept > avgPerBuilder )
+				{
+						foreach ( var t in group )
+						{
+							t.AssignedBuilder = -1;
+						}
+						kept -= groupPieces;
+				}
+				}
+				// Release non-wall tasks individually.
+				foreach ( var t in nonWall )
 				{
 					if ( kept <= avgPerBuilder ) break;
 					t.AssignedBuilder = -1;
@@ -298,11 +326,40 @@ namespace Lute.Building
 
 			var assignable = _tasks.Values
 				.Where( t => t.Status == TaskStatus.Pending && t.AssignedBuilder == -1 && !locked.Contains( t.Id ) )
+				.ToList();
+
+			// Group assignable wall tasks by wall line (Wall_N, Wall_E, Wall_S, Wall_W)
+			// so each builder gets entire wall lines instead of scattered segments.
+			// Non-wall tasks are assigned individually by load.
+			var wallGroups = assignable
+				.Where( t => t.BuildTask != null && t.BuildTask.Name.StartsWith( "Wall_" ) )
+				.GroupBy( t => ExtractWallLine( t.BuildTask.Name ) ?? "Wall_?" )
+				.OrderBy( g => g.Key )
+				.ToList();
+
+			var nonWallTasks = assignable
+				.Where( t => t.BuildTask == null || !t.BuildTask.Name.StartsWith( "Wall_" ) )
 				.OrderBy( t => t.Grid8 ?? "" )
 				.ThenBy( t => t.Id )
 				.ToList();
 
-			foreach ( var t in assignable )
+			// Assign entire wall line groups to the least-loaded builder.
+			foreach ( var group in wallGroups )
+			{
+				int groupPieces = group.Sum( t => t.EstimatedPieces );
+				int target = load.OrderBy( kvp => kvp.Value ).ThenBy( kvp => kvp.Key ).First().Key;
+				foreach ( var t in group )
+				{
+					t.AssignedBuilder = target;
+					ConstructionEventBus.Fire( ConstructionEventType.TaskAssigned,
+						taskId: t.Id,
+						target: _builders.TryGetValue( target, out var b ) ? b.NpcName : target.ToString() );
+				}
+				load[target] += groupPieces;
+			}
+
+			// Assign non-wall tasks by load balancing.
+			foreach ( var t in nonWallTasks )
 			{
 				int target = load.OrderBy( kvp => kvp.Value ).ThenBy( kvp => kvp.Key ).First().Key;
 				t.AssignedBuilder = target;
@@ -332,42 +389,72 @@ namespace Lute.Building
 			// We try each candidate until one reserves successfully, so a
 			// spatial reservation conflict on one task doesn't block the
 			// builder from working on a different task.
-			// Spatial ordering: prefer tasks near the builder's last completed
-			// task so the builder works on contiguous wall segments instead of
-			// jumping around. Fall back to Grid8 then Id for determinism.
+			// Wall-line affinity: prefer tasks on the same wall line as the
+			// builder's last completed task so the builder finishes one wall
+			// line before moving to the next. This ensures both walls at a
+			// corner get built, enabling corner topology validation.
+			string lastWallLine = null;
 			Vector3? lastPos = null;
 			if ( _builders.TryGetValue( builderId, out var bs ) && !string.IsNullOrEmpty( bs.LastCompletedTaskId ) )
 			{
 				var lastTask = GetTask( bs.LastCompletedTaskId );
 				if ( lastTask?.BuildTask != null )
+				{
 					lastPos = lastTask.BuildTask.Position;
+					lastWallLine = ExtractWallLine( lastTask.BuildTask.Name );
+				}
 			}
 
 			var candidates = _tasks.Values
 				.Where( t => t.AssignedBuilder == builderId &&
 					t.Status == TaskStatus.Pending && t.DependenciesSatisfied && t.PreconditionsSatisfied )
-				.OrderBy( t => lastPos.HasValue
-					? ( t.BuildTask != null ? ( t.BuildTask.Position - lastPos.Value ).LengthSquared : float.MaxValue )
-					: 0f )
+				.OrderBy( t =>
+				{
+					// Same wall line as last task = 0, different = 1
+					string thisLine = t.BuildTask != null ? ExtractWallLine( t.BuildTask.Name ) : null;
+					return ( lastWallLine != null && thisLine == lastWallLine ) ? 0 : 1;
+				} )
+				.ThenBy( t =>
+				{
+					// Within the same wall line, order by segment index ascending
+					// so the builder starts from index 0 and works to the end.
+					string thisLine = t.BuildTask != null ? ExtractWallLine( t.BuildTask.Name ) : null;
+					if ( lastWallLine != null && thisLine == lastWallLine )
+					{
+						int segIdx = ExtractWallSegmentIndex( t.BuildTask?.Name ?? "" );
+						return segIdx >= 0 ? segIdx : 99999;
+					}
+					return 99999;
+				} )
 				.ThenBy( t => t.Grid8 ?? "" )
 				.ThenBy( t => t.Id )
 				.ToList();
 
-			// Add stealable tasks from other builders.
+			// Add stealable tasks from other builders, preferring same wall line.
 			foreach ( var t in _tasks.Values
 				.Where( t => t.AssignedBuilder != builderId && t.AssignedBuilder >= 0 &&
 					t.Status == TaskStatus.Pending && t.DependenciesSatisfied && t.PreconditionsSatisfied )
-				.OrderBy( t => t.EstimatedPieces ).ThenBy( t => t.Id ) )
+				.OrderBy( t =>
+				{
+					string thisLine = t.BuildTask != null ? ExtractWallLine( t.BuildTask.Name ) : null;
+					return ( lastWallLine != null && thisLine == lastWallLine ) ? 0 : 1;
+				} )
+				.ThenBy( t => t.EstimatedPieces ).ThenBy( t => t.Id ) )
 			{
 				if ( !candidates.Contains( t ) )
 					candidates.Add( t );
 			}
 
-			// Add unassigned tasks.
+			// Add unassigned tasks, preferring same wall line.
 			foreach ( var t in _tasks.Values
 				.Where( t => t.AssignedBuilder == -1 &&
 					t.Status == TaskStatus.Pending && t.DependenciesSatisfied && t.PreconditionsSatisfied )
-				.OrderBy( t => t.Id ) )
+				.OrderBy( t =>
+				{
+					string thisLine = t.BuildTask != null ? ExtractWallLine( t.BuildTask.Name ) : null;
+					return ( lastWallLine != null && thisLine == lastWallLine ) ? 0 : 1;
+				} )
+				.ThenBy( t => t.Id ) )
 			{
 				if ( !candidates.Contains( t ) )
 					candidates.Add( t );
@@ -393,6 +480,35 @@ namespace Lute.Building
 			}
 
 			return null;
+		}
+
+		/// <summary>
+		/// Extract the wall line prefix from a task name (e.g. "Wall_E_105" -> "Wall_E").
+		/// Returns null for non-wall tasks.
+		/// </summary>
+		static string ExtractWallLine( string name )
+		{
+			if ( string.IsNullOrEmpty( name ) ) return null;
+			if ( !name.StartsWith( "Wall_" ) ) return null;
+			// Format: Wall_N_0, Wall_E_105, Wall_S_8, Wall_W_139
+			var parts = name.Split( '_' );
+			if ( parts.Length >= 2 )
+				return $"{parts[0]}_{parts[1]}";
+			return name;
+		}
+
+		/// <summary>
+		/// Extract the segment index from a wall task name (e.g. "Wall_E_105" -> 105).
+		/// Returns -1 for non-wall tasks.
+		/// </summary>
+		static int ExtractWallSegmentIndex( string name )
+		{
+			if ( string.IsNullOrEmpty( name ) ) return -1;
+			if ( !name.StartsWith( "Wall_" ) ) return -1;
+			var parts = name.Split( '_' );
+			if ( parts.Length >= 3 && int.TryParse( parts[2], out int idx ) )
+				return idx;
+			return -1;
 		}
 
 		/// <summary>
