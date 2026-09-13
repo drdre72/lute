@@ -38,6 +38,11 @@ public sealed class LuteGame : Component
 			_ = GenerateNavMeshAsync();
 		}
 
+		// Initialize the junction resolver registry (corners, gates,
+		// doorways, floor/wall, roof/wall, etc.). Each junction type
+		// registers its resolver here.
+		Lute.Building.JunctionResolverInit.Initialize();
+
 		// Build the Sanctuary Realm (Temple of Time).
 		var world = Components.GetOrCreate<LuteWorld>();
 		var sanctuary = world.Build();
