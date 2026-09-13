@@ -731,29 +731,20 @@ namespace Lute.Building
 			// 2=odd. CornerButtSide: 0=none, 1=left, 2=right.
 			bool ShouldButt( bool isLeftEdge, bool isRightEdge, int row )
 			{
-				if ( task.CornerButtCourses == 0 || task.CornerButtSide == 0 )
+				if ( task.CornerButtSide == 0 )
 					return false;
-				bool isOdd = (row % 2 == 1);
-				bool buttOnOdd = task.CornerButtCourses == 2;
-				bool courseButts = isOdd == buttOnOdd;
-				if ( !courseButts ) return false;
 				if ( task.CornerButtSide == 1 && isLeftEdge ) return true;
 				if ( task.CornerButtSide == 2 && isRightEdge ) return true;
 				return false;
 			}
 
 			// On odd courses with left butt, the first full stretcher (col=1)
-			// also overlaps the corner core and must be skipped, just like the
-			// left half-brick. This mirrors the reference test's right-side
-			// behavior where both the last full stretcher and right half-brick
-			// are skipped.
+			// also overlaps the corner core and must be skipped. With the
+			// shared assembly owning the 2x2 core on every course, this skip
+			// applies to ALL courses, not just odd ones.
 			bool ShouldButtLeftFull( int col, int row )
 			{
 				if ( task.CornerButtSide != 1 ) return false;
-				bool isOdd = (row % 2 == 1);
-				bool buttOnOdd = task.CornerButtCourses == 2;
-				bool courseButts = isOdd == buttOnOdd;
-				if ( !courseButts ) return false;
 				return col == 1; // first full stretcher after left half-brick
 			}
 
@@ -875,6 +866,77 @@ namespace Lute.Building
 				: BrickSlot.Stretcher( col, wythe, row ) );
 		}
 
+		// Deterministic corner-assembly ownership: exactly one wall of
+		// the perpendicular pair emits the shared 2x2 core. The owner is
+		// the wall whose name sorts first under ordinal comparison. This is
+		// a deterministic, concurrency-safe tie-break (both walls compute
+		// the same owner without communication). TODO: replace with
+		// ReservationManager.TryClaim for first-class task tracking.
+		bool OwnsCornerAssembly( VillageBuildTask wall )
+		{
+			if ( wall.CornerButtSide == 0 ) return false;
+			var nonOwner = FindPerpendicularWall( wall );
+			if ( nonOwner == null ) return true; // no partner — own it
+			return string.CompareOrdinal( wall.Name, nonOwner.Name ) <= 0;
+		}
+
+		VillageBuildTask FindPerpendicularWall( VillageBuildTask wall )
+		{
+			float bestDist = float.MaxValue;
+			VillageBuildTask best = null;
+			foreach ( var other in Tasks )
+			{
+				if ( other == wall || other.TaskType != "wall" ) continue;
+				float rotDiff = MathF.Abs( MathF.Abs( other.Rotation - wall.Rotation ) - 90f );
+				if ( rotDiff > 1f ) continue;
+				float d = Vector3.DistanceBetween( wall.Position, other.Position );
+				if ( d < bestDist ) { bestDist = d; best = other; }
+			}
+			return best;
+		}
+
+		// Build the shared corner assembly: 2 full bricks per course
+		// covering the 2x2 cell core (0.25m x 0.25m). Orientation alternates
+		// A/B by course parity. Uses CornerBondResolver.TryResolveCorner
+		// for the geometry, so wall centerlines stay canonical.
+		void BuildCornerAssembly( VillageBuildTask wall, int modulesX, int numRows, float groundZ )
+		{
+			var nonOwner = FindPerpendicularWall( wall );
+			if ( nonOwner == null )
+			{
+				Log.Warning( $"Lute: BuildCornerAssembly('{wall.Name}') — no perpendicular wall found." );
+				return;
+			}
+
+			// Wall A/B ordering for the resolver: A = the owner (this wall).
+			var wallA = wall;
+			var wallB = nonOwner;
+			string cornerId = $"corner_{wallA.Name}_{wallB.Name}";
+
+			for ( int course = 0; course < numRows; course++ )
+			{
+				var plan = CornerBondResolver.TryResolveCorner( wallA, wallB, course, cornerId );
+				if ( plan == null )
+				{
+					Log.Warning( $"Lute: BuildCornerAssembly('{wall.Name}') course={course} — resolver returned null." );
+					continue;
+				}
+
+				float z = groundZ + course * BrickModuleZ;
+				foreach ( var placement in plan.Placements )
+				{
+					var center = placement.WorldCenter;
+					center.z = z;
+					SpawnBox( center, placement.WorldSize,
+						WallMaterial, true, _villageRoot, placement.WorldYaw * 180f / MathF.PI,
+						PieceAnchor.Base, placement.Slot.Form, placement.Slot.Orientation );
+					_totalPiecesPlaced++;
+					wall.PlacedBricks.Add( placement.Slot );
+				}
+			}
+			Log.Info( $"Lute: BuildCornerAssembly('{wall.Name}') emitted {numRows} courses x 2 bricks = {numRows * 2} corner bricks (cornerId={cornerId})." );
+		}
+
 			// Count how many bricks will be skipped for correct TotalPieces.
 			int skipCount = 0;
 			for ( int row = 0; row < numRows; row++ )
@@ -913,23 +975,11 @@ namespace Lute.Building
 						if ( !buttLeftHalf && brickIdx >= task.PiecesPlaced )
 						{
 							var pos = RotateLocal( new Vector3( lx, yCenter, z ) );
-							// Corner bond: header on owner courses at left corner.
-							bool placeHeaderLeft = IsCornerOwnerCourse( row ) && task.CornerButtSide == 1;
-							if ( placeHeaderLeft )
-							{
-								// Junction-based corner frame: one header per owner course.
-								// The header is placed in the corner frame, not the wall grid.
-								if ( !PlaceCornerHeader( row, z, BrickForm.Half, 0, wythe ) )
-									PlaceCornerFallback( pos, brickLen * 0.5f, brickDepth, brickH, BrickForm.Half, 0, wythe, row );
-							}
-							else
-							{
-								SpawnBox( pos, new Vector3( brickLen * 0.5f, brickDepth, brickH ),
-									WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base );
-								task.PiecesPlaced = brickIdx + 1;
-								_totalPiecesPlaced++;
-								task.PlacedBricks.Add( BrickSlot.HalfStretcher( 0, wythe, row ) );
-							}
+							SpawnBox( pos, new Vector3( brickLen * 0.5f, brickDepth, brickH ),
+								WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base );
+							task.PiecesPlaced = brickIdx + 1;
+							_totalPiecesPlaced++;
+							task.PlacedBricks.Add( BrickSlot.HalfStretcher( 0, wythe, row ) );
 						}
 						brickIdx++;
 						ElapsedTime += BuildInterval;
@@ -975,22 +1025,11 @@ namespace Lute.Building
 							if ( !buttRightHalf && brickIdx >= task.PiecesPlaced )
 							{
 								var pos = RotateLocal( new Vector3( rx, yCenter, z ) );
-								// Corner bond: header on owner courses at right corner.
-								bool placeHeaderRight = IsCornerOwnerCourse( row ) && task.CornerButtSide == 2;
-								if ( placeHeaderRight )
-								{
-									// Junction-based corner frame: one header per owner course.
-									if ( !PlaceCornerHeader( row, z, BrickForm.Half, modulesX, wythe ) )
-										PlaceCornerFallback( pos, brickLen * 0.5f, brickDepth, brickH, BrickForm.Half, modulesX, wythe, row );
-								}
-								else
-								{
-									SpawnBox( pos, new Vector3( brickLen * 0.5f, brickDepth, brickH ),
-										WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base );
-									task.PiecesPlaced = brickIdx + 1;
-									_totalPiecesPlaced++;
-									task.PlacedBricks.Add( BrickSlot.HalfStretcher( modulesX, wythe, row ) );
-								}
+								SpawnBox( pos, new Vector3( brickLen * 0.5f, brickDepth, brickH ),
+									WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base );
+								task.PiecesPlaced = brickIdx + 1;
+								_totalPiecesPlaced++;
+								task.PlacedBricks.Add( BrickSlot.HalfStretcher( modulesX, wythe, row ) );
 							}
 							brickIdx++;
 							ElapsedTime += BuildInterval;
@@ -1018,27 +1057,12 @@ namespace Lute.Building
 							if ( brickIdx >= task.PiecesPlaced )
 							{
 								var pos = RotateLocal( new Vector3( x, yCenter, z ) );
-								// Corner bond: on owner courses, place a header brick
-								// (long axis perpendicular to wall) at the corner column
-								// to interlock across the joint. This is the
-								// CornerBondResolver.HeaderBond pattern.
-								bool placeHeader = IsCornerOwnerCourse( row )
-									&& IsCornerColumn( col, isLeft, isRight );
-								if ( placeHeader )
-								{
-									// Junction-based corner frame: one header per owner course.
-									if ( !PlaceCornerHeader( row, z, BrickForm.Full, col, wythe ) )
-										PlaceCornerFallback( pos, brickLen, brickDepth, brickH, BrickForm.Full, col, wythe, row );
-								}
-								else
-								{
-									SpawnBox( pos, new Vector3( brickLen, brickDepth, brickH ),
-										WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base,
-										BrickForm.Full, BrickOrientation.Stretcher );
-									task.PiecesPlaced = brickIdx + 1;
-									_totalPiecesPlaced++;
-									task.PlacedBricks.Add( BrickSlot.Stretcher( col, wythe, row ) );
-								}
+								SpawnBox( pos, new Vector3( brickLen, brickDepth, brickH ),
+									WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base,
+									BrickForm.Full, BrickOrientation.Stretcher );
+								task.PiecesPlaced = brickIdx + 1;
+								_totalPiecesPlaced++;
+								task.PlacedBricks.Add( BrickSlot.Stretcher( col, wythe, row ) );
 							}
 							brickIdx++;
 							ElapsedTime += BuildInterval;
@@ -1068,6 +1092,16 @@ namespace Lute.Building
 			{
 				task.WallState = WallSegmentState.BrickLaying;
 				Log.Warning( $"Lute: Wall segment '{task.Name}' pieces incomplete: placed={task.PiecesPlaced} total={totalBricks}." );
+			}
+
+			// Shared corner assembly: emit the 2-brick 2x2 cell core for
+			// every course of this wall's corner. Only one wall of the pair
+			// emits the assembly (deterministic ownership via name compare);
+			// the other wall skips its corner column (ShouldButt) and relies
+			// on the owner's assembly to fill the shared core.
+			if ( task.CornerButtSide != 0 && OwnsCornerAssembly( task ) )
+			{
+				BuildCornerAssembly( task, modulesX, numRows, groundZ );
 			}
 
 			// Segment-level collider: one BoxCollider sized to the wall's

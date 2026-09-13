@@ -5,6 +5,77 @@ using Sandbox;
 namespace Lute.Building
 {
 	/// <summary>
+	/// One cell of the shared 2x2 corner core, in module coordinates relative
+	/// to the junction. U runs along Wall A's length axis, V runs along Wall
+	/// B's length axis. Each cell is BrickModuleX (0.25m) on a side.
+	/// </summary>
+	public readonly struct CornerCell : IEquatable<CornerCell>
+	{
+		public readonly int U;
+		public readonly int V;
+		public readonly int Course;
+
+		public CornerCell( int u, int v, int course )
+		{
+			U = u; V = v; Course = course;
+		}
+
+		public bool Equals( CornerCell other ) => U == other.U && V == other.V && Course == other.Course;
+		public override bool Equals( object o ) => o is CornerCell c && Equals( c );
+		public override int GetHashCode() => (U * 31 + V) * 31 + Course;
+		public override string ToString() => $"CornerCell(u={U} v={V} course={Course})";
+		public static bool operator ==( CornerCell a, CornerCell b ) => a.Equals( b );
+		public static bool operator !=( CornerCell a, CornerCell b ) => !a.Equals( b );
+	}
+
+	/// <summary>
+	/// One concrete brick placement inside the shared corner core. Records
+	/// the actual world transform (not just a logical BrickSlot tag) so the
+	/// validator can compare rendered geometry against the cell model.
+	/// </summary>
+	public readonly struct CornerBrickPlacement
+	{
+		public readonly BrickSlot Slot;
+		public readonly Vector3 WorldCenter;
+		public readonly float WorldYaw;
+		public readonly Vector3 WorldSize;
+		public readonly CornerCell[] OccupiedCells;
+
+		public CornerBrickPlacement(
+			BrickSlot slot, Vector3 worldCenter, float worldYaw,
+			Vector3 worldSize, CornerCell[] occupiedCells )
+		{
+			Slot = slot;
+			WorldCenter = worldCenter;
+			WorldYaw = worldYaw;
+			WorldSize = worldSize;
+			OccupiedCells = occupiedCells;
+		}
+
+		public override string ToString()
+			=> $"CornerBrick(slot={Slot} center={WorldCenter} yaw={WorldYaw:F1} size={WorldSize} cells={OccupiedCells?.Length ?? 0})";
+	}
+
+	/// <summary>
+	/// Authoritative plan for one course of the shared corner assembly.
+	/// Two ordinary full bricks cover the 2x2 cell core; their long axes
+	/// alternate between Wall A (even courses) and Wall B (odd courses).
+	/// </summary>
+	public sealed class CornerAssemblyPlan
+	{
+		public string CornerId { get; init; }
+		public VillageBuildTask WallA { get; init; }
+		public VillageBuildTask WallB { get; init; }
+		public Vector3 Junction { get; init; }
+		public Vector3 InwardA { get; init; }
+		public Vector3 InwardB { get; init; }
+		public int Course { get; init; }
+		public IReadOnlyList<CornerBrickPlacement> Placements { get; init; }
+		/// <summary>True when this course's bricks align with Wall A; false for Wall B.</summary>
+		public bool AlignsWithA => (Course & 1) == 0;
+	}
+
+	/// <summary>
 	/// A corner bond goal handed to the builder. This is a *goal*, not a
 	/// per-brick instruction: the builder receives the pattern and required
 	/// bond depth, and places the concrete BrickSlots from
@@ -126,6 +197,195 @@ namespace Lute.Building
 		/// crossing the joint achieves exactly this.
 		/// </summary>
 		public const float DefaultRequiredBondDepth = 0.25f;
+
+		/// <summary>
+		/// Resolve the shared corner assembly plan for one course. The
+		/// junction and inward vectors are derived from canonical wall
+		/// geometry — wall centerlines are NOT moved. Two ordinary full
+		/// bricks cover the 2x2 cell core (0.25m x 0.25m); their long axes
+		/// alternate between Wall A (even courses) and Wall B (odd courses).
+		///
+		/// Returns null if the two walls do not share a corner endpoint
+		/// within the standard endpoint tolerance (~2cm).
+		/// </summary>
+		public static CornerAssemblyPlan TryResolveCorner(
+			VillageBuildTask wallA, VillageBuildTask wallB,
+			int course, string cornerId = null )
+		{
+			if ( wallA is null || wallB is null ) return null;
+			if ( !TryGetJunctionAndInward( wallA, wallB,
+				out var junction, out var inwardA, out var inwardB ) )
+				return null;
+
+			var placements = PlacementsFor(
+				junction, inwardA, inwardB, course );
+
+			cornerId ??= $"corner_{wallA.Name}_{wallB.Name}";
+			return new CornerAssemblyPlan
+			{
+				CornerId = cornerId,
+				WallA = wallA,
+				WallB = wallB,
+				Junction = junction,
+				InwardA = inwardA,
+				InwardB = inwardB,
+				Course = course,
+				Placements = placements,
+			};
+		}
+
+		/// <summary>
+		/// Generate the two full-brick placements that cover the 2x2 cell
+		/// shared core for one course. The bricks are placed on the module
+		/// lattice using the body size for the rendered box, so the body
+		/// sits flush inside the module cell (no exterior overhang).
+		/// </summary>
+		public static IReadOnlyList<CornerBrickPlacement> PlacementsFor(
+			Vector3 junction, Vector3 inwardA, Vector3 inwardB, int course )
+		{
+			// The 2x2 core spans one module (BrickModuleX = 0.25m) along each
+			// wall's length direction, starting at the junction and extending
+			// inward. Two full bricks, each one module long, cover the core.
+			//
+			// Even course: bricks align with Wall A (long axis = inwardA).
+			//   Brick 0: cell row V=0, U=0..1
+			//   Brick 1: cell row V=1, U=0..1
+			// Odd course: bricks align with Wall B (long axis = inwardB).
+			//   Brick 0: cell col U=0, V=0..1
+			//   Brick 1: cell col U=1, V=0..1
+			//
+			// The bricks are offset from the junction by half a module so
+			// their near face sits exactly at the junction (no overhang),
+			// using the body size for the rendered box.
+
+			bool alignA = (course & 1) == 0;
+			var longAxis = alignA ? inwardA : inwardB;
+			var shortAxis = alignA ? inwardB : inwardA;
+
+			// Body size: a full brick is BrickModuleX long, BrickModuleY deep,
+			// BrickModuleZ tall. We use the module size for placement so the
+			// body sits inside the cell with no exterior overhang.
+			float brickLen = BrickModuleX;
+			float brickDepth = BrickModuleY;
+			float brickH = 0.0625f * M;
+			var worldSize = new Vector3( brickLen, brickDepth, brickH );
+
+			// Yaw so the box's +X axis points along longAxis.
+			float yaw = MathF.Atan2( longAxis.y, longAxis.x );
+
+			var result = new List<CornerBrickPlacement>( 2 );
+
+			// Both bricks span the full 2x2 core along the long axis (one
+			// module each, stacked along the short axis). Each brick covers
+			// one row of two cells.
+			for ( int i = 0; i < 2; i++ )
+			{
+				// Center: start at junction, move half a module along
+				// longAxis (so near face is at junction), then offset along
+				// shortAxis by (i + 0.5) modules.
+				var center = junction
+					+ longAxis * (brickLen * 0.5f)
+					+ shortAxis * (brickDepth * (i + 0.5f));
+
+				// Cells occupied: for alignA, U in {0,1}, V = i.
+				// For alignB (odd), V in {0,1}, U = i.
+				var cells = new CornerCell[2];
+				if ( alignA )
+				{
+					cells[0] = new CornerCell( 0, i, course );
+					cells[1] = new CornerCell( 1, i, course );
+				}
+				else
+				{
+					cells[0] = new CornerCell( i, 0, course );
+					cells[1] = new CornerCell( i, 1, course );
+				}
+
+				var slot = new BrickSlot(
+					/*col*/ alignA ? 0 : i,
+					/*wythe*/ alignA ? i : 0,
+					course,
+					BrickForm.Full, BrickOrientation.Stretcher );
+
+				result.Add( new CornerBrickPlacement(
+					slot, center, yaw, worldSize, cells ) );
+			}
+
+			return result;
+		}
+
+		/// <summary>
+		/// Derive the junction point and the two inward unit vectors from
+		/// the canonical wall geometry. Returns false if the two walls do
+		/// not share an endpoint within the endpoint tolerance (~2cm).
+		/// </summary>
+		static bool TryGetJunctionAndInward(
+			VillageBuildTask wallA, VillageBuildTask wallB,
+			out Vector3 junction, out Vector3 inwardA, out Vector3 inwardB )
+		{
+			junction = default;
+			inwardA = default;
+			inwardB = default;
+
+			// Rotation is yaw in degrees. Forward (in S&Box) is +X rotated by
+			// yaw around Z. Wall endpoints: Position (start) and
+			// Position + forward * WallSegmentLength (end).
+			static Vector3 ForwardOf( float yawDeg )
+			{
+				float r = yawDeg * MathF.PI / 180f;
+				return new Vector3( MathF.Cos( r ), MathF.Sin( r ), 0 );
+			}
+
+			// The junction is the intersection of the two wall centerlines,
+			// NOT a shared endpoint. Walls are perpendicular, so their
+			// centerlines (infinite lines through Position along Forward)
+			// intersect at exactly one point. This handles the case where
+			// wall Position is the start endpoint and the walls meet at
+			// their start corners (the typical Lute village layout).
+			//
+			// Wall A: point = a0 + t * fa,  Wall B: point = b0 + s * fb
+			// Solve: a0 + t*fa = b0 + s*fb  (perpendicular, so fa . fb = 0)
+			//   t = ((b0 - a0) . fa) / (fa . fa)
+			//   s = ((a0 - b0) . fb) / (fb . fb)
+			var a0 = wallA.Position;
+			var fa = ForwardOf( wallA.Rotation );
+			var b0 = wallB.Position;
+			var fb = ForwardOf( wallB.Rotation );
+
+			// Verify perpendicularity (within 1 degree).
+			float dot = Vector3.Dot( fa, fb );
+			if ( MathF.Abs( dot ) > 0.02f ) return false; // not perpendicular
+
+			float faLenSq = Vector3.Dot( fa, fa );
+			float fbLenSq = Vector3.Dot( fb, fb );
+			if ( faLenSq < 1e-6f || fbLenSq < 1e-6f ) return false;
+
+			float t = Vector3.Dot( b0 - a0, fa ) / faLenSq;
+			// float s = Vector3.Dot( a0 - b0, fb ) / fbLenSq;
+
+			junction = a0 + fa * t;
+			junction.z = 0;
+
+			// Inward = direction from the wall's far endpoint toward the
+			// junction. If the junction is past the wall's end, inward is
+			// along the wall; if before the start, inward is reversed.
+			var a1 = a0 + fa * WallSegmentLength;
+			inwardA = (junction - a1).Normal;
+			if ( Vector3.DistanceBetween( a0, junction ) <
+				Vector3.DistanceBetween( a1, junction ) )
+				inwardA = (junction - a0).Normal;
+
+			var b1 = b0 + fb * WallSegmentLength;
+			inwardB = (junction - b1).Normal;
+			if ( Vector3.DistanceBetween( b0, junction ) <
+				Vector3.DistanceBetween( b1, junction ) )
+				inwardB = (junction - b0).Normal;
+
+			// Flatten to XY (walls are horizontal).
+			inwardA = new Vector3( inwardA.x, inwardA.y, 0 ).Normal;
+			inwardB = new Vector3( inwardB.x, inwardB.y, 0 ).Normal;
+			return true;
+		}
 
 		/// <summary>
 		/// Choose the lowest-cost valid bond pattern for one course at a
