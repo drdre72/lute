@@ -20,41 +20,41 @@ namespace Lute.Building
 	public enum NpcCapability
 	{
 		/// <summary> No capabilities (default for unprofiled NPCs). </summary>
-		None,
+		None = 0,
 		/// <summary> Survey terrain, mark plots, validate placement. </summary>
-		Survey,
+		Survey = 1,
 		/// <summary> Mark a build plot / anchor. </summary>
-		MarkPlot,
+		MarkPlot = 2,
 		/// <summary> Gather wood from tree sources. </summary>
-		GatherWood,
+		GatherWood = 3,
 		/// <summary> Gather stone from quarry sources. </summary>
-		GatherStone,
+		GatherStone = 4,
 		/// <summary> Gather ore from mine sources. </summary>
-		GatherOre,
+		GatherOre = 5,
 		/// <summary> Gather clay/straw from deposits/fields. </summary>
-		GatherClay,
+		GatherClay = 6,
 		/// <summary> Haul materials between locations. </summary>
-		Haul,
+		Haul = 7,
 		/// <summary> Operate a sawmill / process timber. </summary>
-		OperateSawmill,
+		OperateSawmill = 8,
 		/// <summary> General carpentry / wooden structures. </summary>
-		Carpentry,
+		Carpentry = 9,
 		/// <summary> General masonry / brick + stone structures. </summary>
-		Masonry,
+		Masonry = 10,
 		/// <summary> Smithing / metal tools + fittings. </summary>
-		Smithing,
+		Smithing = 11,
 		/// <summary> Build wooden structures. </summary>
-		BuildWood,
+		BuildWood = 12,
 		/// <summary> Build masonry structures (walls, foundations). </summary>
-		BuildMasonry,
+		BuildMasonry = 13,
 		/// <summary> Repair tools. </summary>
-		RepairTool,
+		RepairTool = 14,
 		/// <summary> Manage a stockpile / storage. </summary>
-		ManageStockpile,
+		ManageStockpile = 15,
 		/// <summary> General construction (can build anything in the
 		/// current village task list — the default for VillageBuilder
 		/// NPCs that don't yet have a profession profile). </summary>
-		GeneralConstruction,
+		GeneralConstruction = 16,
 	}
 
 	/// <summary>

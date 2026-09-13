@@ -98,17 +98,22 @@ namespace Lute.Building
 			ConstructionDirector.EnforceMaterialGating = true;
 			Log.Info( $"Lute: Gate3Benchmark — EnforceMaterialGating = true" );
 
-			// For Test 3.1: pre-stock the stockpile with the exact
-			// materials a cottage needs (Plank x20, Timber x6, Brick x15).
+			// For Test 3.1: pre-stock the village stockpile (nearest to
+			// the build site) with enough materials for multiple cottages.
 			if ( Level == TestLevel.Test3_1_PreStocked )
 			{
-				var pile = ResourceRegistry.AllStockpiles().FirstOrDefault();
+				var pile = ResourceRegistry.AllStockpiles()
+					.FirstOrDefault( p => p.Id == "village_stockpile" )
+					?? ResourceRegistry.AllStockpiles()
+						.OrderBy( p => p.Position.Distance( Center ) )
+						.FirstOrDefault();
 				if ( pile != null )
 				{
-					pile.Deposit( ItemType.Plank, 20 );
-					pile.Deposit( ItemType.Timber, 6 );
-					pile.Deposit( ItemType.Brick, 15 );
-					Log.Info( $"Lute: Gate3Benchmark — pre-stocked {pile.Id} with Plank x20, Timber x6, Brick x15" );
+					// Enough for ~10 cottages (Plank x20, Timber x6, Brick x15 each).
+					pile.Deposit( ItemType.Plank, 200 );
+					pile.Deposit( ItemType.Timber, 60 );
+					pile.Deposit( ItemType.Brick, 150 );
+					Log.Info( $"Lute: Gate3Benchmark — pre-stocked {pile.Id} at {pile.Position} with Plank x200, Timber x60, Brick x150" );
 				}
 				else
 				{
@@ -119,13 +124,17 @@ namespace Lute.Building
 			// For Test 3.2: pre-stock raw materials for the crafter.
 			if ( Level == TestLevel.Test3_2_Crafter )
 			{
-				var pile = ResourceRegistry.AllStockpiles().FirstOrDefault();
+				var pile = ResourceRegistry.AllStockpiles()
+					.FirstOrDefault( p => p.Id == "village_stockpile" )
+					?? ResourceRegistry.AllStockpiles()
+						.OrderBy( p => p.Position.Distance( Center ) )
+						.FirstOrDefault();
 				if ( pile != null )
 				{
 					// Wood for planks/timber, Clay+Straw for bricks.
-					pile.Deposit( ItemType.Wood, 50 );
-					pile.Deposit( ItemType.Clay, 30 );
-					pile.Deposit( ItemType.Straw, 15 );
+					pile.Deposit( ItemType.Wood, 200 );
+					pile.Deposit( ItemType.Clay, 100 );
+					pile.Deposit( ItemType.Straw, 50 );
 					Log.Info( $"Lute: Gate3Benchmark — pre-stocked {pile.Id} with raw materials for crafting" );
 				}
 			}
@@ -141,6 +150,12 @@ namespace Lute.Building
 
 		void SupplyUnsatisfiedTasks()
 		{
+			// Don't create new jobs if there are already many pending —
+			// the hauler can't keep up and we'd flood the board.
+			int existingPending = LogisticsBoard.PendingCount;
+			if ( existingPending > 50 )
+				return;
+
 			int totalCreated = 0;
 			foreach ( var task in ConstructionDirector.AllTasks() )
 			{
@@ -153,6 +168,10 @@ namespace Lute.Building
 					totalCreated += created;
 					Log.Info( $"Lute: Gate3Benchmark — created {created} haul jobs for task '{task.Id}' ({task.BuildTask?.Name})." );
 				}
+
+				// Stop if we've created enough this cycle.
+				if ( totalCreated >= 10 )
+					break;
 			}
 
 			if ( totalCreated > 0 )

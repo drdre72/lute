@@ -71,7 +71,18 @@ public sealed class LuteInventory : Component
 
 	protected override void OnStart()
 	{
-		Slots = new InventorySlot[SlotCount];
+		EnsureSlots();
+	}
+
+	/// <summary>
+	/// Lazily initialize the Slots array. Safe to call multiple times.
+	/// Needed because Components.Create<LuteInventory>() does not
+	/// run OnStart() immediately, but ResourceBootstrap.Deposit() needs
+	/// the slots right away.
+	/// </summary>
+	void EnsureSlots()
+	{
+		Slots ??= new InventorySlot[SlotCount];
 	}
 
 	/// <summary>
@@ -79,6 +90,7 @@ public sealed class LuteInventory : Component
 	/// </summary>
 	public int AddItem( ItemType type, int count, int maxDurability = 0 )
 	{
+		EnsureSlots();
 		int maxStack = ItemDefs.GetMaxStack( type );
 
 		// First, try to stack into existing slots
@@ -115,6 +127,7 @@ public sealed class LuteInventory : Component
 	/// </summary>
 	public bool RemoveItem( ItemType type, int count )
 	{
+		EnsureSlots();
 		// Check if we have enough
 		if ( CountItem( type ) < count )
 			return false;
@@ -138,6 +151,7 @@ public sealed class LuteInventory : Component
 	/// </summary>
 	public int CountItem( ItemType type )
 	{
+		EnsureSlots();
 		int total = 0;
 		for ( int i = 0; i < SlotCount; i++ )
 		{
@@ -191,6 +205,7 @@ public sealed class LuteInventory : Component
 	/// </summary>
 	public int FindTool( ItemType toolType )
 	{
+		EnsureSlots();
 		for ( int i = 0; i < SlotCount; i++ )
 		{
 			if ( Slots[i].Type == toolType && Slots[i].Count > 0 && !Slots[i].IsBroken )

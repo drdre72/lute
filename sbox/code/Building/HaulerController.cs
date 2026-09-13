@@ -462,7 +462,13 @@ namespace Lute.Building
 			}
 
 			nav.MoveTo( target );
-			Controller.WishVelocity = nav.WishVelocity;
+			var wish = nav.WishVelocity;
+			// If NavMesh can't produce a useful velocity (agent off-mesh
+			// or no path), fall back to direct steering.
+			if ( wish.LengthSquared < 1f )
+				return false;
+
+			Controller.WishVelocity = wish;
 			_usingNavMesh = true;
 			return true;
 		}
