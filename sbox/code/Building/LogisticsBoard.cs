@@ -383,6 +383,16 @@ namespace Lute.Building
 				int needed = req.Amount - req.Delivered;
 				if ( needed <= 0 ) continue;
 
+				// Don't create duplicate jobs — skip if there's already
+				// a pending/assigned/in-progress job for this task+material.
+				bool hasPending = _jobs.Values.Any( j =>
+					j.ForTaskId == task.Id
+					&& j.ItemType == req.Type
+					&& ( j.Status == LogisticsJobStatus.Pending
+						 || j.Status == LogisticsJobStatus.Assigned
+						 || j.Status == LogisticsJobStatus.InProgress ) );
+				if ( hasPending ) continue;
+
 				// Find nearest source or stockpile with the resource
 				ResourceSource src = null;
 				Stockpile pile = null;
