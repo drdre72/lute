@@ -6,7 +6,7 @@
 		<AssemblyName>lute</AssemblyName>
 		<PackageId>lute</PackageId>
 		<LangVersion>14</LangVersion>
-		<NoWarn>1701;1702;1591;</NoWarn>
+		<NoWarn>1701;1702;1591;CA2007;CA2000</NoWarn>
 		<WarningsAsErrors></WarningsAsErrors>
 		<TreatWarningsAsErrors>False</TreatWarningsAsErrors>
 		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
