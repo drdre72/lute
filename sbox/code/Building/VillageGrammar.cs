@@ -125,7 +125,7 @@ namespace Lute.Building
 		private const float M = 39.37f; // units per meter
 
 		/// <summary> Half-width to outer face of the stone wall. </summary>
-		public float WallOuterHalfWidth { get; set; } = 17.5f * M;
+		public float WallOuterHalfWidth { get; set; } = 17f * M;
 
 		/// <summary> Wall height. </summary>
 		public float WallHeight { get; set; } = 4f * M;
@@ -317,6 +317,7 @@ namespace Lute.Building
 
 				task.CornerButtCourses = isNS ? 2 : 1;
 				task.CornerButtSide = isLeftSegment ? 1 : 2;
+				Log.Info( $"Lute: [corner_butt] {task.Name} rotation={task.Rotation} isNS={isNS} isLeft={isLeftSegment} isRight={isRightSegment} -> CornerButtCourses={task.CornerButtCourses} CornerButtSide={task.CornerButtSide}" );
 			}
 		}
 
