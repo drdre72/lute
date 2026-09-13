@@ -462,6 +462,24 @@ namespace Lute.Building
 
 			foreach ( var task in candidates )
 			{
+				// Ghost-placement validation: check if the structure can be placed
+				// without colliding with existing geometry before reserving.
+				if ( task.BuildTask != null )
+				{
+					var validation = ReservationManager.ValidatePlacement(
+						task.BuildTask.Position, task.BuildTask.Rotation,
+						task.BuildTask.TaskType, excludeTaskId: task.Id );
+					if ( !validation.IsValid )
+					{
+						Log.Info( $"Lute: ConstructionDirector placement validation failed for {task.Id} ({task.BuildTask?.Name}): {validation.Reason} blocked_by={validation.BlockingEntity} intersection={validation.IntersectionVolume:F1}" );
+						if ( validation.NearestValidPosition.HasValue )
+						{
+							Log.Info( $"  Nearest valid position: {validation.NearestValidPosition.Value}" );
+						}
+						continue;
+					}
+				}
+
 				var reservation = ReservationManager.TryAcquire( task, npcName );
 				if ( !reservation.Success )
 				{
