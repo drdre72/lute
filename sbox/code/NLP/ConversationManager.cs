@@ -217,10 +217,16 @@ namespace Lute.NLP
 						break;
 
 					case DecisionAction.Act:
-						// Take a physical action (the GoalAction system handles this)
-						Log.Info( $"[NLP] {npcName} acting: {decision.WorldAction}" );
-						// World actions are handled by the NPC's controller, not here.
-						// The decision is logged for the controller to pick up.
+						// Dispatch the world action through the typed action
+						// dispatcher. The dispatcher parses the action string
+						// into a typed request and routes it to the appropriate
+						// domain authority. Speech does not mutate the world
+						// directly — it submits a validated request.
+						if ( !string.IsNullOrEmpty( decision.WorldAction ) )
+						{
+							var actionResult = NpcActionDispatcher.Execute( decision.WorldAction, npcName );
+							Log.Info( $"[NLP] {npcName} acting: {decision.WorldAction} -> {actionResult}" );
+						}
 						break;
 
 					case DecisionAction.SpeakAndAct:
@@ -231,7 +237,11 @@ namespace Lute.NLP
 							Log.Info( $"[NLP] {npcName} → {msg.From}: \"{responseText}\" + action: {decision.WorldAction}" );
 							CommunicationBus.Post( npcName, msg.From, "nlp_reply", responseText );
 						}
-						Log.Info( $"[NLP] {npcName} acting: {decision.WorldAction}" );
+						if ( !string.IsNullOrEmpty( decision.WorldAction ) )
+						{
+							var actionResult = NpcActionDispatcher.Execute( decision.WorldAction, npcName );
+							Log.Info( $"[NLP] {npcName} acting: {decision.WorldAction} -> {actionResult}" );
+						}
 						break;
 
 					case DecisionAction.Defer:
