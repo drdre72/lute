@@ -886,6 +886,7 @@ namespace Lute.Building
 								var pos = RotateLocal( new Vector3( x, yCenter, z ) );
 								SpawnBox( pos, new Vector3( brickLen, brickDepth, brickH ),
 									WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base );
+								SpatialRegistry.Register( StructuralPlacement.ForWallBrick( pos, new Vector3( brickLen, brickDepth, brickH ), task.Rotation, task.Name, BrickSlot.Stretcher( col, wythe, row ), _totalPiecesPlaced ) );
 								task.PiecesPlaced = brickIdx + 1;
 								_totalPiecesPlaced++;
 								task.PlacedBricks.Add( BrickSlot.Stretcher( col, wythe, row ) );
@@ -905,6 +906,7 @@ namespace Lute.Building
 								var pos = RotateLocal( new Vector3( rx, yCenter, z ) );
 								SpawnBox( pos, new Vector3( brickLen * 0.5f, brickDepth, brickH ),
 									WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base );
+								SpatialRegistry.Register( StructuralPlacement.ForWallBrick( pos, new Vector3( brickLen * 0.5f, brickDepth, brickH ), task.Rotation, task.Name, BrickSlot.HalfStretcher( modulesX, wythe, row ), _totalPiecesPlaced ) );
 								task.PiecesPlaced = brickIdx + 1;
 								_totalPiecesPlaced++;
 								task.PlacedBricks.Add( BrickSlot.HalfStretcher( modulesX, wythe, row ) );
@@ -938,6 +940,7 @@ namespace Lute.Building
 								SpawnBox( pos, new Vector3( brickLen, brickDepth, brickH ),
 									WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base,
 									BrickForm.Full, BrickOrientation.Stretcher );
+								SpatialRegistry.Register( StructuralPlacement.ForWallBrick( pos, new Vector3( brickLen, brickDepth, brickH ), task.Rotation, task.Name, BrickSlot.Stretcher( col, wythe, row ), _totalPiecesPlaced ) );
 								task.PiecesPlaced = brickIdx + 1;
 								_totalPiecesPlaced++;
 								task.PlacedBricks.Add( BrickSlot.Stretcher( col, wythe, row ) );
