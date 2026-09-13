@@ -934,7 +934,8 @@ namespace Lute.Building
 					center.z = z;
 					SpawnBox( center, placement.WorldSize,
 						WallMaterial, true, _villageRoot, placement.WorldYaw * 180f / MathF.PI,
-						PieceAnchor.Base, placement.Slot.Form, placement.Slot.Orientation );
+						PieceAnchor.Base, placement.Slot.Form, placement.Slot.Orientation,
+						BrickModuleX * 2f );
 					_totalPiecesPlaced++;
 					wall.PlacedBricks.Add( placement.Slot );
 				}
@@ -1648,7 +1649,7 @@ namespace Lute.Building
 
 	// ── Helper: spawn a box mesh piece ──
 		void SpawnBox( Vector3 worldPos, Vector3 size, string materialPath, bool collides, GameObject parent, float yaw = 0f, PieceAnchor anchor = PieceAnchor.Center,
-		BrickForm form = BrickForm.Full, BrickOrientation orientation = BrickOrientation.Stretcher )
+		BrickForm form = BrickForm.Full, BrickOrientation orientation = BrickOrientation.Stretcher, float? overrideLength = null )
 		{
 			// Wall bricks are scaled to module size, so the anchor lift
 			// must use the module height (BrickModuleZ), not the body size.
@@ -1718,7 +1719,7 @@ namespace Lute.Building
 				var modelSize = renderer.Model.Bounds.Size;
 				if ( modelSize.x > 0 && modelSize.y > 0 && modelSize.z > 0 )
 				{
-					float length = form switch
+					float length = overrideLength ?? form switch
 					{
 						BrickForm.Half    => BrickModuleX * 0.5f,
 						BrickForm.Quarter => BrickModuleX * 0.25f,
