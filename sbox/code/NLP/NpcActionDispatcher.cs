@@ -190,12 +190,10 @@ namespace Lute.NLP
 					NpcActionVerb.CheckSafety => DispatchCheckSafety( request ),
 					NpcActionVerb.ConsiderSite => DispatchConsiderSite( request ),
 					NpcActionVerb.MoveTo => DispatchMoveTo( request ),
-					// Resource/logistics verbs route to future registries.
-					// Until those exist, return a deterministic "not yet
-					// available" rather than improvising.
-					NpcActionVerb.Deliver => NpcActionResult.Fail( "logistics board not yet implemented", "LogisticsBoard" ),
-					NpcActionVerb.ClaimResource => NpcActionResult.Fail( "resource registry not yet implemented", "ResourceRegistry" ),
-					NpcActionVerb.ReleaseResource => NpcActionResult.Fail( "resource registry not yet implemented", "ResourceRegistry" ),
+					// Resource/logistics verbs now route to ResourceRegistry.
+					NpcActionVerb.Deliver => DispatchDeliver( request ),
+					NpcActionVerb.ClaimResource => DispatchClaimResource( request ),
+					NpcActionVerb.ReleaseResource => DispatchReleaseResource( request ),
 					_ => NpcActionResult.Fail( $"unhandled verb: {request.Verb}" ),
 				};
 			}
@@ -286,6 +284,55 @@ namespace Lute.NLP
 			if ( !req.Position.HasValue )
 				return NpcActionResult.Fail( "move_to has no position", "NpcController" );
 			return NpcActionResult.Ok( "NpcController" );
+		}
+
+		static NpcActionResult DispatchClaimResource( NpcActionRequest req )
+		{
+			// ClaimResource: reserve space on a stockpile for a deposit,
+			// or reserve a withdrawal quantity. The subject is the
+			// resource type; the amount is optional (defaults to 1).
+			if ( !Enum.TryParse<ResourceType>( req.Subject, true, out var type ) || type == ResourceType.Unknown )
+				return NpcActionResult.Fail( $"unknown resource type: {req.Subject}", "ResourceRegistry" );
+
+			int amount = req.Amount ?? 1;
+			var (success, detail) = ResourceRegistry.ClaimResource( req.NpcName, type, amount, req.Position );
+			return success
+				? NpcActionResult.Ok( "ResourceRegistry" )
+				: NpcActionResult.Fail( detail, "ResourceRegistry" );
+		}
+
+		static NpcActionResult DispatchReleaseResource( NpcActionRequest req )
+		{
+			// ReleaseResource: release a previously claimed reservation.
+			int amount = req.Amount ?? 1;
+			var (success, detail) = ResourceRegistry.ReleaseResource( req.NpcName, amount );
+			return success
+				? NpcActionResult.Ok( "ResourceRegistry" )
+				: NpcActionResult.Fail( detail, "ResourceRegistry" );
+		}
+
+		static NpcActionResult DispatchDeliver( NpcActionRequest req )
+		{
+			// Deliver: deposit a resource into a stockpile. The subject
+			// is the resource type; the amount is optional. The NPC must
+			// have a reservation on the target stockpile (claimed via
+			// ClaimResource first). For now, we find the nearest
+			// stockpile with space and deposit there. The actual physical
+			// transport (NPC walking to the stockpile) is handled by the
+			// NPC controller, not here — this just records the deposit.
+			if ( !Enum.TryParse<ResourceType>( req.Subject, true, out var type ) || type == ResourceType.Unknown )
+				return NpcActionResult.Fail( $"unknown resource type: {req.Subject}", "ResourceRegistry" );
+
+			int amount = req.Amount ?? 1;
+			var pile = ResourceRegistry.NearestStockpileWithSpace( Vector3.Zero, amount );
+			if ( pile == null )
+				return NpcActionResult.Fail( "no stockpile with space", "ResourceRegistry" );
+
+			int deposited = pile.Deposit( type, amount );
+			if ( deposited <= 0 )
+				return NpcActionResult.Fail( $"deposit failed on {pile.Id}", "ResourceRegistry" );
+
+			return NpcActionResult.Ok( "ResourceRegistry" );
 		}
 
 		// ── Verb parsing ──

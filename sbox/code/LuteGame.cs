@@ -47,6 +47,10 @@ public sealed class LuteGame : Component
 		// is derived from capabilities, not role strings (PR #6 §3).
 		Lute.Building.CapabilityRegistry.InitializeDefaults();
 
+		// Spawn bootstrap resource sources and stockyard so the resource
+		// loop is testable with placeholder visuals (PR #6 §5, §17).
+		Lute.Building.ResourceBootstrap.Initialize( new Vector3( 5000, 5000, 0 ) );
+
 		// Build the Sanctuary Realm (Temple of Time).
 		var world = Components.GetOrCreate<LuteWorld>();
 		var sanctuary = world.Build();

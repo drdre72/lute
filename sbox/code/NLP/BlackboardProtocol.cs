@@ -125,17 +125,11 @@ namespace Lute.NLP
 					? BlackboardTransaction.Ok( "SpatialBlackboard", "release_site" )
 					: BlackboardTransaction.Fail( "no matching site claim", "SpatialBlackboard" ),
 
-				// Resource intents route to the future ResourceRegistry.
-				// Until it exists, return a deterministic "not yet available"
-				// so NPCs get a machine-readable failure rather than a silent no-op.
-				IntentType.ClaimResource => BlackboardTransaction.Fail(
-					"resource registry not yet implemented", "ResourceRegistry" ),
-				IntentType.ReleaseResource => BlackboardTransaction.Fail(
-					"resource registry not yet implemented", "ResourceRegistry" ),
-				IntentType.RequestResource => BlackboardTransaction.Fail(
-					"resource registry not yet implemented", "ResourceRegistry" ),
-				IntentType.OfferResource => BlackboardTransaction.Fail(
-					"resource registry not yet implemented", "ResourceRegistry" ),
+				// Resource intents route to ResourceRegistry.
+				IntentType.ClaimResource => RouteClaimResource( intent ),
+				IntentType.ReleaseResource => RouteReleaseResource( intent ),
+				IntentType.RequestResource => RouteRequestResource( intent ),
+				IntentType.OfferResource => RouteOfferResource( intent ),
 
 				// Task intents route to ConstructionDirector.
 				IntentType.RequestTask => RouteRequestTask( intent ),
@@ -212,6 +206,79 @@ namespace Lute.NLP
 			foreach ( var b in ConstructionDirector.AllBuilders() )
 				if ( b.NpcName == npcName ) return b.BuilderId;
 			return -1;
+		}
+
+		// ── Resource intent routes ──
+
+		static BlackboardTransaction RouteClaimResource( Intent intent )
+		{
+			// ClaimResource: reserve space on a stockpile for a deposit.
+			// The subject is the resource type; amount from parameters.
+			if ( !Enum.TryParse<ResourceType>( intent.Subject, true, out var type ) || type == ResourceType.Unknown )
+				return BlackboardTransaction.Fail( $"unknown resource type: {intent.Subject}", "ResourceRegistry" );
+
+			int amount = 1;
+			if ( intent.Parameters.TryGetValue( "amount", out var amtStr ) && int.TryParse( amtStr, out var amt ) )
+				amount = amt;
+
+			Vector3? pos = null;
+			if ( intent.Parameters.TryGetValue( "position", out var posStr ) )
+				pos = ParsePosition( posStr );
+
+			var (success, detail) = ResourceRegistry.ClaimResource( intent.Sender, type, amount, pos );
+			return success
+				? BlackboardTransaction.Ok( "ResourceRegistry", $"claim_resource:{type}x{amount}" )
+				: BlackboardTransaction.Fail( detail, "ResourceRegistry" );
+		}
+
+		static BlackboardTransaction RouteReleaseResource( Intent intent )
+		{
+			int amount = 1;
+			if ( intent.Parameters.TryGetValue( "amount", out var amtStr ) && int.TryParse( amtStr, out var amt ) )
+				amount = amt;
+
+			var (success, detail) = ResourceRegistry.ReleaseResource( intent.Sender, amount );
+			return success
+				? BlackboardTransaction.Ok( "ResourceRegistry", "release_resource" )
+				: BlackboardTransaction.Fail( detail, "ResourceRegistry" );
+		}
+
+		static BlackboardTransaction RouteRequestResource( Intent intent )
+		{
+			// RequestResource: an NPC is asking for materials. Find the
+			// nearest stockpile with the requested resource. This is a
+			// query, not a mutation — it returns where the resource is.
+			if ( !Enum.TryParse<ResourceType>( intent.Subject, true, out var type ) || type == ResourceType.Unknown )
+				return BlackboardTransaction.Fail( $"unknown resource type: {intent.Subject}", "ResourceRegistry" );
+
+			int amount = 1;
+			if ( intent.Parameters.TryGetValue( "amount", out var amtStr ) && int.TryParse( amtStr, out var amt ) )
+				amount = amt;
+
+			var pile = ResourceRegistry.NearestStockpileWithResource( type, Vector3.Zero, amount );
+			if ( pile == null )
+				return BlackboardTransaction.Fail( $"no stockpile has {amount} {type}", "ResourceRegistry" );
+
+			return BlackboardTransaction.Ok( "ResourceRegistry", $"request_resource:{type}x{amount} @ {pile.Id}" );
+		}
+
+		static BlackboardTransaction RouteOfferResource( Intent intent )
+		{
+			// OfferResource: an NPC is offering to deliver materials.
+			// Find the nearest stockpile with space. This is a query,
+			// not a mutation — it returns where to deliver.
+			if ( !Enum.TryParse<ResourceType>( intent.Subject, true, out var type ) || type == ResourceType.Unknown )
+				return BlackboardTransaction.Fail( $"unknown resource type: {intent.Subject}", "ResourceRegistry" );
+
+			int amount = 1;
+			if ( intent.Parameters.TryGetValue( "amount", out var amtStr ) && int.TryParse( amtStr, out var amt ) )
+				amount = amt;
+
+			var pile = ResourceRegistry.NearestStockpileWithSpace( Vector3.Zero, amount );
+			if ( pile == null )
+				return BlackboardTransaction.Fail( $"no stockpile has space for {amount} {type}", "ResourceRegistry" );
+
+			return BlackboardTransaction.Ok( "ResourceRegistry", $"offer_resource:{type}x{amount} @ {pile.Id}" );
 		}
 
 		/// <summary>
