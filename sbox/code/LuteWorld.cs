@@ -506,15 +506,19 @@ public sealed class LuteWorld : Component
 		benchmark.Level = Lute.Building.Gate3Benchmark.TestLevel.Test3_1_PreStocked;
 		benchmark.Center = new Vector3( -400f * M, -400f * M, 0f );
 
-		// Spawn a hauler NPC near the village.
-		var haulerGo = Scene.CreateObject( true );
-		haulerGo.Name = "HaulerMarker";
-		haulerGo.SetParent( parent );
-		haulerGo.WorldPosition = new Vector3( -380f * M, -400f * M, 0f );
-		haulerGo.WorldRotation = Rotation.Identity;
-		var haulerMarker = haulerGo.AddComponent<SpawnMarker>();
-		haulerMarker.NpcType = "Hauler";
-		haulerMarker.NpcName = "HaulerNPC";
+		// Spawn hauler NPCs near the village.
+		var haulerCount = 3;
+		for ( int i = 0; i < haulerCount; i++ )
+		{
+			var haulerGo = Scene.CreateObject( true );
+			haulerGo.Name = $"HaulerMarker_{i}";
+			haulerGo.SetParent( parent );
+			haulerGo.WorldPosition = new Vector3( (-380f + i * 5f) * M, -400f * M, 0f );
+			haulerGo.WorldRotation = Rotation.Identity;
+			var haulerMarker = haulerGo.AddComponent<SpawnMarker>();
+			haulerMarker.NpcType = "Hauler";
+			haulerMarker.NpcName = haulerCount > 1 ? $"HaulerNPC_{i}" : "HaulerNPC";
+		}
 
 		// Create a stockpile near the village so the hauler has a short
 		// delivery distance. ResourceBootstrap creates stockpiles at
@@ -533,7 +537,7 @@ public sealed class LuteWorld : Component
 			stockInv );
 		Lute.Building.ResourceRegistry.RegisterStockpile( stockpile );
 
-		Log.Info( $"Lute: Gate3Benchmark setup — benchmark + hauler marker + village stockpile at (-390m, -400m)." );
+		Log.Info( $"Lute: Gate3Benchmark setup ï¿½ benchmark + hauler marker + village stockpile at (-390m, -400m)." );
 	}
 
 	/// <summary> Creates a GameObject with a ModelRenderer using a primitive model. </summary>
