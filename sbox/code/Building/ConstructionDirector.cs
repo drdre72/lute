@@ -229,30 +229,36 @@ namespace Lute.Building
 			var taskType = dt.BuildTask.TaskType;
 			var pieces = dt.EstimatedPieces;
 
-			// Scale: roughly 1 material unit per 50 pieces (tunable)
+			// Material requirements per task type. Scaled by piece count
+			// but with meaningful minimums so material gating is a real
+			// constraint, not a trivial 1-unit delivery.
 			int brickAmount = 0, plankAmount = 0, timberAmount = 0;
 
 			switch ( taskType )
 			{
 				case "wall":
 				case "gate":
+					brickAmount = Math.Max( 5, pieces / 10 );
+					break;
 				case "road":
 				case "well":
+					brickAmount = Math.Max( 3, pieces / 20 );
+					break;
 				case "chapel":
 				case "smithy":
-					brickAmount = Math.Max( 1, pieces / 50 );
+					brickAmount = Math.Max( 10, pieces / 10 );
 					break;
 				case "cottage":
 				case "shop":
 				case "tavern":
 				case "storage":
 				case "guardhouse":
-					plankAmount = Math.Max( 1, pieces / 60 );
-					timberAmount = Math.Max( 1, pieces / 200 );
+					plankAmount = Math.Max( 20, pieces / 5 );
+					timberAmount = Math.Max( 6, pieces / 20 );
+					brickAmount = Math.Max( 15, pieces / 8 );
 					break;
 				case "market_square":
-					// Market is mostly ground work — minimal materials
-					brickAmount = Math.Max( 1, pieces / 100 );
+					brickAmount = Math.Max( 5, pieces / 20 );
 					break;
 				default:
 					return null; // unknown type = no requirements

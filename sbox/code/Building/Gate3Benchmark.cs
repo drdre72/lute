@@ -110,10 +110,10 @@ namespace Lute.Building
 				if ( pile != null )
 				{
 					// Enough for ~10 cottages (Plank x20, Timber x6, Brick x15 each).
-					pile.Deposit( ItemType.Plank, 200 );
-					pile.Deposit( ItemType.Timber, 60 );
-					pile.Deposit( ItemType.Brick, 150 );
-					Log.Info( $"Lute: Gate3Benchmark — pre-stocked {pile.Id} at {pile.Position} with Plank x200, Timber x60, Brick x150" );
+					pile.Deposit( ItemType.Plank, 2000 );
+					pile.Deposit( ItemType.Timber, 600 );
+					pile.Deposit( ItemType.Brick, 1500 );
+					Log.Info( $"Lute: Gate3Benchmark — pre-stocked {pile.Id} at {pile.Position} with Plank x2000, Timber x600, Brick x1500" );
 				}
 				else
 				{
