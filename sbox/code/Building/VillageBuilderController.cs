@@ -140,6 +140,9 @@ namespace Lute.Building
 				Log.Info( $"Lute: VillageBuilderController '{_npcId}' registered with ConstructionDirector as builder {BuilderId}." );
 			}
 
+			// Register with the liveness tracker
+			BuilderLivenessRegistry.Register( _npcId );
+
 			// Subscribe to construction events for cooperative behavior
 			if ( UseCommunication )
 			{
@@ -208,6 +211,9 @@ namespace Lute.Building
 					ReleaseActiveClaim();
 					break;
 			}
+
+			// Tick liveness state for all builders
+			BuilderLivenessRegistry.TickAll( Time.Delta );
 
 			// Periodic status log (every 60s)
 			if ( _logTimer >= 60f )
@@ -372,6 +378,7 @@ namespace Lute.Building
 				if ( Builder.IsComplete )
 				{
 					State = NpcState.VillageComplete;
+					BuilderLivenessRegistry.SetIdle( _npcId, BuilderIdleReason.VillageComplete, "village complete" );
 					Log.Info( "Lute: VillageBuilderController — village already complete on start." );
 					return;
 				}
@@ -381,7 +388,13 @@ namespace Lute.Building
 					_currentTarget = Builder.CurrentTask.Position;
 					State = NpcState.WalkingToSite;
 					_stateTimer = 0;
+					BuilderLivenessRegistry.ClearIdle( _npcId );
 					Log.Info( $"Lute: VillageBuilderController walking to first site '{Builder.CurrentTask.Name}' at {_currentTarget}." );
+				}
+				else
+				{
+					// No task available — record the idle reason
+					BuilderLivenessRegistry.SetIdle( _npcId, BuilderIdleReason.IdleNoTask, "no tasks available in task list" );
 				}
 			}
 		}
