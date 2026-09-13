@@ -34,7 +34,6 @@
 		<Reference Include="../../../bin/managed/Sandbox.Reflection.dll"/> 
 		<Reference Include="../../../bin/managed/Sandbox.Mounting.dll"/> 
 		<Reference Include="../../../bin/managed/Microsoft.AspNetCore.Components.dll"/> 
-		<Reference Include="../../../bin/managed/Sandbox.Tools.dll"/>
 	</ItemGroup>
 
 	<ItemGroup>
