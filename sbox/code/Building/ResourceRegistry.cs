@@ -92,10 +92,13 @@ namespace Lute.Building
 
 		int CountAll()
 		{
+			if ( Inventory == null ) return 0;
+			// Use CountItem per type to ensure lazy slot init, rather
+			// than touching Slots[] directly (which may be null before
+			// OnStart runs).
 			int total = 0;
-			for ( int i = 0; i < Inventory.SlotCount; i++ )
-				if ( Inventory.Slots[i].Count > 0 )
-					total += Inventory.Slots[i].Count;
+			foreach ( ItemType t in Enum.GetValues( typeof( ItemType ) ) )
+				total += Inventory.CountItem( t );
 			return total;
 		}
 

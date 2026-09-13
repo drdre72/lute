@@ -437,6 +437,15 @@ namespace Lute.Building
 					if ( !ConstructionDirector.AuthorizeExecution( taskId, _npcId ) )
 					{
 						Log.Warning( $"Lute: VillageBuilderController '{_npcId}' could not authorize {taskId}." );
+						// Try to claim a different task from the director.
+						var altTask = ConstructionDirector.ClaimNextTask( Builder.BuilderId, _npcId );
+						if ( altTask != null && altTask.BuildTask != null )
+						{
+							Builder.CurrentDirectedTaskId = altTask.Id;
+							_currentTarget = altTask.BuildTask.Position;
+							Log.Info( $"Lute: VillageBuilderController '{_npcId}' switched to alternative task '{altTask.BuildTask.Name}' at {_currentTarget} (authorization failed)." );
+							return;
+						}
 						Controller.WishVelocity = Vector3.Zero;
 						return;
 					}
@@ -454,8 +463,21 @@ namespace Lute.Building
 				// don't stack on the same spot.
 				if ( UseBlackboard && !TryClaimSite( _currentTarget ) )
 				{
-					// Site is contested. Wait here and retry next tick; the
-					// other NPC will release when its task completes.
+					// Site is contested. Try to claim a different task from
+					// the director instead of waiting forever on this one.
+					if ( UseDirector && _registeredWithDirector )
+					{
+						var altTask = ConstructionDirector.ClaimNextTask( Builder.BuilderId, _npcId );
+						if ( altTask != null && altTask.BuildTask != null )
+						{
+							Builder.CurrentDirectedTaskId = altTask.Id;
+							_currentTarget = altTask.BuildTask.Position;
+							Log.Info( $"Lute: VillageBuilderController '{_npcId}' switched to alternative task '{altTask.BuildTask.Name}' at {_currentTarget} (original site contested)." );
+							return; // re-walk to the new target next tick
+						}
+					}
+
+					// No alternative task available — wait and retry.
 					Controller.WishVelocity = Vector3.Zero;
 					return;
 				}

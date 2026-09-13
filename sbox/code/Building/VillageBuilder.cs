@@ -140,7 +140,7 @@ namespace Lute.Building
 		/// Set when the builder claims a task from the
 		/// <see cref="ConstructionDirector"/>. Mirrors <see cref="CurrentTask"/>.
 		/// </summary>
-		public string CurrentDirectedTaskId { get; private set; }
+		public string CurrentDirectedTaskId { get; internal set; }
 
 		/// <summary>
 		/// Index into <see cref="Tasks"/> of the current task, or -1 if none.
