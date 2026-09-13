@@ -265,11 +265,12 @@ namespace Lute.Building
 				} );
 			}
 
-			// West wall (x = -half)
+			// West wall (x = -half + half-brick inset to close corner gaps)
+			float wInset = 0.125f * M; // half a brick module toward center
 			for ( int i = 0; i < segsPerSide; i++ )
 			{
 				float y = -half + segLen * (i + 0.5f);
-				float x = -half;
+				float x = -half + wInset;
 
 				tasks.Add( new VillageBuildTask
 				{
@@ -296,6 +297,7 @@ namespace Lute.Building
 			float half = WallOuterHalfWidth;
 			float segLen = 2f * M;
 			float tol = 0.01f * M;
+			float wInset = 0.125f * M; // must match West wall inset above
 
 			foreach ( var task in tasks )
 			{
@@ -308,7 +310,12 @@ namespace Lute.Building
 				float along = isNS ? local.x : local.y;
 				float perp = isNS ? local.y : local.x;
 
-				bool atCorner = MathF.Abs( MathF.Abs( perp ) - half ) < tol;
+				// West wall is inset by wInset toward center; other walls sit at +/-half.
+				float expectedPerpAbs = half;
+				if ( isEW && perp < 0 )
+					expectedPerpAbs = half - wInset;
+
+				bool atCorner = MathF.Abs( MathF.Abs( perp ) - expectedPerpAbs ) < tol;
 				if ( !atCorner ) continue;
 
 				bool isLeftSegment = MathF.Abs( along - (-half + segLen * 0.5f) ) < tol;
