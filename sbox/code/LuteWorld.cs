@@ -70,6 +70,7 @@ public sealed class LuteWorld : Component
 		BuildWatchtower( root );
 		BuildTestStructure( root );
 		BuildVillage( root );
+		BuildGate3Benchmark( root );
 
 		// Scan static world geometry and register it in the occupancy
 		// ledger so village construction reservations respect pre-existing
@@ -483,6 +484,56 @@ public sealed class LuteWorld : Component
 		marker.BuilderCount = 3;     // multi-builder mode: 3 builders share the task list
 
 		Log.Info( $"Lute: VillageMarker placed at {markerGo.WorldPosition} (~400m SW of sanctuary). Fresh build â€” 3 builders will construct the full village (~270 tasks) from nothing." );
+	}
+
+	/// <summary>
+	/// Gate 3 benchmark setup: creates a Gate3Benchmark component, a hauler
+	/// SpawnMarker near the village, and a stockpile near the village so the
+	/// hauler has a short delivery distance. The benchmark enables
+	/// EnforceMaterialGating and periodically creates haul jobs for
+	/// unsatisfied task material requirements.
+	/// </summary>
+	void BuildGate3Benchmark( GameObject parent )
+	{
+		const float M = 39.37f;
+
+		// Place the benchmark component on the root.
+		var benchGo = Scene.CreateObject( true );
+		benchGo.Name = "Gate3Benchmark";
+		benchGo.SetParent( parent );
+		benchGo.WorldPosition = new Vector3( -400f * M, -400f * M, 0f );
+		var benchmark = benchGo.AddComponent<Lute.Building.Gate3Benchmark>();
+		benchmark.Level = Lute.Building.Gate3Benchmark.TestLevel.Test3_1_PreStocked;
+		benchmark.Center = new Vector3( -400f * M, -400f * M, 0f );
+
+		// Spawn a hauler NPC near the village.
+		var haulerGo = Scene.CreateObject( true );
+		haulerGo.Name = "HaulerMarker";
+		haulerGo.SetParent( parent );
+		haulerGo.WorldPosition = new Vector3( -380f * M, -400f * M, 0f );
+		haulerGo.WorldRotation = Rotation.Identity;
+		var haulerMarker = haulerGo.AddComponent<SpawnMarker>();
+		haulerMarker.NpcType = "Hauler";
+		haulerMarker.NpcName = "HaulerNPC";
+
+		// Create a stockpile near the village so the hauler has a short
+		// delivery distance. ResourceBootstrap creates stockpiles at
+		// (5000, 5000) which is far from the village at (-15748, -15748).
+		// This local stockpile is where the benchmark pre-stocks materials.
+		var stockGo = Scene.CreateObject( true );
+		stockGo.Name = "VillageStockpile";
+		stockGo.SetParent( parent );
+		stockGo.WorldPosition = new Vector3( -390f * M, -400f * M, 0f );
+		var stockInv = stockGo.AddComponent<Lute.Items.LuteInventory>();
+		var stockpile = new Lute.Building.Stockpile(
+			"village_stockpile",
+			stockGo.WorldPosition,
+			new Vector3( 100f, 100f, 100f ),
+			5000,
+			stockInv );
+		Lute.Building.ResourceRegistry.RegisterStockpile( stockpile );
+
+		Log.Info( $"Lute: Gate3Benchmark setup — benchmark + hauler marker + village stockpile at (-390m, -400m)." );
 	}
 
 	/// <summary> Creates a GameObject with a ModelRenderer using a primitive model. </summary>
