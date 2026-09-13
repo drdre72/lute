@@ -1558,8 +1558,27 @@ namespace Lute.Building
 
 				if ( !ReservationManager.CanPlace( CurrentDirectedTaskId, pieceBounds, out var reason ) )
 				{
-					Log.Warning( $"Lute: VillageBuilder piece placement blocked at {worldPos}: {reason}" );
-					throw new ConstructionPlacementBlockedException( $"{CurrentDirectedTaskId} placement blocked at {worldPos}: {reason}" );
+					// Self-repair: try bounded deterministic corrections before failing
+					var repair = ConstructionSelfRepair.TryRecover( worldPos, yaw, size,
+						( p, r ) =>
+						{
+							var h = size * 0.5f;
+							var rr = r != 0f ? Rotation.FromYaw( r ) : Rotation.Identity;
+							var b = new BBox( -h, h ).Rotate( rr ).Translate( p );
+							return ReservationManager.CanPlace( CurrentDirectedTaskId, b, out _ );
+						}, reason );
+					if ( repair.Success )
+					{
+						Log.Info( $"Lute: SelfRepair recovered piece at {worldPos} -> {repair.CorrectedPosition} (attempts={repair.AttemptsUsed})" );
+						worldPos = repair.CorrectedPosition;
+						yaw = repair.CorrectedRotation;
+						rot = yaw != 0f ? Rotation.FromYaw( yaw ) : Rotation.Identity;
+					}
+					else
+					{
+						Log.Warning( $"Lute: VillageBuilder piece placement blocked at {worldPos}: {reason} (self-repair failed: {repair.FailureType})" );
+						throw new ConstructionPlacementBlockedException( $"{CurrentDirectedTaskId} placement blocked at {worldPos}: {reason} (self-repair: {repair.Reason})" );
+					}
 				}
 			}
 
@@ -1695,8 +1714,27 @@ namespace Lute.Building
 			{
 				if ( !ReservationManager.CanPlace( CurrentDirectedTaskId, pieceBounds, out var reason ) )
 				{
-					Log.Warning( $"Lute: VillageBuilder brick placement blocked at {worldPos}: {reason}" );
-					throw new ConstructionPlacementBlockedException( $"{CurrentDirectedTaskId} placement blocked at {worldPos}: {reason}" );
+					// Self-repair: try bounded deterministic corrections before failing
+					var repair = ConstructionSelfRepair.TryRecover( worldPos, yaw, size,
+						( p, r ) =>
+						{
+							var h = size * 0.5f;
+							var rr = r != 0f ? Rotation.FromYaw( r ) : Rotation.Identity;
+							var b = new BBox( -h, h ).Rotate( rr ).Translate( p );
+							return ReservationManager.CanPlace( CurrentDirectedTaskId, b, out _ );
+						}, reason );
+					if ( repair.Success )
+					{
+						Log.Info( $"Lute: SelfRepair recovered brick at {worldPos} -> {repair.CorrectedPosition} (attempts={repair.AttemptsUsed})" );
+						worldPos = repair.CorrectedPosition;
+						yaw = repair.CorrectedRotation;
+						rot = yaw != 0f ? Rotation.FromYaw( yaw ) : Rotation.Identity;
+					}
+					else
+					{
+						Log.Warning( $"Lute: VillageBuilder brick placement blocked at {worldPos}: {reason} (self-repair failed: {repair.FailureType})" );
+						throw new ConstructionPlacementBlockedException( $"{CurrentDirectedTaskId} placement blocked at {worldPos}: {reason} (self-repair: {repair.Reason})" );
+					}
 				}
 			}
 
