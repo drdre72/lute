@@ -58,8 +58,8 @@ namespace Lute.Building
 		/// <summary>
 		/// Ghost-placement validation: check if a candidate structure can be
 		/// placed at the given position/rotation without colliding with
-		/// existing committed occupancy, active reservations, or scene
-		/// geometry. Does NOT modify any state — pure query.
+		/// existing committed occupancy or active reservations. Does NOT
+		/// modify any state — pure query.
 		///
 		/// Returns a structured result with the blocking entity, intersection
 		/// volume, and nearest valid position if invalid.
@@ -67,6 +67,20 @@ namespace Lute.Building
 		public static PlacementValidation ValidatePlacement(
 			Vector3 position, float rotation, string taskType,
 			Vector3? overrideSize = null, string excludeTaskId = null )
+		{
+			return ValidatePlacementInternal(
+				position, rotation, taskType, overrideSize, excludeTaskId,
+				searchNearest: true );
+		}
+
+		/// <summary>
+		/// Internal validation with a searchNearest flag to prevent unbounded
+		/// recursion. When searchNearest is false (called from
+		/// FindNearestValidPosition), no recursive search is performed.
+		/// </summary>
+		static PlacementValidation ValidatePlacementInternal(
+			Vector3 position, float rotation, string taskType,
+			Vector3? overrideSize, string excludeTaskId, bool searchNearest )
 		{
 			// Compute OBB footprint
 			var (halfExtents, height) = GetStructureHalfExtents( taskType, overrideSize );
@@ -103,9 +117,11 @@ namespace Lute.Building
 						Math.Min( aabb.Maxs.z, o.Bounds.Maxs.z ) );
 					var ixSize = ixMaxs - ixMins;
 					float ixVol = Math.Max( 0, ixSize.x ) * Math.Max( 0, ixSize.y ) * Math.Max( 0, ixSize.z );
+					Vector3? nearest = searchNearest
+						? FindNearestValidPosition( position, rotation, taskType, halfExtents, height, excludeTaskId )
+						: null;
 					return PlacementValidation.Invalid( "collision with built structure",
-						o.Source ?? o.Id, ixVol,
-						FindNearestValidPosition( position, rotation, taskType, halfExtents, height, excludeTaskId ) );
+						o.Source ?? o.Id, ixVol, nearest );
 				}
 			}
 
@@ -113,18 +129,18 @@ namespace Lute.Building
 			var blocker = FindBlockingClaim( aabb, excludeTaskId ?? "" );
 			if ( blocker.HasValue )
 			{
+				Vector3? nearest = searchNearest
+					? FindNearestValidPosition( position, rotation, taskType, halfExtents, height, excludeTaskId )
+					: null;
 				return PlacementValidation.Invalid( "collision with active reservation",
-					blocker.Value.Owner ?? "unknown", 0f,
-					FindNearestValidPosition( position, rotation, taskType, halfExtents, height, excludeTaskId ) );
+					blocker.Value.Owner ?? "unknown", 0f, nearest );
 			}
 
-			// 3. Check against scene geometry (raycast at center + corners)
-			if ( CheckSceneGeometryCollision( aabb, taskType ) )
-			{
-				return PlacementValidation.Invalid( "collision with scene geometry",
-					"scene", 0f,
-					FindNearestValidPosition( position, rotation, taskType, halfExtents, height, excludeTaskId ) );
-			}
+			// Scene geometry raycasting removed — the occupancy system
+			// (committed occupancy + active reservations) is authoritative
+			// for construction placement. Scene raycasting caused editor
+			// crashes and ground-hit false positives. Scene geometry
+			// awareness will be reintroduced via the spatial registry.
 
 			return PlacementValidation.Valid();
 		}
@@ -218,6 +234,7 @@ namespace Lute.Building
 		/// <summary>
 		/// Search nearby positions for the nearest valid placement.
 		/// Tries positions in expanding rings around the original position.
+		/// Uses searchNearest: false to prevent unbounded recursion.
 		/// </summary>
 		static Vector3? FindNearestValidPosition(
 			Vector3 position, float rotation, string taskType,
@@ -238,8 +255,9 @@ namespace Lute.Building
 						0 );
 					var candidate = position + offset;
 
-					var validation = ValidatePlacement( candidate, rotation, taskType,
-						new Vector3( halfExtents.x * 2, halfExtents.y * 2, height ), excludeTaskId );
+					var validation = ValidatePlacementInternal( candidate, rotation, taskType,
+						new Vector3( halfExtents.x * 2, halfExtents.y * 2, height ),
+						excludeTaskId, searchNearest: false );
 					if ( validation.IsValid )
 						return candidate;
 				}
@@ -437,6 +455,8 @@ namespace Lute.Building
 				SpatialBlackboard.ReleaseClaim( claim.Id );
 			_occupied.Clear();
 			_occupancySeq = 0;
+			_lastBlockerTaskId = null;
+			_scene = null;
 		}
 
 		public static BBox EstimateTaskBounds( VillageBuildTask task )
