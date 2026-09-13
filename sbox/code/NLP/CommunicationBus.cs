@@ -67,11 +67,54 @@ namespace Lute.NLP
 		}
 
 		/// <summary>
+		/// Post a structured intent to the communication bus. The
+		/// <see cref="IntentEnvelope"/> carries the authoritative
+		/// structured <see cref="Intent"/> plus a human-readable display
+		/// text. Recipients consume the structured intent directly — no
+		/// text round-trip through <see cref="NlpParser"/> — so
+		/// parameters like task_id, blocker, waiting_on survive intact.
+		///
+		/// Free-text sources (player speech, unscripted text) should use
+		/// the string <see cref="Post(string,string,string,string)"/>
+		/// overload and let recipients parse via NlpParser.
+		/// </summary>
+		public static long Post( string from, string to, string type, IntentEnvelope envelope )
+		{
+			if ( envelope == null || string.IsNullOrWhiteSpace( envelope.DisplayText ) )
+				return -1;
+
+			var id = ++_messageSeq;
+			_messages.Add( new ComMessage
+			{
+				MessageId = id,
+				From = from,
+				To = to,
+				Type = type,
+				Content = envelope.DisplayText,
+				Envelope = envelope,
+				Timestamp = SpatialBlackboard.CurrentTime,
+			} );
+
+			while ( _messages.Count > MaxMessages )
+				_messages.RemoveAt( 0 );
+
+			return id;
+		}
+
+		/// <summary>
 		/// Broadcast a message to all NPCs (To = "" means broadcast).
 		/// </summary>
 		public static long Broadcast( string from, string type, string content )
 		{
 			return Post( from, "", type, content );
+		}
+
+		/// <summary>
+		/// Broadcast a structured intent to all NPCs.
+		/// </summary>
+		public static long Broadcast( string from, string type, IntentEnvelope envelope )
+		{
+			return Post( from, "", type, envelope );
 		}
 
 		/// <summary>
@@ -133,10 +176,43 @@ namespace Lute.NLP
 		/// <summary> Message type: "nlp_message", "nlp_reply", "conversation_start". </summary>
 		public string Type;
 
-		/// <summary> Text content of the message. </summary>
+		/// <summary> Text content of the message (human-readable). </summary>
 		public string Content;
+
+		/// <summary>
+		/// Optional structured intent envelope. When present, recipients
+		/// consume <see cref="IntentEnvelope.Intent"/> directly instead of
+		/// re-parsing <see cref="Content"/> through <see cref="NlpParser"/>.
+		/// Null for free-text messages (player speech, unscripted text).
+		/// </summary>
+		public IntentEnvelope Envelope;
 
 		/// <summary> When the message was posted (game time seconds). </summary>
 		public float Timestamp;
+	}
+
+	/// <summary>
+	/// Carries an authoritative structured <see cref="Intent"/> plus a
+	/// human-readable display text. Machine-generated facts (e.g. from
+	/// <see cref="Lute.Building.WorldFactProvider"/>) post an
+	/// IntentEnvelope so recipients receive the full structured intent
+	/// with all parameters intact — no lossy text round-trip.
+	///
+	/// The display text is for logs and future UI only. The structured
+	/// intent is the operational truth.
+	/// </summary>
+	public sealed class IntentEnvelope
+	{
+		/// <summary> The authoritative structured intent. </summary>
+		public Intent Intent { get; init; }
+
+		/// <summary> Human-readable text (for logs/UI only). </summary>
+		public string DisplayText { get; init; }
+
+		public IntentEnvelope( Intent intent, string displayText )
+		{
+			Intent = intent;
+			DisplayText = displayText;
+		}
 	}
 }

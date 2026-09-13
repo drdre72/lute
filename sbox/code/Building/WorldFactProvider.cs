@@ -260,9 +260,13 @@ namespace Lute.Building
 			if ( string.IsNullOrWhiteSpace( text ) )
 				return;
 
-			// Broadcast to all registered NPCs — any builder that cares
-			// can pick this up via ConversationManager.ProcessIncoming.
-			ConversationManager.Broadcast( npcName, text );
+			// Post the structured intent directly via IntentEnvelope so
+			// recipients receive the full Intent with all parameters
+			// (task_id, blocker, waiting_on, etc.) intact — no lossy
+			// text round-trip through NlpParser. The display text is for
+			// logs and future UI only.
+			var envelope = new IntentEnvelope( intent, text );
+			CommunicationBus.Broadcast( npcName, "nlp_message", envelope );
 			Log.Info( $"Lute: WorldFactProvider [{category}] {npcName}: \"{text}\" — {intent.Summary}" );
 		}
 

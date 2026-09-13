@@ -162,22 +162,36 @@ namespace Lute.NLP
 					continue;
 				}
 
-				// Parse the incoming text through the full NLP pipeline:
-				//   Tokenizer -> NlpParser -> ContextResolver
-				// The tokenizer normalizes and tags tokens, NlpParser produces
-				// the intent, and ContextResolver resolves pronouns/references
-				// using conversation context.
-				var tokenList = Tokenizer.Tokenize( msg.Content );
-				var intent = NlpParser.Parse( msg.Content, sender: msg.From, target: npcName );
-
-				// Resolve pronouns and references using conversation context
-				var context = new NpcContext
+				// Use the structured intent directly if an envelope is
+				// present (machine-generated facts from WorldFactProvider).
+				// This preserves authoritative parameters (task_id,
+				// blocker, waiting_on, etc.) that would be lost in a
+				// text round-trip through NlpParser. Free-text messages
+				// (player speech, unscripted text) fall through to parsing.
+				Intent intent;
+				if ( msg.Envelope != null && msg.Envelope.Intent != null )
 				{
-					Name = npcName,
-					Beliefs = entry.Beliefs,
-					Personality = new NpcPersonality(),
-				};
-				ContextResolver.Resolve( intent, context );
+					intent = msg.Envelope.Intent;
+					// Ensure sender/target reflect the actual routing
+					intent.Sender = msg.From;
+					intent.Target = npcName;
+				}
+				else
+				{
+					// Parse the incoming text through the full NLP pipeline:
+					//   Tokenizer -> NlpParser -> ContextResolver
+					var tokenList = Tokenizer.Tokenize( msg.Content );
+					intent = NlpParser.Parse( msg.Content, sender: msg.From, target: npcName );
+
+					// Resolve pronouns and references using conversation context
+					var context = new NpcContext
+					{
+						Name = npcName,
+						Beliefs = entry.Beliefs,
+						Personality = new NpcPersonality(),
+					};
+					ContextResolver.Resolve( intent, context );
+				}
 				Log.Info( $"[NLP] {npcName} received from {msg.From}: \"{msg.Content}\" → {intent.Summary}" );
 
 				// Evaluate through social rules — returns a decision
