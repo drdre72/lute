@@ -65,6 +65,15 @@ public sealed class LuteGame : Component
 		if ( Instance == this ) Instance = null;
 	}
 
+	protected override void OnUpdate()
+	{
+		// Drive deterministic NPC communication: observe construction state
+		// and emit world-fact messages through the NLP pipeline. Also tick
+		// builder liveness timers so stall detection stays current.
+		Lute.Building.BuilderLivenessRegistry.TickAll( Time.Delta );
+		Lute.Building.WorldFactProvider.Tick();
+	}
+
 	/// <summary>
 	/// Generate the NavMesh from the scene's static colliders. Called
 	/// fire-and-forget after enabling the NavMesh in <see cref="OnStart"/>.

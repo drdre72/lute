@@ -114,6 +114,7 @@ namespace Lute.Building
 			_builders.Clear();
 			_dependents.Clear();
 			_nextTaskSeq = 0;
+			WorldFactProvider.Reset();
 		}
 
 		/// <summary>
