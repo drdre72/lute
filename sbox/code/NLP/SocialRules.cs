@@ -25,16 +25,37 @@ namespace Lute.NLP
 	///         → ACT
 	/// Only talk when communication is actually useful.
 	///
-	/// Trust thresholds:
-	/// - Accept request: trust >= 10
-	/// - Accept assignment: trust >= 20
+	/// Trust thresholds (negotiation/social intents only):
 	/// - Accept proposal: trust >= 30
 	/// - Accept counter: trust >= 15
+	///
+	/// Construction coordination intents (Request, Assign, Volunteer,
+	/// Claim, Release, RequestResource, OfferResource, RequestTask,
+	/// AssignTask, AcceptTask, RequestHelp, OfferHelp) are NOT gated by
+	/// trust during the construction phase. Per AGENTS.md: deception is
+	/// disabled and NPCs are cooperative agents. A brand-new NPC with
+	/// trust 0 can still accept a task assignment or request materials —
+	/// otherwise the town deadlocks before any trust can accumulate.
+	/// <see cref="CooperativeMode"/> defaults to true and should stay
+	/// true until the gameplay/social phase enables deception.
 	/// </summary>
 	public static class SocialRules
 	{
-		const int TrustAcceptRequest = 10;
-		const int TrustAcceptAssign = 20;
+		/// <summary>
+		/// When true (default, construction phase), trust thresholds are
+		/// waived for construction coordination intents. Brand-new
+		/// cooperative NPCs can accept tasks, request materials, and
+		/// volunteer without prior trust. Negotiation intents (Propose,
+		/// Counter) still respect thresholds. Set to false in the
+		/// gameplay/social phase when deception is enabled.
+		/// </summary>
+		public static bool CooperativeMode { get; set; } = true;
+
+		// Trust thresholds for negotiation/social intents (still enforced
+		// even in cooperative mode — these are about deals, not routine
+		// construction coordination).
+		const int TrustAcceptRequest = 10;   // used when CooperativeMode is off
+		const int TrustAcceptAssign = 20;   // used when CooperativeMode is off
 		const int TrustAcceptPropose = 30;
 		const int TrustAcceptCounter = 15;
 
@@ -200,7 +221,13 @@ namespace Lute.NLP
 				_ => false,
 			};
 
-			if ( trust >= TrustAcceptRequest && canFulfill )
+			// In cooperative mode, trust is waived for construction
+			// coordination (requests). A brand-new NPC with trust 0 can
+			// still request materials/help — otherwise the town deadlocks
+			// before any trust can accumulate.
+			bool trustOk = CooperativeMode || trust >= TrustAcceptRequest;
+
+			if ( trustOk && canFulfill )
 			{
 				beliefs.AdjustTrust( incoming.Sender, +1 );
 
@@ -213,7 +240,9 @@ namespace Lute.NLP
 						Action = DecisionAction.SpeakAndAct,
 						ResponseIntent = Intent.Simple( IntentType.Accept, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender ),
 						WorldAction = $"deliver:{incoming.Subject}",
-						Reason = $"trusted ({trust}), can fulfill — will deliver",
+						Reason = CooperativeMode
+							? $"cooperative — can fulfill, will deliver"
+							: $"trusted ({trust}), can fulfill — will deliver",
 					};
 				}
 
@@ -221,7 +250,9 @@ namespace Lute.NLP
 				{
 					Action = DecisionAction.Speak,
 					ResponseIntent = Intent.Simple( IntentType.Accept, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender ),
-					Reason = $"trusted ({trust} >= {TrustAcceptRequest})",
+					Reason = CooperativeMode
+						? "cooperative — accepting request"
+						: $"trusted ({trust} >= {TrustAcceptRequest})",
 				};
 			}
 
@@ -478,7 +509,12 @@ namespace Lute.NLP
 		{
 			int trust = beliefs.GetTrust( incoming.Sender );
 
-			if ( trust >= TrustAcceptAssign )
+			// In cooperative mode, trust is waived for task assignments.
+			// A brand-new NPC with trust 0 can still accept a task —
+			// otherwise the director cannot bootstrap work.
+			bool trustOk = CooperativeMode || trust >= TrustAcceptAssign;
+
+			if ( trustOk )
 			{
 				beliefs.AdjustTrust( incoming.Sender, +1 );
 				return new ResponseDecision
@@ -486,7 +522,9 @@ namespace Lute.NLP
 					Action = DecisionAction.SpeakAndAct,
 					ResponseIntent = Intent.Simple( IntentType.Accept, incoming.Topic, incoming.Subject, beliefs.SelfName, incoming.Sender ),
 					WorldAction = $"accept_task:{incoming.Subject}",
-					Reason = $"trusted assignment ({trust} >= {TrustAcceptAssign})",
+					Reason = CooperativeMode
+						? "cooperative — accepting assignment"
+						: $"trusted assignment ({trust} >= {TrustAcceptAssign})",
 				};
 			}
 

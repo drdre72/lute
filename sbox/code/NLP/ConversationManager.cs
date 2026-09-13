@@ -34,8 +34,26 @@ namespace Lute.NLP
 		/// <summary> Registered NPCs keyed by name. </summary>
 		static readonly Dictionary<string, NpcEntry> _npcs = new();
 
-		/// <summary> Max conversation turns before auto-close. </summary>
+		/// <summary> Max conversation turns before auto-close (global per-NPC). </summary>
 		const int MaxTurns = 8;
+
+		/// <summary>
+		/// Max turns per peer (per conversation thread) before that
+		/// specific thread is auto-closed. Per professor's Gate 0
+		/// hardening notes: without a per-peer budget, one chatty pair
+		/// could exhaust an NPC's global turn budget and starve its
+		/// other conversations. The per-peer budget lets an NPC talk to
+		/// many peers without any single thread dominating.
+		/// </summary>
+		const int MaxTurnsPerPeer = 4;
+
+		/// <summary>
+		/// Max messages an NPC will process in a single ProcessIncoming
+		/// tick. Prevents a message flood from consuming an entire tick.
+		/// Remaining messages are deferred to the next tick (they stay
+		/// in the CommunicationBus queue, which is monotonic-ID ordered).
+		/// </summary>
+		const int MaxMessagesPerTick = 10;
 
 		/// <summary>
 		/// Register an NPC for NLP conversation. The NPC must have a
@@ -142,9 +160,11 @@ namespace Lute.NLP
 			var messages = CommunicationBus.GetUnprocessed(
 				npcName, entry.LastProcessedMessageId );
 
+			int processedThisTick = 0;
 			foreach ( var msg in messages )
 			{
-				// Track the highest processed message ID
+				// Track the highest processed message ID (even for skipped
+				// messages, so we don't re-fetch them next tick).
 				if ( msg.MessageId > entry.LastProcessedMessageId )
 					entry.LastProcessedMessageId = msg.MessageId;
 
@@ -153,7 +173,30 @@ namespace Lute.NLP
 					 msg.Type != "conversation_start" )
 					continue;
 
-				// Track conversation turns
+				// Per-tick message budget: stop processing after the cap so
+				// a message flood can't consume the entire tick. Remaining
+				// messages stay in the queue and are processed next tick.
+				if ( processedThisTick >= MaxMessagesPerTick )
+				{
+					Log.Info( $"[NLP] {npcName} per-tick message budget ({MaxMessagesPerTick}) reached — deferring remaining messages." );
+					break;
+				}
+				processedThisTick++;
+
+				// Per-peer turn budget: track turns per peer so one chatty
+				// thread can't starve other conversations. When a peer
+				// exceeds its budget, close that thread (reset its counter)
+				// and skip the message.
+				int peerTurns = entry.GetOrAddPeerTurns( msg.From ) + 1;
+				entry.SetPeerTurns( msg.From, peerTurns );
+				if ( peerTurns > MaxTurnsPerPeer )
+				{
+					Log.Info( $"[NLP] {npcName} per-peer turn budget ({MaxTurnsPerPeer}) with {msg.From} reached — closing thread." );
+					entry.SetPeerTurns( msg.From, 0 );
+					continue;
+				}
+
+				// Global turn budget (backstop — per-peer should trigger first).
 				entry.TurnCount++;
 				if ( entry.TurnCount > MaxTurns )
 				{
@@ -286,6 +329,27 @@ namespace Lute.NLP
 			public int TurnCount { get; set; }
 			/// <summary> Highest MessageId this NPC has processed (exactly-once consumption). </summary>
 			public long LastProcessedMessageId { get; set; }
+
+			/// <summary>
+			/// Per-peer turn counters. Key = peer NPC name, value = turns
+			/// in the current conversation thread with that peer. Reset
+			/// to 0 when the thread is closed (budget exceeded or
+			/// farewell). Prevents one chatty pair from starving other
+			/// conversations.
+			/// </summary>
+			readonly Dictionary<string, int> _peerTurns = new();
+
+			public int GetOrAddPeerTurns( string peer ) =>
+				_peerTurns.TryGetValue( peer, out var t ) ? t : 0;
+
+			public void SetPeerTurns( string peer, int turns )
+			{
+				if ( turns <= 0 ) _peerTurns.Remove( peer );
+				else _peerTurns[peer] = turns;
+			}
+
+			/// <summary> Reset a peer's turn counter (e.g. on farewell). </summary>
+			public void ResetPeerTurns( string peer ) => _peerTurns.Remove( peer );
 		}
 	}
 }

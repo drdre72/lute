@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Sandbox;
 using Lute.Building;
+using Lute.Items;
 
 namespace Lute.NLP
 {
@@ -172,35 +173,128 @@ namespace Lute.NLP
 
 		/// <summary>
 		/// Find a trusted NPC who might have the given resource.
+		///
+		/// Per professor's Gate 0 hardening notes: this previously
+		/// selected suppliers using role-name strings ("carpenter" →
+		/// wood) plus trust. That was unreliable and bypassed the
+		/// authoritative resource system. The new logic:
+		/// <list type="number">
+		/// <item>Parse the resource string into an ItemType.</item>
+		/// <item>Query <see cref="ResourceRegistry"/> for a real
+		/// stockpile with stock — if one exists, no NPC needs to be
+		/// asked; the hauler loop (Gate 2d) will move it.</item>
+		/// <item>If no stockpile has it, find an NPC with the relevant
+		/// gather capability (via <see cref="ConstructionDirector.HasCapability"/>),
+		/// not role-name string matching.</item>
+		/// <item>Trust is still considered as a tiebreaker among
+		/// capable NPCs, but in cooperative mode (construction phase)
+		/// it does not gate selection.</item>
+		/// </list>
 		/// </summary>
 		static string FindSupplier( BeliefModel beliefs, string resource )
 		{
-			// Look for an NPC with a different role (e.g. carpenter has wood)
+			// 1. Parse the resource string into an ItemType. The resource
+			// string comes from NpcState.MissingResources, which today is
+			// a free-form string. Try a case-insensitive enum parse; if it
+			// fails, fall back to keyword matching.
+			ItemType type = ResolveItemType( resource );
+
+			// 2. Check the authoritative ResourceRegistry for real stock.
+			// If a stockpile has the material, the hauler loop will move
+			// it — no NPC needs to be asked. Return null so the caller
+			// falls through to "go gather it" or waits for a haul job.
+			if ( type != ItemType.Clay ) // Clay is the "none" sentinel
+			{
+				var pile = ResourceRegistry.NearestStockpileWithResource(
+					type, Vector3.Zero, needed: 1, forNpc: beliefs.SelfName );
+				if ( pile != null )
+				{
+					// Stock exists — don't ask an NPC; the logistics
+					// board should create a haul job. Return null to
+					// signal "no NPC supplier needed."
+					return null;
+				}
+			}
+
+			// 3. No stock — find an NPC with the relevant gather
+			// capability. This replaces the old role-string matching.
+			NpcCapability neededCap = CapabilityForResource( type, resource );
 			foreach ( var kvp in beliefs.Npcs )
 			{
-				if ( kvp.Key == beliefs.SelfName )
-					continue;
-				if ( kvp.Value.Trust < 10 )
-					continue;
+				if ( kvp.Key == beliefs.SelfName ) continue;
 
-				// Carpenters supply wood/timber, masons supply stone
-				var role = kvp.Value.Role.ToLowerInvariant();
-				if ( resource.Contains( "wood" ) || resource.Contains( "timber" ) || resource.Contains( "plank" ) )
-				{
-					if ( role.Contains( "carpenter" ) || role.Contains( "wood" ) )
-						return kvp.Key;
-				}
-				if ( resource.Contains( "stone" ) || resource.Contains( "brick" ) )
-				{
-					if ( role.Contains( "mason" ) || role.Contains( "stone" ) )
-						return kvp.Key;
-				}
+				// In cooperative mode, trust is a tiebreaker, not a gate.
+				// Keep a small floor so a deeply distrusted NPC (-50) is
+				// still skipped even in cooperative mode.
+				if ( kvp.Value.Trust < -50 ) continue;
 
-				// Generic: any trusted NPC might have spare materials
-				if ( role != "builder" )
+				// Check capability via the authoritative director registry.
+				if ( neededCap != NpcCapability.None &&
+					ConstructionDirector.HasCapability( kvp.Key, neededCap ) )
+				{
 					return kvp.Key;
+				}
+			}
+
+			// 4. Fallback: any trusted-enough NPC (cooperative mode
+			// allows trust >= -50). Prefer ones with a non-default role.
+			foreach ( var kvp in beliefs.Npcs )
+			{
+				if ( kvp.Key == beliefs.SelfName ) continue;
+				if ( kvp.Value.Trust < -50 ) continue;
+				if ( !string.IsNullOrEmpty( kvp.Value.Role ) &&
+					kvp.Value.Role.ToLowerInvariant() != "builder" )
+				{
+					return kvp.Key;
+				}
 			}
 			return null;
+		}
+
+		/// <summary>
+		/// Resolve a free-form resource string into an ItemType. Returns
+		/// ItemType.Clay (the "none"/default sentinel) if unrecognized.
+		/// </summary>
+		static ItemType ResolveItemType( string resource )
+		{
+			if ( string.IsNullOrEmpty( resource ) ) return ItemType.Clay;
+			// Direct enum parse (e.g. "Brick", "Plank", "Wood")
+			if ( Enum.TryParse<ItemType>( resource, true, out var t ) )
+				return t;
+			// Keyword fallback for common aliases
+			var lower = resource.ToLowerInvariant();
+			if ( lower.Contains( "wood" ) || lower.Contains( "timber" ) || lower.Contains( "plank" ) )
+				return ItemType.Wood;
+			if ( lower.Contains( "stone" ) || lower.Contains( "brick" ) )
+				return ItemType.Stone;
+			if ( lower.Contains( "ore" ) || lower.Contains( "iron" ) || lower.Contains( "ingot" ) )
+				return ItemType.Ore;
+			return ItemType.Clay;
+		}
+
+		/// <summary>
+		/// Map an ItemType (or resource keyword) to the capability
+		/// needed to gather/produce it. Returns NpcCapability.None if
+		/// no specific capability applies (e.g. processed materials that
+		/// come from workstations, not gatherers).
+		/// </summary>
+		static NpcCapability CapabilityForResource( ItemType type, string resource )
+		{
+			// Raw materials → gather capability
+			if ( type == ItemType.Wood ) return NpcCapability.GatherWood;
+			if ( type == ItemType.Stone ) return NpcCapability.GatherStone;
+			if ( type == ItemType.Ore ) return NpcCapability.GatherOre;
+			if ( type == ItemType.Clay || type == ItemType.Straw ) return NpcCapability.GatherClay;
+
+			// Processed materials come from workstations, not gatherers.
+			// The hauler should pull these from a stockpile, not ask an
+			// NPC to produce them on demand. Return None so the caller
+			// falls back to the stockpile query / haul job path.
+			var lower = (resource ?? "").ToLowerInvariant();
+			if ( lower.Contains( "wood" ) ) return NpcCapability.GatherWood;
+			if ( lower.Contains( "stone" ) || lower.Contains( "brick" ) ) return NpcCapability.GatherStone;
+			if ( lower.Contains( "ore" ) || lower.Contains( "iron" ) || lower.Contains( "ingot" ) ) return NpcCapability.GatherOre;
+			return NpcCapability.None;
 		}
 
 		/// <summary>
