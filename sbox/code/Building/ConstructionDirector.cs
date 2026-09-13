@@ -40,6 +40,13 @@ namespace Lute.Building
 		public int RetryCount { get; set; }
 		public int MaxRetries { get; set; } = 10;
 		public string BlockedByTaskId { get; set; }
+		/// <summary>
+		/// First unsatisfied prerequisite task id when this task is blocked by
+		/// the dependency graph (distinct from <see cref="BlockedByTaskId"/>,
+		/// which records reservation/runtime conflicts). Null when the task
+		/// is not dependency-blocked.
+		/// </summary>
+		public string BlockedByDependency { get; set; }
 		public int PiecesPlaced { get; set; }
 		public Dictionary<string, string> Preconditions { get; set; } = new();
 		public BBox? ReservationBounds { get; set; }
@@ -186,6 +193,22 @@ namespace Lute.Building
 				}
 			}
 
+			// Cycle detection: if adding this task's dependencies creates a
+			// cycle in the prerequisite graph, reject the registration
+			// deterministically rather than allowing a silent deadlock.
+			if ( dependsOn != null && dependsOn.Count > 0 && DetectCycleFrom( id, out string cyclePath ) )
+			{
+				_tasks.Remove( id );
+				foreach ( var dep in dependsOn )
+				{
+					if ( _dependents.TryGetValue( dep, out var list ) )
+						list.Remove( id );
+				}
+				_nextTaskSeq--;
+				Log.Warning( $"Lute: ConstructionDirector rejected cyclic task '{buildTask?.Name}' — cycle: {cyclePath}" );
+				return null;
+			}
+
 			ConstructionEventBus.Fire( ConstructionEventType.TaskCreated,
 				taskId: id, parameters: new() { { "name", buildTask?.Name ?? "" } } );
 			return id;
@@ -217,7 +240,10 @@ namespace Lute.Building
 			foreach ( var t in _tasks.Values )
 			{
 				if ( t.Status == TaskStatus.Pending && !t.DependenciesSatisfied )
+				{
 					t.Status = TaskStatus.Blocked;
+					t.BlockedByDependency = GetBlockingDependency( t.Id );
+				}
 				else if ( t.Status == TaskStatus.Blocked && t.DependenciesSatisfied )
 				{
 					// If blocked by another task, only unblock when the blocker
@@ -229,12 +255,14 @@ namespace Lute.Building
 						{
 							t.Status = TaskStatus.Pending;
 							t.BlockedByTaskId = null;
+							t.BlockedByDependency = null;
 						}
 					}
 					else
 					{
 						t.Status = TaskStatus.Pending;
 						t.BlockedByTaskId = null;
+						t.BlockedByDependency = null;
 					}
 				}
 			}
@@ -715,6 +743,69 @@ namespace Lute.Building
 			return summary;
 		}
 
+		/// <summary>
+		/// DFS cycle detection starting from <paramref name="taskId"/>. Returns
+		/// true and a human-readable cycle path if a cycle exists.
+		/// </summary>
+		static bool DetectCycleFrom( string taskId, out string cyclePath )
+		{
+			cyclePath = null;
+			var onStack = new HashSet<string>();
+			var visited = new HashSet<string>();
+			var path = new List<string>();
+			string foundCycle = null;
+
+			bool Dfs( string current )
+			{
+				if ( onStack.Contains( current ) )
+				{
+					int start = path.IndexOf( current );
+					foundCycle = string.Join( " -> ", path.GetRange( start, path.Count - start ) ) + " -> " + current;
+					return true;
+				}
+				if ( visited.Contains( current ) )
+					return false;
+				visited.Add( current );
+				onStack.Add( current );
+				path.Add( current );
+				if ( _tasks.TryGetValue( current, out var t ) && t.DependsOn != null )
+				{
+					foreach ( var dep in t.DependsOn )
+						if ( Dfs( dep ) ) return true;
+				}
+				path.RemoveAt( path.Count - 1 );
+				onStack.Remove( current );
+				return false;
+			}
+
+			bool result = Dfs( taskId );
+			cyclePath = foundCycle;
+			return result;
+		}
+
+		/// <summary>
+		/// Returns the first unsatisfied prerequisite task id for a task, or
+		/// null if all prerequisites are complete.
+		/// </summary>
+		public static string GetBlockingDependency( string taskId )
+		{
+			if ( !_tasks.TryGetValue( taskId, out var t ) || t.DependsOn == null )
+				return null;
+			foreach ( var dep in t.DependsOn )
+			{
+				if ( _tasks.TryGetValue( dep, out var d ) && d.Status != TaskStatus.Complete )
+					return dep;
+			}
+			return null;
+		}
+
+		/// <summary>
+		/// All tasks currently blocked by an unsatisfied prerequisite.
+		/// </summary>
+		public static List<DirectedTask> DependencyBlockedTasks() =>
+			_tasks.Values.Where( t => t.Status == TaskStatus.Blocked &&
+				!string.IsNullOrEmpty( t.BlockedByDependency ) ).ToList();
+
 		public static bool CheckPreconditions( Dictionary<string, string> preconditions )
 		{
 			if ( preconditions == null || preconditions.Count == 0 )
@@ -913,6 +1004,40 @@ namespace Lute.Building
 				"market_square" => 25,
 				_ => (int)( task.BaseWidth * task.WealthFactor ) * (int)( task.BaseHeight * task.WealthFactor ),
 			};
+		}
+
+		/// <summary>
+		/// Diagnostic dump of the dependency graph: every task with an
+		/// unsatisfied prerequisite, the blocker, and the dependent chain.
+		/// </summary>
+		public static string DependencyGraphSummary()
+		{
+			var sb = new System.Text.StringBuilder();
+			sb.AppendLine( "Lute: ConstructionDirector — dependency graph" );
+
+			int total = _tasks.Count;
+			int complete = _tasks.Values.Count( t => t.Status == TaskStatus.Complete );
+			int depBlocked = _tasks.Values.Count( t => t.Status == TaskStatus.Blocked && !string.IsNullOrEmpty( t.BlockedByDependency ) );
+			int resBlocked = _tasks.Values.Count( t => t.Status == TaskStatus.Blocked && !string.IsNullOrEmpty( t.BlockedByTaskId ) );
+			int runnable = _tasks.Values.Count( t => t.Status == TaskStatus.Pending || t.Status == TaskStatus.PendingExecution || t.Status == TaskStatus.InProgress );
+
+			sb.AppendLine( $"  total={total} complete={complete} runnable={runnable} depBlocked={depBlocked} resBlocked={resBlocked}" );
+
+			foreach ( var t in _tasks.Values
+				.Where( t => t.Status == TaskStatus.Blocked && !string.IsNullOrEmpty( t.BlockedByDependency ) )
+				.OrderBy( t => t.Id ) )
+			{
+				var dep = GetTask( t.BlockedByDependency );
+				sb.AppendLine( $"  [blocked] {t.Id} ({t.BuildTask?.Name}) <- dep {t.BlockedByDependency} ({dep?.BuildTask?.Name}, status={dep?.Status})" );
+			}
+
+			return sb.ToString();
+		}
+
+		[ConCmd( "dag_status" )]
+		static void DagStatusCmd()
+		{
+			Log.Info( DependencyGraphSummary() );
 		}
 	}
 }

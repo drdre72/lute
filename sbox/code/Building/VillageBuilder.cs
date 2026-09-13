@@ -546,6 +546,19 @@ namespace Lute.Building
 					if ( pendingGlobal == 0 )
 						break;
 
+					// If the only remaining tasks are blocked by unsatisfied
+					// prerequisites, record the dependency-wait reason so the
+					// liveness system can explain the stall deterministically.
+					var depBlocked = ConstructionDirector.DependencyBlockedTasks();
+					if ( depBlocked.Count > 0 )
+					{
+						var first = depBlocked[0];
+						BuilderLivenessRegistry.SetIdle( npcName,
+							BuilderIdleReason.WaitingDependency,
+							$"waiting on prerequisite {first.BlockedByDependency} for task {first.Id}",
+							waitingOnTaskId: first.BlockedByDependency );
+					}
+
 					await GameTask.DelaySeconds( 1.0f );
 				}
 
