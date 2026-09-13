@@ -163,3 +163,81 @@ bool PlaceCornerPiece( int row, float z, int wythe )
    normal stretchers that butt against the corner piece.
 4. Update `WallCornerTopologyProbe` to recognize `BrickForm.Corner`.
 5. Rebuild, restart, accelerate, verify with GPT vision.
+
+---
+
+## Second Build Run (09:32–09:33 screenshots, same code 4473ced)
+
+A second build run was performed with the same code (commit `4473ced`,
+no code changes). Three new screenshots were captured and analyzed with
+GPT vision to confirm the baseline defects are reproducible.
+
+### Screenshot 09:32:36
+- **Projections:** Yes — end bricks of right wall stick out leftward ~half
+  a brick; perpendicular wall edge bricks stick forward, forming teeth.
+- **Non-corner uniformity:** Yes — broad right wall is flat, even courses,
+  aligned and flush.
+- **Corner:** Not clean — vertical recess/void at junction, jagged edges.
+- **Stair-step:** Yes — strong comb/sawtooth on both sides, alternating
+  projecting bricks and empty notches.
+- **Gaps:** Yes — many courses have one-brick-high holes near corner,
+  column of rectangular gaps visible through (every other row).
+
+### Screenshot 09:32:50
+- **Projections:** Yes — whole courses jut out past both exterior planes
+  by ~half a brick, creating "teeth."
+- **Non-corner uniformity:** Yes — wall runs uniform and coplanar away
+  from corner.
+- **Corner:** Not clean — two separate toothed stacks with exposed brick
+  ends and visible vertical slit between them.
+- **Stair-step:** Yes — clear stair-step/comb along entire height,
+  alternating courses projecting.
+- **Gaps:** Yes — one-brick-wide vertical gap between two corner stacks;
+  many overhanging bricks float with voids above/below.
+
+### Screenshot 09:33:04
+- **Projections:** Yes — many courses jut past exterior planes, forming
+  shelf-like ends on both faces.
+- **Non-corner uniformity:** Yes — flat sections uniform, straight,
+  evenly spaced.
+- **Corner:** Not clean — overlapping/overhanging brick ends and gaps;
+  no single clean vertical edge.
+- **Stair-step:** Yes — pronounced toothed/stair-step profile, two nested
+  combs (outer long, inner shorter).
+- **Gaps:** Yes — several rows missing mating bricks, voids behind/under
+  projecting ends; narrow gap line between stacked corner sections.
+
+### Top-down view (GPT vision, same run)
+
+The top-down angled view (20° pitch from above) consistently reports:
+- No bricks projecting past exterior wall planes
+- Non-corner pieces uniform
+- Corner clean (thin seam only)
+- No stair-step/comb projections
+- No floating/gap rows
+
+### Side vs top-down discrepancy
+
+The top-down view is the authoritative check for **exterior plane
+projections** — and it confirms the geometry is flush. However, the
+**side views** reveal the actual 3D structure of the corner:
+
+- On **owner courses**, the header brick rotates 90° and its long axis
+  extends along the perpendicular wall. From the side, this reads as a
+  "projection" because the header is visible on the wall face.
+- On **non-owner courses**, `ShouldButt` skips the corner brick, leaving
+  a gap. From the side, this reads as a "missing brick" or "floating
+  row."
+
+The alternating header/gap pattern creates the stair-step/comb appearance
+from the side, even though the top-down exterior plane is flush. This is
+the expected behavior of the current `ShouldButt` + header-bond approach,
+and it is the defect the `Brick_Corner` proposal is designed to eliminate.
+
+### Conclusion
+
+The baseline code (`4473ced`) is reproducible: top-down is clean, side
+views show the header/gap stair-step pattern. The `Brick_Corner` custom
+piece remains the recommended fix — it would place a single square
+corner piece on every course, eliminating both the side-view projections
+(header overhang) and the gap rows (non-owner skip).
