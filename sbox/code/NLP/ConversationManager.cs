@@ -163,15 +163,15 @@ namespace Lute.NLP
 			int processedThisTick = 0;
 			foreach ( var msg in messages )
 			{
-				// Track the highest processed message ID (even for skipped
-				// messages, so we don't re-fetch them next tick).
-				if ( msg.MessageId > entry.LastProcessedMessageId )
-					entry.LastProcessedMessageId = msg.MessageId;
-
-				// Only process NLP messages
+				// Only process NLP messages. Non-NLP messages are skipped
+				// (cursor advanced) — they do not count against the budget.
 				if ( msg.Type != "nlp_message" && msg.Type != "nlp_reply" &&
 					 msg.Type != "conversation_start" )
+				{
+					if ( msg.MessageId > entry.LastProcessedMessageId )
+						entry.LastProcessedMessageId = msg.MessageId;
 					continue;
+				}
 
 				// Per-tick message budget: stop processing after the cap so
 				// a message flood can't consume the entire tick. Remaining
@@ -182,6 +182,12 @@ namespace Lute.NLP
 					break;
 				}
 				processedThisTick++;
+				// Advance the cursor NOW — this message will actually be
+				// processed below. If the budget check had broken above,
+				// the cursor would NOT have advanced, so the message would
+				// be re-fetched next tick (exactly-once guarantee).
+				if ( msg.MessageId > entry.LastProcessedMessageId )
+					entry.LastProcessedMessageId = msg.MessageId;
 
 				// Per-peer turn budget: track turns per peer so one chatty
 				// thread can't starve other conversations. When a peer
