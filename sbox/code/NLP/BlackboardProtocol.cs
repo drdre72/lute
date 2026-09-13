@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Sandbox;
 using Lute.Building;
+using Lute.Items;
 
 namespace Lute.NLP
 {
@@ -213,9 +214,9 @@ namespace Lute.NLP
 		static BlackboardTransaction RouteClaimResource( Intent intent )
 		{
 			// ClaimResource: reserve space on a stockpile for a deposit.
-			// The subject is the resource type; amount from parameters.
-			if ( !Enum.TryParse<ResourceType>( intent.Subject, true, out var type ) || type == ResourceType.Unknown )
-				return BlackboardTransaction.Fail( $"unknown resource type: {intent.Subject}", "ResourceRegistry" );
+			// The subject is the item type; amount from parameters.
+			if ( !Enum.TryParse<ItemType>( intent.Subject, true, out var type ) )
+				return BlackboardTransaction.Fail( $"unknown item type: {intent.Subject}", "ResourceRegistry" );
 
 			int amount = 1;
 			if ( intent.Parameters.TryGetValue( "amount", out var amtStr ) && int.TryParse( amtStr, out var amt ) )
@@ -246,10 +247,10 @@ namespace Lute.NLP
 		static BlackboardTransaction RouteRequestResource( Intent intent )
 		{
 			// RequestResource: an NPC is asking for materials. Find the
-			// nearest stockpile with the requested resource. This is a
+			// nearest stockpile with the requested item. This is a
 			// query, not a mutation — it returns where the resource is.
-			if ( !Enum.TryParse<ResourceType>( intent.Subject, true, out var type ) || type == ResourceType.Unknown )
-				return BlackboardTransaction.Fail( $"unknown resource type: {intent.Subject}", "ResourceRegistry" );
+			if ( !Enum.TryParse<ItemType>( intent.Subject, true, out var type ) )
+				return BlackboardTransaction.Fail( $"unknown item type: {intent.Subject}", "ResourceRegistry" );
 
 			int amount = 1;
 			if ( intent.Parameters.TryGetValue( "amount", out var amtStr ) && int.TryParse( amtStr, out var amt ) )
@@ -267,8 +268,8 @@ namespace Lute.NLP
 			// OfferResource: an NPC is offering to deliver materials.
 			// Find the nearest stockpile with space. This is a query,
 			// not a mutation — it returns where to deliver.
-			if ( !Enum.TryParse<ResourceType>( intent.Subject, true, out var type ) || type == ResourceType.Unknown )
-				return BlackboardTransaction.Fail( $"unknown resource type: {intent.Subject}", "ResourceRegistry" );
+			if ( !Enum.TryParse<ItemType>( intent.Subject, true, out var type ) )
+				return BlackboardTransaction.Fail( $"unknown item type: {intent.Subject}", "ResourceRegistry" );
 
 			int amount = 1;
 			if ( intent.Parameters.TryGetValue( "amount", out var amtStr ) && int.TryParse( amtStr, out var amt ) )

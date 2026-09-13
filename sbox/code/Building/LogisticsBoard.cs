@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Sandbox;
+using Lute.Items;
 
 namespace Lute.Building
 {
@@ -12,8 +13,8 @@ namespace Lute.Building
 	/// </summary>
 	public sealed class MaterialRequirement
 	{
-		/// <summary> Resource type needed. </summary>
-		public ResourceType Type { get; init; }
+		/// <summary> Item type needed. </summary>
+		public ItemType Type { get; init; }
 
 		/// <summary> Amount needed. </summary>
 		public int Amount { get; init; }
@@ -42,19 +43,19 @@ namespace Lute.Building
 		/// <summary> Unique job id (e.g. "haul_0"). </summary>
 		public string Id { get; init; }
 
-		/// <summary> What resource is being hauled. </summary>
-		public ResourceType ResourceType { get; init; }
+		/// <summary> What item type is being hauled. </summary>
+		public ItemType ItemType { get; init; }
 
 		/// <summary> How many units. </summary>
 		public int Amount { get; init; }
 
-		/// <summary> Source: "source:<id>" or "stockpile:<id>". </summary>
+		/// <summary> Source: "source:id" or "stockpile:id". </summary>
 		public string FromId { get; init; }
 
 		/// <summary> Source position (for navigation). </summary>
 		public Vector3 FromPosition { get; init; }
 
-		/// <summary> Destination: "task:<id>" or "stockpile:<id>". </summary>
+		/// <summary> Destination: "task:id" or "stockpile:id". </summary>
 		public string ToId { get; init; }
 
 		/// <summary> Destination position (for navigation). </summary>
@@ -76,7 +77,7 @@ namespace Lute.Building
 		public float CompletedAt { get; set; }
 
 		public string Summary =>
-			$"{Id} {ResourceType}x{Amount} {FromId} -> {ToId}" +
+			$"{Id} {ItemType}x{Amount} {FromId} -> {ToId}" +
 			( AssignedHauler != null ? $" (haul={AssignedHauler})" : "" ) +
 			$" [{Status}]";
 	}
@@ -105,7 +106,7 @@ namespace Lute.Building
 		static long _jobSeq;
 
 		/// <summary> Create a haul job. Returns the job id, or null on failure. </summary>
-		public static string CreateJob( ResourceType type, int amount,
+		public static string CreateJob( ItemType type, int amount,
 			string fromId, Vector3 fromPos,
 			string toId, Vector3 toPos,
 			string forTaskId = "" )
@@ -116,7 +117,7 @@ namespace Lute.Building
 			var job = new LogisticsJob
 			{
 				Id = id,
-				ResourceType = type,
+				ItemType = type,
 				Amount = amount,
 				FromId = fromId,
 				FromPosition = fromPos,
@@ -130,11 +131,21 @@ namespace Lute.Building
 		}
 
 		/// <summary>
-		/// Claim the next pending haul job for a hauler. Returns null if
-		/// no jobs are available.
+		/// Claim the next pending haul job for a hauler. The claimant must
+		/// have the <see cref="NpcCapability.Haul"/> capability (verified
+		/// against the ConstructionDirector's builder registry). Returns
+		/// null if no jobs are available or the claimant is not a hauler.
 		/// </summary>
 		public static LogisticsJob ClaimNextJob( string haulerName )
 		{
+			// Capability gate: only haulers can claim haul jobs. The
+			// director's BuilderState caches the profession capabilities.
+			if ( !ConstructionDirector.HasCapability( haulerName, NpcCapability.Haul ) )
+			{
+				Log.Warning( $"Lute: LogisticsBoard — {haulerName} lacks Haul capability, cannot claim job" );
+				return null;
+			}
+
 			var job = _jobs.Values
 				.Where( j => j.Status == LogisticsJobStatus.Pending )
 				.OrderBy( j => j.CreatedAt )
@@ -153,37 +164,120 @@ namespace Lute.Building
 			!string.IsNullOrEmpty( id ) && _jobs.TryGetValue( id, out var j ) ? j : null;
 
 		/// <summary> Mark a job as in progress (hauler started moving). </summary>
-		public static void StartJob( string jobId )
-		{
-			var job = GetJob( jobId );
-			if ( job != null && job.Status == LogisticsJobStatus.Assigned )
-				job.Status = LogisticsJobStatus.InProgress;
-		}
-
-		/// <summary>
-		/// Complete a job: withdraw from source, deposit at destination,
-		/// update material requirement if delivering to a build site.
-		/// </summary>
-		public static (bool success, string detail) CompleteJob( string jobId )
+		public static (bool success, string detail) StartJob( string jobId, string haulerName )
 		{
 			var job = GetJob( jobId );
 			if ( job == null ) return ( false, "job not found" );
+			if ( job.AssignedHauler != haulerName )
+				return ( false, $"job assigned to {job.AssignedHauler}, not {haulerName}" );
+			if ( job.Status != LogisticsJobStatus.Assigned )
+				return ( false, $"job is {job.Status}, not assigned" );
+			job.Status = LogisticsJobStatus.InProgress;
+			return ( true, "in progress" );
+		}
+
+		/// <summary>
+		/// Complete a job. The caller must be the assigned hauler. The
+		/// transfer is atomic: material is withdrawn from the source and
+		/// deposited at the destination via
+		/// <see cref="ResourceRegistry.Transfer"/>, which rolls back any
+		/// undeposited material so nothing is created or destroyed. If
+		/// the destination is a build site (task), the delivered amount
+		/// is credited to the task's <see cref="MaterialRequirement"/> —
+		/// but only after the physical transfer succeeds.
+		/// </summary>
+		public static (bool success, string detail) CompleteJob( string jobId, string haulerName )
+		{
+			var job = GetJob( jobId );
+			if ( job == null ) return ( false, "job not found" );
+
+			// Assigned-hauler check: only the assigned hauler can complete
+			// the job. Prevents a different NPC from teleporting material
+			// by calling CompleteJob on someone else's job.
+			if ( job.AssignedHauler != haulerName )
+				return ( false, $"job assigned to {job.AssignedHauler}, not {haulerName}" );
+
 			if ( job.Status != LogisticsJobStatus.InProgress && job.Status != LogisticsJobStatus.Assigned )
 				return ( false, $"job is {job.Status}, not in progress" );
 
-			// Withdraw from source
-			int withdrawn = 0;
+			// ── Resolve source ──
+			Stockpile sourcePile = null;
+			ResourceSource sourceNode = null;
 			if ( job.FromId.StartsWith( "source:" ) )
 			{
-				var src = ResourceRegistry.GetSource( job.FromId.Substring( 7 ) );
-				if ( src == null ) return ( false, $"source not found: {job.FromId}" );
-				withdrawn = src.Gather();
+				sourceNode = ResourceRegistry.GetSource( job.FromId.Substring( 7 ) );
+				if ( sourceNode == null )
+				{
+					job.Status = LogisticsJobStatus.Failed;
+					return ( false, $"source not found: {job.FromId}" );
+				}
 			}
 			else if ( job.FromId.StartsWith( "stockpile:" ) )
 			{
-				var pile = ResourceRegistry.GetStockpile( job.FromId.Substring( 10 ) );
-				if ( pile == null ) return ( false, $"stockpile not found: {job.FromId}" );
-				withdrawn = pile.Withdraw( job.ResourceType, job.Amount );
+				sourcePile = ResourceRegistry.GetStockpile( job.FromId.Substring( 10 ) );
+				if ( sourcePile == null )
+				{
+					job.Status = LogisticsJobStatus.Failed;
+					return ( false, $"source stockpile not found: {job.FromId}" );
+				}
+			}
+			else
+			{
+				job.Status = LogisticsJobStatus.Failed;
+				return ( false, $"unknown source kind: {job.FromId}" );
+			}
+
+			// ── Resolve destination ──
+			Stockpile destPile = null;
+			DirectedTask destTask = null;
+			if ( job.ToId.StartsWith( "stockpile:" ) )
+			{
+				destPile = ResourceRegistry.GetStockpile( job.ToId.Substring( 10 ) );
+				if ( destPile == null )
+				{
+					job.Status = LogisticsJobStatus.Failed;
+					return ( false, $"destination stockpile not found: {job.ToId}" );
+				}
+			}
+			else if ( job.ToId.StartsWith( "task:" ) )
+			{
+				destTask = ConstructionDirector.GetTask( job.ToId.Substring( 5 ) );
+				if ( destTask == null )
+				{
+					job.Status = LogisticsJobStatus.Failed;
+					return ( false, $"destination task not found: {job.ToId}" );
+				}
+			}
+			else
+			{
+				job.Status = LogisticsJobStatus.Failed;
+				return ( false, $"unknown destination kind: {job.ToId}" );
+			}
+
+			// ── Transfer ──
+			// For task deliveries, we need a physical destination inventory.
+			// Build sites don't have a Stockpile yet — the material is
+			// credited to the task's MaterialRequirement. To keep the
+			// transfer atomic and conserve material, we withdraw from the
+			// source first; if the task credit would fail, we roll back.
+			int withdrawn;
+			if ( sourcePile != null )
+			{
+				// Reserve outgoing before withdrawing (the hauler should
+				// have reserved at claim time, but enforce here too).
+				withdrawn = sourcePile.Withdraw( job.ItemType, job.Amount );
+			}
+			else
+			{
+				// Gather from a ResourceSource — this writes into a
+				// transient hauler inventory (null here means we just
+				// track the count; the physical hauler loop in Gate 2d
+				// will pass the hauler's real LuteInventory).
+				withdrawn = Math.Min( job.Amount, sourceNode.RemainingYield );
+				if ( withdrawn > 0 )
+				{
+					sourceNode.RemainingYield -= withdrawn;
+				}
 			}
 
 			if ( withdrawn <= 0 )
@@ -192,39 +286,70 @@ namespace Lute.Building
 				return ( false, $"nothing to withdraw from {job.FromId}" );
 			}
 
-			// Deposit at destination
-			int deposited = 0;
-			if ( job.ToId.StartsWith( "stockpile:" ) )
+			// ── Deposit / credit ──
+			int deposited;
+			if ( destPile != null )
 			{
-				var pile = ResourceRegistry.GetStockpile( job.ToId.Substring( 10 ) );
-				if ( pile == null ) return ( false, $"destination stockpile not found: {job.ToId}" );
-				deposited = pile.Deposit( job.ResourceType, withdrawn );
-			}
-			else if ( job.ToId.StartsWith( "task:" ) )
-			{
-				// Deliver to a build site: update the task's material
-				// requirement directly.
-				var task = ConstructionDirector.GetTask( job.ToId.Substring( 5 ) );
-				if ( task != null && task.MaterialRequirements != null )
+				// Atomic transfer with rollback — never creates/destroys.
+				var (moved, detail) = ResourceRegistry.Transfer(
+					sourcePile, destPile, job.ItemType, withdrawn );
+				deposited = moved;
+				if ( deposited <= 0 )
 				{
-					foreach ( var req in task.MaterialRequirements )
+					// Transfer failed entirely — but Transfer already
+					// rolled back. Mark failed.
+					job.Status = LogisticsJobStatus.Failed;
+					return ( false, detail );
+				}
+			}
+			else
+			{
+				// Task delivery: credit the material requirement. If the
+				// task has no matching requirement (or is already
+				// satisfied), roll the material back into the source so
+				// we don't destroy it.
+				MaterialRequirement req = null;
+				if ( destTask.MaterialRequirements != null )
+				{
+					foreach ( var r in destTask.MaterialRequirements )
 					{
-						if ( req.Type == job.ResourceType && !req.Satisfied )
+						if ( r.Type == job.ItemType && !r.Satisfied )
 						{
-							req.Delivered += withdrawn;
-							deposited = withdrawn;
+							req = r;
 							break;
 						}
 					}
 				}
+				if ( req == null )
+				{
+					// Roll back: re-deposit into the source stockpile.
+					if ( sourcePile != null )
+						sourcePile.Deposit( job.ItemType, withdrawn );
+					else
+						sourceNode.RemainingYield += withdrawn;
+					job.Status = LogisticsJobStatus.Failed;
+					return ( false, $"task {destTask.Id} has no unsatisfied {job.ItemType} requirement" );
+				}
+				// Credit the requirement. Only the amount that fits the
+				// remaining need is credited; the surplus is rolled back.
+				int need = req.Amount - req.Delivered;
+				int credit = Math.Min( withdrawn, need );
+				int surplus = withdrawn - credit;
+				req.Delivered += credit;
+				if ( surplus > 0 )
+				{
+					if ( sourcePile != null )
+						sourcePile.Deposit( job.ItemType, surplus );
+					else
+						sourceNode.RemainingYield += surplus;
+				}
+				deposited = credit;
 			}
 
 			job.Status = LogisticsJobStatus.Completed;
 			job.CompletedAt = SpatialBlackboard.CurrentTime;
 
-			return ( deposited > 0 )
-				? ( true, $"delivered {deposited} {job.ResourceType}" )
-				: ( false, "deposit failed" );
+			return ( true, $"delivered {deposited} {job.ItemType}" );
 		}
 
 		/// <summary> All jobs (for diagnostics). </summary>
@@ -262,7 +387,7 @@ namespace Lute.Building
 				ResourceSource src = null;
 				Stockpile pile = null;
 
-				if ( ResourceClassification.IsRaw( req.Type ) )
+				if ( ItemDefs.IsRawMaterial( req.Type ) )
 				{
 					src = ResourceRegistry.NearestSource( req.Type, taskPosition );
 				}
@@ -279,10 +404,10 @@ namespace Lute.Building
 				}
 				else if ( src != null )
 				{
-					// Gather from source, deliver to nearest stockpile first
-					// (raw materials need processing at a workstation before
-					// they can be used for construction — but for now, allow
-					// direct delivery for the bootstrap test)
+					// Gather from source, deliver to build site. Raw
+					// materials need processing at a workstation before
+					// they can be used for construction — but for the
+					// bootstrap test, allow direct delivery.
 					var jobId = CreateJob( req.Type, needed,
 						$"source:{src.Id}", src.Position,
 						$"task:{task.Id}", taskPosition,

@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using Sandbox;
 using Lute.Building;
+using Lute.Items;
 
 namespace Lute.NLP
 {
@@ -290,9 +291,9 @@ namespace Lute.NLP
 		{
 			// ClaimResource: reserve space on a stockpile for a deposit,
 			// or reserve a withdrawal quantity. The subject is the
-			// resource type; the amount is optional (defaults to 1).
-			if ( !Enum.TryParse<ResourceType>( req.Subject, true, out var type ) || type == ResourceType.Unknown )
-				return NpcActionResult.Fail( $"unknown resource type: {req.Subject}", "ResourceRegistry" );
+			// item type; the amount is optional (defaults to 1).
+			if ( !Enum.TryParse<ItemType>( req.Subject, true, out var type ) )
+				return NpcActionResult.Fail( $"unknown item type: {req.Subject}", "ResourceRegistry" );
 
 			int amount = req.Amount ?? 1;
 			var (success, detail) = ResourceRegistry.ClaimResource( req.NpcName, type, amount, req.Position );
@@ -313,15 +314,15 @@ namespace Lute.NLP
 
 		static NpcActionResult DispatchDeliver( NpcActionRequest req )
 		{
-			// Deliver: deposit a resource into a stockpile. The subject
-			// is the resource type; the amount is optional. The NPC must
+			// Deliver: deposit an item into a stockpile. The subject
+			// is the item type; the amount is optional. The NPC must
 			// have a reservation on the target stockpile (claimed via
 			// ClaimResource first). For now, we find the nearest
 			// stockpile with space and deposit there. The actual physical
 			// transport (NPC walking to the stockpile) is handled by the
 			// NPC controller, not here — this just records the deposit.
-			if ( !Enum.TryParse<ResourceType>( req.Subject, true, out var type ) || type == ResourceType.Unknown )
-				return NpcActionResult.Fail( $"unknown resource type: {req.Subject}", "ResourceRegistry" );
+			if ( !Enum.TryParse<ItemType>( req.Subject, true, out var type ) )
+				return NpcActionResult.Fail( $"unknown item type: {req.Subject}", "ResourceRegistry" );
 
 			int amount = req.Amount ?? 1;
 			var pile = ResourceRegistry.NearestStockpileWithSpace( Vector3.Zero, amount );

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Lute.NLP;
+using Lute.Items;
 
 namespace Lute.Building
 {
@@ -259,11 +260,11 @@ namespace Lute.Building
 
 			var reqs = new List<MaterialRequirement>();
 			if ( brickAmount > 0 )
-				reqs.Add( new MaterialRequirement { Type = ResourceType.Brick, Amount = brickAmount } );
+				reqs.Add( new MaterialRequirement { Type = ItemType.Brick, Amount = brickAmount } );
 			if ( plankAmount > 0 )
-				reqs.Add( new MaterialRequirement { Type = ResourceType.Plank, Amount = plankAmount } );
+				reqs.Add( new MaterialRequirement { Type = ItemType.Plank, Amount = plankAmount } );
 			if ( timberAmount > 0 )
-				reqs.Add( new MaterialRequirement { Type = ResourceType.Timber, Amount = timberAmount } );
+				reqs.Add( new MaterialRequirement { Type = ItemType.Timber, Amount = timberAmount } );
 
 			return reqs.Count > 0 ? reqs : null;
 		}
@@ -351,6 +352,23 @@ namespace Lute.Building
 
 		public static List<DirectedTask> AllTasks() => _tasks.Values.ToList();
 		public static List<BuilderState> AllBuilders() => _builders.Values.ToList();
+
+		/// <summary>
+		/// Check whether a builder (by NPC name) has a given capability.
+		/// Used by <see cref="LogisticsBoard.ClaimNextJob"/> to gate haul job
+		/// claims to NPCs with <see cref="NpcCapability.Haul"/>. Returns
+		/// false if the builder is not registered.
+		/// </summary>
+		public static bool HasCapability( string npcName, NpcCapability cap )
+		{
+			if ( string.IsNullOrEmpty( npcName ) ) return false;
+			foreach ( var b in _builders.Values )
+			{
+				if ( b.NpcName != npcName ) continue;
+				return b.Capabilities != null && b.Capabilities.Contains( cap );
+			}
+			return false;
+		}
 
 		public static void AssignTasks()
 		{

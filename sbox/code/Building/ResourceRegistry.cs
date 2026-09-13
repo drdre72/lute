@@ -2,64 +2,247 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Sandbox;
+using Lute.Items;
+using Lute.Farming;
 
 namespace Lute.Building
 {
-	/// <summary>
-	/// Raw and processed material types in the Lute economy. Raw
-	/// materials come from <see cref="ResourceSource"/>s; processed
-	/// materials are produced at workstations. Both can be stored in
-	/// <see cref="Stockpile"/>s and hauled by NPCs.
-	/// </summary>
-	public enum ResourceType
-	{
-		Unknown,
-		// Raw
-		Wood,    // from trees
-		Stone,   // from quarry
-		Ore,     // from mine
-		// Processed
-		Brick,   // from brick bench (stone -> brick)
-		Plank,   // from sawmill (wood -> plank)
-		Timber,  // from sawmill (wood -> timber)
-		Ingot,   // from forge (ore -> ingot)
-		Tool,    // from smithy (ingot -> tool)
-	}
+	// ── Note on the unified economy ──
+	//
+	// Gate 2c collapsed the parallel "ResourceType" vocabulary into the
+	// existing physical ItemType / LuteInventory / ResourceNode / CraftingBench
+	// economy. There is now ONE type system (ItemType), ONE inventory
+	// abstraction (LuteInventory), ONE source abstraction (ResourceNode,
+	// adapted by ResourceSource), and ONE crafting system (CraftingBench,
+	// wrapped later by WorkstationRegistry).
+	//
+	// Stockpile is now backed by a real LuteInventory, so material lives in
+	// a physical 30-slot/500-stack component with tool durability, stacking,
+	// and serialization — not a data-class dictionary that can teleport or
+	// double-promise stock. Outgoing reservations (reserve specific
+	// ItemType × amount for a future withdrawal) are tracked separately from
+	// incoming capacity reservations (reserve room for a future deposit), so
+	// two haulers cannot both be promised the same 20 bricks.
 
 	/// <summary>
-	/// Whether a resource type is raw (from a source) or processed
-	/// (from a workstation).
-	/// </summary>
-	public static class ResourceClassification
-	{
-		static readonly HashSet<ResourceType> _raw = new()
-		{ ResourceType.Wood, ResourceType.Stone, ResourceType.Ore };
-
-		static readonly HashSet<ResourceType> _processed = new()
-		{ ResourceType.Brick, ResourceType.Plank, ResourceType.Timber, ResourceType.Ingot, ResourceType.Tool };
-
-		public static bool IsRaw( ResourceType t ) => _raw.Contains( t );
-		public static bool IsProcessed( ResourceType t ) => _processed.Contains( t );
-		public static bool IsValid( ResourceType t ) => t != ResourceType.Unknown;
-	}
-
-	/// <summary>
-	/// A physically located source of a raw resource (tree cluster,
-	/// quarry face, ore vein). Has a finite yield that depletes as NPCs
-	/// gather from it. The source itself is not reservable — multiple
-	/// NPCs can gather simultaneously — but the yield is tracked so
-	/// depletion is deterministic.
+	/// A reservable physical stockpile backed by a real
+	/// <see cref="LuteInventory"/>. Materials deposited here live in actual
+	/// inventory slots with stack limits and tool durability — no
+	/// teleporting, no double-promising.
 	///
-	/// Per PR #6 §5: "Resource source interface" — sources are
-	/// world-side semantic contracts, not NPC-side logic.
+	/// Two kinds of reservations are tracked, per PR #6 §5 and the professor's
+	/// Gate 2c hardening notes:
+	/// <list type="bullet">
+	/// <item><b>Incoming</b> (deposit room): NPC → amount. Reserves free
+	/// capacity for a future deposit. Prevents over-accepting deliveries.</item>
+	/// <item><b>Outgoing</b> (withdrawal hold): NPC → (ItemType, amount).
+	/// Reserves specific stock for a future withdrawal. Prevents two haulers
+	/// being promised the same 20 bricks.</item>
+	/// </list>
+	/// </summary>
+	public sealed class Stockpile
+	{
+		/// <summary> Unique stockpile id (e.g. "stockyard_0"). </summary>
+		public string Id { get; init; }
+
+		/// <summary> World position. </summary>
+		public Vector3 Position { get; init; }
+
+		/// <summary> OBB half-extents for spatial queries. </summary>
+		public Vector3 HalfExtents { get; init; }
+
+		/// <summary> The real inventory backing this stockpile. </summary>
+		public LuteInventory Inventory { get; init; }
+
+		/// <summary> Maximum units this stockpile can hold (capacity in item units). </summary>
+		public int Capacity { get; init; }
+
+		/// <summary> Total units currently stored across all slots. </summary>
+		public int Used => Inventory == null ? 0 : CountAll();
+
+		/// <summary> Available space in units. </summary>
+		public int Available => Capacity - Used;
+
+		/// <summary>
+		/// Incoming reservations: NPC name -> reserved units of deposit room.
+		/// </summary>
+		public Dictionary<string, int> IncomingReservations { get; } = new();
+
+		/// <summary> Total incoming reserved units. </summary>
+		public int IncomingReservedTotal => IncomingReservations.Values.Sum();
+
+		/// <summary>
+		/// Outgoing reservations: NPC name -> (ItemType, amount) list.
+		/// Stored as a flat list so multiple resource types can be held for
+		/// one NPC (e.g. a hauler reserving 20 brick + 10 plank).
+		/// </summary>
+		public Dictionary<string, List<(ItemType Type, int Amount)>> OutgoingReservations { get; } = new();
+
+		/// <summary> Visual placeholder GameObject. </summary>
+		public GameObject VisualGo { get; set; }
+
+		public Stockpile( string id, Vector3 pos, Vector3 halfExtents, int capacity, LuteInventory inventory )
+		{
+			Id = id;
+			Position = pos;
+			HalfExtents = halfExtents;
+			Capacity = capacity;
+			Inventory = inventory;
+		}
+
+		int CountAll()
+		{
+			int total = 0;
+			for ( int i = 0; i < Inventory.SlotCount; i++ )
+				if ( Inventory.Slots[i].Count > 0 )
+					total += Inventory.Slots[i].Count;
+			return total;
+		}
+
+		/// <summary> How much of a type is stored here (physical stock). </summary>
+		public int Count( ItemType type ) => Inventory?.CountItem( type ) ?? 0;
+
+		/// <summary>
+		/// How much of a type is physically present AND not reserved outgoing
+		/// by someone else. This is what a new hauler can actually promise to
+		/// withdraw.
+		/// </summary>
+		public int AvailableOutgoing( ItemType type, string forNpc )
+		{
+			int physical = Count( type );
+			int reservedByOthers = 0;
+			foreach ( var kv in OutgoingReservations )
+			{
+				if ( kv.Key == forNpc ) continue;
+				foreach ( var r in kv.Value )
+					if ( r.Type == type ) reservedByOthers += r.Amount;
+			}
+			return Math.Max( 0, physical - reservedByOthers );
+		}
+
+		// ── Incoming (deposit room) reservations ──
+
+		/// <summary>
+		/// Reserve deposit room. Returns true if the reservation was
+		/// created, false if insufficient available space.
+		/// </summary>
+		public bool ReserveIncoming( string npcName, int amount )
+		{
+			if ( amount <= 0 ) return false;
+			int already = IncomingReservations.GetValueOrDefault( npcName );
+			int availableForReserve = Available - ( IncomingReservedTotal - already );
+			if ( amount > availableForReserve ) return false;
+			IncomingReservations[npcName] = already + amount;
+			return true;
+		}
+
+		/// <summary> Release an incoming reservation (full or partial). </summary>
+		public void ReleaseIncoming( string npcName, int amount )
+		{
+			if ( !IncomingReservations.ContainsKey( npcName ) ) return;
+			IncomingReservations[npcName] -= amount;
+			if ( IncomingReservations[npcName] <= 0 )
+				IncomingReservations.Remove( npcName );
+		}
+
+		// ── Outgoing (withdrawal hold) reservations ──
+
+		/// <summary>
+		/// Reserve specific stock for a future withdrawal by a hauler.
+		/// Returns true if the stock is physically present and not already
+		/// reserved outgoing by another NPC.
+		/// </summary>
+		public bool ReserveOutgoing( string npcName, ItemType type, int amount )
+		{
+			if ( amount <= 0 ) return false;
+			if ( AvailableOutgoing( type, npcName ) < amount ) return false;
+			var list = OutgoingReservations.GetValueOrDefault( npcName ) ?? new List<(ItemType, int)>();
+			list.Add( (type, amount) );
+			OutgoingReservations[npcName] = list;
+			return true;
+		}
+
+		/// <summary> Release an outgoing reservation (full or partial). </summary>
+		public void ReleaseOutgoing( string npcName, ItemType type, int amount )
+		{
+			if ( !OutgoingReservations.TryGetValue( npcName, out var list ) ) return;
+			int remaining = amount;
+			for ( int i = list.Count - 1; i >= 0 && remaining > 0; i-- )
+			{
+				if ( list[i].Type != type ) continue;
+				int take = Math.Min( list[i].Amount, remaining );
+				var entry = list[i];
+				entry.Amount -= take;
+				list[i] = entry;
+				remaining -= take;
+				if ( list[i].Amount <= 0 ) list.RemoveAt( i );
+			}
+			if ( list.Count == 0 ) OutgoingReservations.Remove( npcName );
+		}
+
+		// ── Deposit / Withdraw (physical, via LuteInventory) ──
+
+		/// <summary>
+		/// Deposit materials into the physical inventory. Returns the
+		/// amount actually deposited (may be less than requested if near
+		/// capacity or slot limits). Does NOT touch reservations — the
+		/// caller is responsible for releasing the matching incoming
+		/// reservation after a successful deposit.
+		/// </summary>
+		public int Deposit( ItemType type, int amount )
+		{
+			if ( amount <= 0 || Inventory == null ) return 0;
+			int canFit = Math.Min( amount, Available );
+			if ( canFit <= 0 ) return 0;
+			int leftover = Inventory.AddItem( type, canFit );
+			return canFit - leftover;
+		}
+
+		/// <summary>
+		/// Withdraw materials from the physical inventory. Returns the
+		/// amount actually withdrawn (may be less if insufficient stock).
+		/// Does NOT touch reservations — the caller must hold an outgoing
+		/// reservation for this material and release it after withdrawing.
+		/// </summary>
+		public int Withdraw( ItemType type, int amount )
+		{
+			if ( amount <= 0 || Inventory == null ) return 0;
+			int have = Count( type );
+			int canWithdraw = Math.Min( amount, have );
+			if ( canWithdraw <= 0 ) return 0;
+			return Inventory.RemoveItem( type, canWithdraw ) ? canWithdraw : 0;
+		}
+
+		public string Summary =>
+			$"{Id} @ {Position} used={Used}/{Capacity} inResv={IncomingReservedTotal}" +
+			( OutgoingReservations.Count > 0
+				? " outResv=[" + string.Join( ", ",
+					OutgoingReservations.Select( kv => $"{kv.Key}:{string.Join( "+", kv.Value.Select( r => $"{r.Type}x{r.Amount}" ) )}" ) ) + "]"
+				: "" );
+	}
+
+	/// <summary>
+	/// A physically located source of a raw resource. Adapts an existing
+	/// <see cref="ResourceNode"/> component (the physical gather point with
+	/// tool checks, yield, and respawn) into the registry's spatial query
+	/// surface. The source itself is not reservable — multiple NPCs can
+	/// gather simultaneously — but the yield is tracked so depletion is
+	/// deterministic.
+	///
+	/// Per PR #6 §5: "Resource source interface" — sources are world-side
+	/// semantic contracts, not NPC-side logic.
 	/// </summary>
 	public sealed class ResourceSource
 	{
 		/// <summary> Unique source id (e.g. "tree_cluster_0"). </summary>
 		public string Id { get; init; }
 
+		/// <summary> The physical node this source adapts. May be null for
+		/// purely synthetic sources (e.g. a cluster registered by position). </summary>
+		public ResourceNode Node { get; init; }
+
 		/// <summary> What this source produces. </summary>
-		public ResourceType Type { get; init; }
+		public ItemType Type { get; init; }
 
 		/// <summary> World position of the source. </summary>
 		public Vector3 Position { get; init; }
@@ -82,16 +265,17 @@ namespace Lute.Building
 		/// <summary> Optional: required capability to gather from this source. </summary>
 		public NpcCapability RequiredCapability { get; init; } = NpcCapability.None;
 
-		/// <summary> Optional: required tool (future, not yet enforced). </summary>
-		public string RequiredTool { get; init; } = "";
+		/// <summary> Optional: required tool (ItemType, or Clay for "none"). </summary>
+		public ItemType RequiredTool { get; init; } = ItemType.Clay;
 
-		/// <summary> Visual placeholder GameObject (SpawnBox). </summary>
+		/// <summary> Visual placeholder GameObject. </summary>
 		public GameObject VisualGo { get; set; }
 
-		public ResourceSource( string id, ResourceType type, Vector3 pos,
+		public ResourceSource( string id, ItemType type, Vector3 pos,
 			int totalYield, int yieldPerGather = 10, float radius = 200f,
 			NpcCapability requiredCapability = NpcCapability.None,
-			string requiredTool = "" )
+			ItemType requiredTool = ItemType.Clay,
+			ResourceNode node = null )
 		{
 			Id = id;
 			Type = type;
@@ -102,141 +286,54 @@ namespace Lute.Building
 			Radius = radius;
 			RequiredCapability = requiredCapability;
 			RequiredTool = requiredTool;
+			Node = node;
 		}
 
 		/// <summary>
-		/// Attempt to gather from this source. Returns the amount
-		/// actually gathered (may be less than YieldPerGather if nearly
-		/// depleted). Returns 0 if depleted.
+		/// Attempt to gather from this source into an inventory. Returns
+		/// the amount actually gathered (may be less than YieldPerGather if
+		/// nearly depleted). Returns 0 if depleted. If a physical
+		/// <see cref="Node"/> is attached, delegates to it (which performs
+		/// the real tool check and writes into the inventory); otherwise
+		/// performs a synthetic gather that still respects depletion.
 		/// </summary>
-		public int Gather()
+		public int Gather( LuteInventory inventory )
 		{
 			if ( IsDepleted ) return 0;
+			if ( Node != null && inventory != null )
+			{
+				// Delegate to the physical node — it does tool checks,
+				// durability, and writes into the inventory directly.
+				int before = inventory.CountItem( Type );
+				int gathered = Node.Gather( inventory );
+				// Keep our depletion counter roughly in sync with the node.
+				int actual = inventory.CountItem( Type ) - before;
+				RemainingYield = Math.Max( 0, RemainingYield - actual );
+				return actual > 0 ? actual : gathered;
+			}
+			// Synthetic gather (no physical node) — still deterministic.
 			int amount = Math.Min( YieldPerGather, RemainingYield );
 			RemainingYield -= amount;
+			if ( inventory != null )
+			{
+				int leftover = inventory.AddItem( Type, amount );
+				amount -= leftover;
+			}
 			return amount;
 		}
 
 		public string Summary =>
 			$"{Id} ({Type}) @ {Position} yield={RemainingYield}/{TotalYield}" +
-			( IsDepleted ? " DEPLETED" : "" );
-	}
-
-	/// <summary>
-	/// A reservable physical stockpile where materials are stored.
-	/// Stockpiles have a capacity and track their current contents by
-	/// resource type. NPCs reserve stockpile slots before depositing or
-	/// withdrawing materials.
-	///
-	/// Per PR #6 §5: "Reservable physical stockpiles" — stockpiles are
-	/// world-side semantic contracts connected to the construction
-	/// pipeline, not NPC-side inventory.
-	/// </summary>
-	public sealed class Stockpile
-	{
-		/// <summary> Unique stockpile id (e.g. "stockyard_0"). </summary>
-		public string Id { get; init; }
-
-		/// <summary> World position. </summary>
-		public Vector3 Position { get; init; }
-
-		/// <summary> OBB half-extents for spatial queries. </summary>
-		public Vector3 HalfExtents { get; init; }
-
-		/// <summary> Maximum units this stockpile can hold. </summary>
-		public int Capacity { get; init; }
-
-		/// <summary> Current contents by resource type. </summary>
-		public Dictionary<ResourceType, int> Contents { get; } = new();
-
-		/// <summary> Total units currently stored. </summary>
-		public int Used => Contents.Values.Sum();
-
-		/// <summary> Available space. </summary>
-		public int Available => Capacity - Used;
-
-		/// <summary> Who has reserved this stockpile (NPC name -> reserved units). </summary>
-		public Dictionary<string, int> Reservations { get; } = new();
-
-		/// <summary> Total units reserved. </summary>
-		public int ReservedTotal => Reservations.Values.Sum();
-
-		/// <summary> Visual placeholder GameObject. </summary>
-		public GameObject VisualGo { get; set; }
-
-		public Stockpile( string id, Vector3 pos, Vector3 halfExtents, int capacity )
-		{
-			Id = id;
-			Position = pos;
-			HalfExtents = halfExtents;
-			Capacity = capacity;
-		}
-
-		/// <summary>
-		/// Reserve space on this stockpile. Returns true if the
-		/// reservation was created, false if insufficient available space.
-		/// </summary>
-		public bool Reserve( string npcName, int amount )
-		{
-			if ( amount <= 0 ) return false;
-			int availableForReserve = Available - ( ReservedTotal - ( Reservations.GetValueOrDefault( npcName ) ) );
-			if ( amount > availableForReserve ) return false;
-			Reservations[npcName] = Reservations.GetValueOrDefault( npcName ) + amount;
-			return true;
-		}
-
-		/// <summary>
-		/// Release a reservation (full or partial).
-		/// </summary>
-		public void ReleaseReservation( string npcName, int amount )
-		{
-			if ( !Reservations.ContainsKey( npcName ) ) return;
-			Reservations[npcName] -= amount;
-			if ( Reservations[npcName] <= 0 )
-				Reservations.Remove( npcName );
-		}
-
-		/// <summary>
-		/// Deposit materials into this stockpile. Returns the amount
-		/// actually deposited (may be less if near capacity).
-		/// </summary>
-		public int Deposit( ResourceType type, int amount )
-		{
-			if ( amount <= 0 ) return 0;
-			int canDeposit = Math.Min( amount, Available );
-			Contents[type] = Contents.GetValueOrDefault( type ) + canDeposit;
-			return canDeposit;
-		}
-
-		/// <summary>
-		/// Withdraw materials from this stockpile. Returns the amount
-		/// actually withdrawn (may be less if insufficient stock).
-		/// </summary>
-		public int Withdraw( ResourceType type, int amount )
-		{
-			if ( amount <= 0 ) return 0;
-			int have = Contents.GetValueOrDefault( type );
-			int canWithdraw = Math.Min( amount, have );
-			Contents[type] = have - canWithdraw;
-			if ( Contents[type] <= 0 )
-				Contents.Remove( type );
-			return canWithdraw;
-		}
-
-		/// <summary> How much of a type is stored here. </summary>
-		public int Count( ResourceType type ) => Contents.GetValueOrDefault( type );
-
-		public string Summary =>
-			$"{Id} @ {Position} used={Used}/{Capacity} reserved={ReservedTotal}" +
-			( Contents.Count > 0 ? " [" + string.Join( ", ", Contents.Select( kv => $"{kv.Key}={kv.Value}" ) ) + "]" : "" );
+			( IsDepleted ? " DEPLETED" : "" ) +
+			( Node != null ? " [node]" : "" );
 	}
 
 	/// <summary>
 	/// Authoritative registry of all resource sources and stockpiles in
 	/// the world. NPCs query this to find where to gather, where to
 	/// deposit, and where to withdraw materials. The
-	/// <see cref="NpcActionDispatcher"/> routes ClaimResource/
-	/// ReleaseResource intents here.
+	/// NpcActionDispatcher routes ClaimResource/ReleaseResource intents
+	/// here.
 	///
 	/// This is the single resource authority — there is no second
 	/// resource tracking system (per PR #6: "reuse existing authorities,
@@ -246,20 +343,17 @@ namespace Lute.Building
 	{
 		static readonly Dictionary<string, ResourceSource> _sources = new();
 		static readonly Dictionary<string, Stockpile> _stockpiles = new();
-		static bool _initialized;
 
 		/// <summary> Register a resource source. </summary>
 		public static void RegisterSource( ResourceSource source )
 		{
-			if ( source == null ) return;
-			_sources[source.Id] = source;
+			if ( source != null ) _sources[source.Id] = source;
 		}
 
 		/// <summary> Register a stockpile. </summary>
 		public static void RegisterStockpile( Stockpile stockpile )
 		{
-			if ( stockpile == null ) return;
-			_stockpiles[stockpile.Id] = stockpile;
+			if ( stockpile != null ) _stockpiles[stockpile.Id] = stockpile;
 		}
 
 		/// <summary> Get a source by id. </summary>
@@ -279,7 +373,7 @@ namespace Lute.Building
 		/// <summary>
 		/// Find the nearest non-depleted source of a given type.
 		/// </summary>
-		public static ResourceSource NearestSource( ResourceType type, Vector3 from )
+		public static ResourceSource NearestSource( ItemType type, Vector3 from )
 		{
 			ResourceSource best = null;
 			float bestDist = float.MaxValue;
@@ -293,7 +387,8 @@ namespace Lute.Building
 		}
 
 		/// <summary>
-		/// Find the nearest stockpile that has space available.
+		/// Find the nearest stockpile that has free capacity (after
+		/// accounting for incoming reservations).
 		/// </summary>
 		public static Stockpile NearestStockpileWithSpace( Vector3 from, int needed = 1 )
 		{
@@ -301,7 +396,8 @@ namespace Lute.Building
 			float bestDist = float.MaxValue;
 			foreach ( var s in _stockpiles.Values )
 			{
-				if ( s.Available < needed ) continue;
+				int availableForNew = s.Available - s.IncomingReservedTotal;
+				if ( availableForNew < needed ) continue;
 				float d = ( s.Position - from ).LengthSquared;
 				if ( d < bestDist ) { bestDist = d; best = s; }
 			}
@@ -310,46 +406,49 @@ namespace Lute.Building
 
 		/// <summary>
 		/// Find the nearest stockpile that has at least the requested
-		/// amount of a specific resource type.
+		/// amount of a specific item type available for outgoing
+		/// (physical stock minus reservations held by other NPCs).
 		/// </summary>
-		public static Stockpile NearestStockpileWithResource( ResourceType type, Vector3 from, int needed = 1 )
+		public static Stockpile NearestStockpileWithResource( ItemType type, Vector3 from,
+			int needed = 1, string forNpc = null )
 		{
 			Stockpile best = null;
 			float bestDist = float.MaxValue;
 			foreach ( var s in _stockpiles.Values )
 			{
-				if ( s.Count( type ) < needed ) continue;
+				if ( s.AvailableOutgoing( type, forNpc ?? "" ) < needed ) continue;
 				float d = ( s.Position - from ).LengthSquared;
 				if ( d < bestDist ) { bestDist = d; best = s; }
 			}
 			return best;
 		}
 
+		// ── Reservation APIs ──
+
 		/// <summary>
-		/// Claim a resource: reserve space on a stockpile for a deposit,
-		/// or reserve a withdrawal quantity. Returns a typed result.
+		/// Claim deposit room on a stockpile (incoming reservation).
+		/// Used by a hauler about to deliver material.
 		/// </summary>
 		public static (bool success, string detail) ClaimResource(
-			string npcName, ResourceType type, int amount, Vector3? nearPos = null )
+			string npcName, ItemType type, int amount, Vector3? nearPos = null )
 		{
 			if ( amount <= 0 )
 				return ( false, "amount must be positive" );
 
-			// Claim for deposit: find a stockpile with space
 			var pile = nearPos.HasValue
 				? NearestStockpileWithSpace( nearPos.Value, amount )
-				: _stockpiles.Values.FirstOrDefault( s => s.Available >= amount );
+				: _stockpiles.Values.FirstOrDefault( s => s.Available - s.IncomingReservedTotal >= amount );
 			if ( pile == null )
 				return ( false, "no stockpile with sufficient space" );
 
-			if ( !pile.Reserve( npcName, amount ) )
+			if ( !pile.ReserveIncoming( npcName, amount ) )
 				return ( false, $"stockpile {pile.Id} reservation failed" );
 
 			return ( true, $"reserved {amount} {type} on {pile.Id}" );
 		}
 
 		/// <summary>
-		/// Release a previously claimed resource reservation.
+		/// Release a previously claimed incoming reservation.
 		/// </summary>
 		public static (bool success, string detail) ReleaseResource(
 			string npcName, int amount )
@@ -357,9 +456,9 @@ namespace Lute.Building
 			bool any = false;
 			foreach ( var pile in _stockpiles.Values )
 			{
-				if ( pile.Reservations.ContainsKey( npcName ) )
+				if ( pile.IncomingReservations.ContainsKey( npcName ) )
 				{
-					pile.ReleaseReservation( npcName, amount );
+					pile.ReleaseIncoming( npcName, amount );
 					any = true;
 				}
 			}
@@ -368,12 +467,95 @@ namespace Lute.Building
 				: ( false, "no matching reservation" );
 		}
 
+		/// <summary>
+		/// Reserve specific outgoing stock for a hauler about to withdraw.
+		/// This is the controlled-failure guard: two haulers cannot both be
+		/// promised the same 20 bricks.
+		/// </summary>
+		public static (bool success, string detail) ReserveOutgoing(
+			string npcName, ItemType type, int amount, Vector3? nearPos = null )
+		{
+			if ( amount <= 0 )
+				return ( false, "amount must be positive" );
+
+			var pile = nearPos.HasValue
+				? NearestStockpileWithResource( type, nearPos.Value, amount, npcName )
+				: _stockpiles.Values.FirstOrDefault( s => s.AvailableOutgoing( type, npcName ) >= amount );
+			if ( pile == null )
+				return ( false, $"no stockpile has {amount} {type} available" );
+
+			if ( !pile.ReserveOutgoing( npcName, type, amount ) )
+				return ( false, $"stockpile {pile.Id} outgoing reservation failed" );
+
+			return ( true, $"reserved {amount} {type} outgoing on {pile.Id}" );
+		}
+
+		/// <summary>
+		/// Release an outgoing reservation.
+		/// </summary>
+		public static (bool success, string detail) ReleaseOutgoing(
+			string npcName, ItemType type, int amount )
+		{
+			bool any = false;
+			foreach ( var pile in _stockpiles.Values )
+			{
+				if ( pile.OutgoingReservations.ContainsKey( npcName ) )
+				{
+					pile.ReleaseOutgoing( npcName, type, amount );
+					any = true;
+				}
+			}
+			return any
+				? ( true, $"released {amount} {type} outgoing" )
+				: ( false, "no matching outgoing reservation" );
+		}
+
+		// ── Atomic transfer ──
+
+		/// <summary>
+		/// Atomically transfer material from one stockpile to another.
+		/// Withdraws from <paramref name="from"/>, deposits into
+		/// <paramref name="to"/>. If the destination accepts less than was
+		/// withdrawn, the difference is rolled back into the source.
+		/// Returns the amount actually transferred. Never creates or
+		/// destroys material — conservation is invariant.
+		/// </summary>
+		public static (int transferred, string detail) Transfer(
+			Stockpile from, Stockpile to, ItemType type, int amount )
+		{
+			if ( amount <= 0 || from == null || to == null )
+				return ( 0, "invalid transfer parameters" );
+			if ( from == to )
+				return ( 0, "source and destination are the same stockpile" );
+
+			int withdrawn = from.Withdraw( type, amount );
+			if ( withdrawn <= 0 )
+				return ( 0, $"nothing to withdraw from {from.Id}" );
+
+			int deposited = to.Deposit( type, withdrawn );
+			int lost = withdrawn - deposited;
+
+			// Roll back any undeposited material into the source so we
+			// never create or destroy stock.
+			if ( lost > 0 )
+			{
+				int rolled = from.Deposit( type, lost );
+				// If even the rollback fails (source somehow full), we have
+				// a real conservation problem — log it loudly.
+				if ( rolled < lost )
+					Log.Warning( $"Lute: ResourceRegistry conservation loss — {lost - rolled} {type} could not be rolled back to {from.Id}" );
+			}
+
+			return ( deposited, deposited == withdrawn
+				? $"transferred {deposited} {type} {from.Id} -> {to.Id}"
+				: $"transferred {deposited}/{withdrawn} {type} {from.Id} -> {to.Id} (rolled back {lost})" );
+		}
+
 		/// <summary> Clear all sources and stockpiles (for reset). </summary>
 		public static void Clear()
 		{
 			_sources.Clear();
 			_stockpiles.Clear();
-			_initialized = false;
 		}
 
 		/// <summary> Diagnostic summary. </summary>

@@ -17,6 +17,9 @@ public enum ItemType
 	Brick,
 	Concrete,
 	Mortar,
+	Plank,    // sawmill — from wood
+	Timber,   // sawmill — from wood (heavy structural)
+	Ingot,    // forge — from ore (smelted metal)
 
 	// Tools (crafted by smith, used by builders/farmers)
 	Spade,      // builder tool — breaks after 300 bricks placed
@@ -59,7 +62,9 @@ public static class ItemDefs
 
 	public static bool IsCraftedMaterial( ItemType type )
 	{
-		return type == ItemType.Brick || type == ItemType.Concrete || type == ItemType.Mortar;
+		return type == ItemType.Brick || type == ItemType.Concrete ||
+			   type == ItemType.Mortar || type == ItemType.Plank ||
+			   type == ItemType.Timber || type == ItemType.Ingot;
 	}
 
 	public static string GetDisplayName( ItemType type )
@@ -75,6 +80,9 @@ public static class ItemDefs
 			ItemType.Brick => "Brick",
 			ItemType.Concrete => "Concrete",
 			ItemType.Mortar => "Mortar",
+			ItemType.Plank => "Plank",
+			ItemType.Timber => "Timber",
+			ItemType.Ingot => "Ingot",
 			ItemType.Spade => "Spade",
 			ItemType.Pickaxe => "Pickaxe",
 			ItemType.Shovel => "Shovel",

@@ -31,6 +31,8 @@ namespace Lute.Building
 		GatherStone,
 		/// <summary> Gather ore from mine sources. </summary>
 		GatherOre,
+		/// <summary> Gather clay/straw from deposits/fields. </summary>
+		GatherClay,
 		/// <summary> Haul materials between locations. </summary>
 		Haul,
 		/// <summary> Operate a sawmill / process timber. </summary>
