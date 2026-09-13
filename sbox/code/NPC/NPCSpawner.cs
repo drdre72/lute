@@ -133,7 +133,7 @@ namespace Lute.Npc
 				builder.BuildInterval = 0.5f;     // 0.5s per brick lay with LAY animation
 				builder.SaveInterval = 60f;        // save every 1 minute
 				builder.CellSize = 100f;
-				builder.WallHeight = 200f;
+				builder.WallHeight = 160f;  // 4m tall walls (160 inches)
 				builder.FloorThickness = 10f;
 				builder.WallMaterial = "materials/medieval/brick_wall.vmat";
 				builder.FloorMaterial = "materials/medieval/plaza.vmat";

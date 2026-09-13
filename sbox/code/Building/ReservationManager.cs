@@ -250,7 +250,7 @@ namespace Lute.Building
 			float width, depth, height;
 			switch ( task.TaskType )
 			{
-				case "wall": width = 10f * M; depth = 3f * M; height = 6f * M; break;
+				case "wall": width = 2.5f * M; depth = 1f * M; height = 6f * M; break;
 				case "gate": width = 16f * M; depth = 4f * M; height = 15f * M; break;
 				case "road": width = 10f * M; depth = 10f * M; height = 2f * M; break;
 				case "well": width = depth = 8f * M; height = 10f * M; break;

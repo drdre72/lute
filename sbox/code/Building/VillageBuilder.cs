@@ -174,6 +174,10 @@ namespace Lute.Building
 
 			// Force build speed — 0.5s per brick lay with LAY animation.
 			BuildInterval = 0.5f;
+			// Clamp to minimum 0.01s to prevent engine stalls from spawning
+			// thousands of GameObjects per second when BuildInterval is set to 0.
+			if ( BuildInterval < 0.01f )
+				BuildInterval = 0.01f;
 			if ( SaveInterval > 120f )
 			{
 				Log.Info( $"Lute: VillageBuilder overriding SaveInterval {SaveInterval}s → 60s (fast mode)" );
@@ -682,6 +686,10 @@ namespace Lute.Building
 		//   left face sits exactly on -segLen/2 (no overflow, no edge gap).
 		async Task BuildWallSegment( VillageBuildTask task, CancellationToken token )
 		{
+			// Clamp BuildInterval to prevent engine stalls from spawning
+			// thousands of GameObjects per second when set to 0 via MCP.
+			if ( BuildInterval < 0.01f )
+				BuildInterval = 0.01f;
 			float segLen = WallSegmentLength;
 			float wallH = WallHeight;
 			float wallDepth = WallThickness;
@@ -733,6 +741,21 @@ namespace Lute.Building
 				return false;
 			}
 
+			// On odd courses with left butt, the first full stretcher (col=1)
+			// also overlaps the corner core and must be skipped, just like the
+			// left half-brick. This mirrors the reference test's right-side
+			// behavior where both the last full stretcher and right half-brick
+			// are skipped.
+			bool ShouldButtLeftFull( int col, int row )
+			{
+				if ( task.CornerButtSide != 1 ) return false;
+				bool isOdd = (row % 2 == 1);
+				bool buttOnOdd = task.CornerButtCourses == 2;
+				bool courseButts = isOdd == buttOnOdd;
+				if ( !courseButts ) return false;
+				return col == 1; // first full stretcher after left half-brick
+			}
+
 			// Count how many bricks will be skipped for correct TotalPieces.
 			int skipCount = 0;
 			for ( int row = 0; row < numRows; row++ )
@@ -742,6 +765,8 @@ namespace Lute.Building
 				{
 					if ( ShouldButt( true, false, row ) ) skipCount += numWythes;
 					if ( ShouldButt( false, true, row ) ) skipCount += numWythes * 2;
+					// Left butt on odd courses also skips first full stretcher (col=1)
+					if ( ShouldButtLeftFull( 1, row ) ) skipCount += numWythes;
 				}
 				else
 				{
@@ -787,7 +812,7 @@ namespace Lute.Building
 						for ( int col = 1; col < modulesX; col++ )
 						{
 							token.ThrowIfCancellationRequested();
-							bool buttThisFull = ShouldButt( false, col == modulesX - 1, row );
+							bool buttThisFull = ShouldButt( false, col == modulesX - 1, row ) || ShouldButtLeftFull( col, row );
 							if ( buttThisFull )
 							{
 								brickIdx++;

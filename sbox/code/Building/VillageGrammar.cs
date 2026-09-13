@@ -125,10 +125,10 @@ namespace Lute.Building
 		private const float M = 39.37f; // units per meter
 
 		/// <summary> Half-width to outer face of the stone wall. </summary>
-		public float WallOuterHalfWidth { get; set; } = 140f * M;
+		public float WallOuterHalfWidth { get; set; } = 17.5f * M;
 
 		/// <summary> Wall height. </summary>
-		public float WallHeight { get; set; } = 8f * M;
+		public float WallHeight { get; set; } = 4f * M;
 
 		/// <summary> Main road half-width (from center line). </summary>
 		public float MainRoadHalfWidth { get; set; } = 5f * M;
