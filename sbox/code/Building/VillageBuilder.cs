@@ -806,12 +806,8 @@ namespace Lute.Building
 				}
 				foreach ( var placement in plan.Placements )
 				{
-					var center = placement.WorldCenter;
-					center.z = z;
-					SpawnBox( center, placement.WorldSize,
-						WallMaterial, true, _villageRoot, placement.WorldYaw * 180f / MathF.PI,
-						PieceAnchor.Base, placement.Slot.Form, placement.Slot.Orientation,
-						BrickModuleX * 2f );
+					var sp = StructuralPlacement.FromCornerBrick( placement, z + BrickModuleZ * 0.5f, wall.Name, _totalPiecesPlaced );
+					SpawnPlacement( sp, WallMaterial, true, _villageRoot, PieceAnchor.Base );
 					_totalPiecesPlaced++;
 					wall.PlacedBricks.Add( placement.Slot );
 				}
@@ -1659,6 +1655,22 @@ namespace Lute.Building
 				var pieceBounds = new BBox( -half, half ).Rotate( rot ).Translate( worldPos );
 				ReservationManager.CommitPlacement( CurrentDirectedTaskId, pieceBounds, go.Name );
 			}
+		}
+
+		/// <summary>
+		/// Spawn a structural placement using its authoritative Size as
+		/// the exact render size. This is the preferred entry point for
+		/// special assemblies (corner bricks, custom pieces) where the
+		/// placement's Size is the single source of truth — no form-based
+		/// scaling or overrideLength needed.
+		/// </summary>
+		void SpawnPlacement( StructuralPlacement placement, string materialPath, bool collides, GameObject parent, PieceAnchor anchor = PieceAnchor.Base )
+		{
+			var form = placement.GridSlot?.Form ?? BrickForm.Full;
+			var orientation = placement.GridSlot?.Orientation ?? BrickOrientation.Stretcher;
+			SpawnBox( placement.Position, placement.Size,
+				materialPath, collides, parent, placement.Yaw, anchor,
+				form, orientation, placement.Size.x ); // overrideLength = exact size
 		}
 
 		/// <summary>
