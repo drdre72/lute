@@ -824,16 +824,32 @@ namespace Lute.Building
 							bool placeHeaderLeft = IsCornerOwnerCourse( row ) && task.CornerButtSide == 1;
 							if ( placeHeaderLeft )
 							{
-								// Position at the wall endpoint (joint line) so the header
-								// spans across the joint into the perpendicular wall.
-								float headerLX = -segLen * 0.5f;
-								var headerPos = RotateLocal( new Vector3( headerLX, yCenter, z ) );
-								SpawnBox( headerPos, new Vector3( brickDepth, brickLen * 0.5f, brickH ),
-									WallMaterial, true, _villageRoot, task.Rotation + 90f, PieceAnchor.Base );
-								task.PiecesPlaced = brickIdx + 1;
-								_totalPiecesPlaced++;
-								task.PlacedBricks.Add( new BrickSlot( 0, wythe, row,
-									BrickForm.Half, BrickOrientation.Header ) );
+								// One header per owner course (wythe 0 only).
+								// Offset inward by half the header length so the
+								// header spans from the joint into the wall, not
+								// half outside the perimeter.
+								if ( wythe == 0 )
+								{
+									float headerLX = -segLen * 0.5f + BrickModuleX * 0.25f;
+									var headerPos = RotateLocal( new Vector3( headerLX, yCenter, z ) );
+									SpawnBox( headerPos, new Vector3( brickLen * 0.5f, brickDepth, brickH ),
+										WallMaterial, true, _villageRoot, task.Rotation + 90f, PieceAnchor.Base,
+										BrickForm.Half, BrickOrientation.Header );
+									task.PiecesPlaced = brickIdx + 1;
+									_totalPiecesPlaced++;
+									task.PlacedBricks.Add( new BrickSlot( 0, wythe, row,
+										BrickForm.Half, BrickOrientation.Header ) );
+								}
+								else
+								{
+									// Non-corner wythes: normal half stretcher
+									SpawnBox( pos, new Vector3( brickLen * 0.5f, brickDepth, brickH ),
+										WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base,
+										BrickForm.Half, BrickOrientation.Stretcher );
+									task.PiecesPlaced = brickIdx + 1;
+									_totalPiecesPlaced++;
+									task.PlacedBricks.Add( BrickSlot.HalfStretcher( 0, wythe, row ) );
+								}
 							}
 							else
 							{
@@ -892,16 +908,31 @@ namespace Lute.Building
 								bool placeHeaderRight = IsCornerOwnerCourse( row ) && task.CornerButtSide == 2;
 								if ( placeHeaderRight )
 								{
-									// Position at the wall endpoint (joint line) so the header
-									// spans across the joint into the perpendicular wall.
-									float headerRX = segLen * 0.5f;
-									var headerPos = RotateLocal( new Vector3( headerRX, yCenter, z ) );
-									SpawnBox( headerPos, new Vector3( brickDepth, brickLen * 0.5f, brickH ),
-										WallMaterial, true, _villageRoot, task.Rotation + 90f, PieceAnchor.Base );
-									task.PiecesPlaced = brickIdx + 1;
-									_totalPiecesPlaced++;
-									task.PlacedBricks.Add( new BrickSlot( modulesX, wythe, row,
-										BrickForm.Half, BrickOrientation.Header ) );
+									// One header per owner course (wythe 0 only).
+									// Offset inward by half the header length so the
+									// header spans from the joint into the wall.
+									if ( wythe == 0 )
+									{
+										float headerRX = segLen * 0.5f - BrickModuleX * 0.25f;
+										var headerPos = RotateLocal( new Vector3( headerRX, yCenter, z ) );
+										SpawnBox( headerPos, new Vector3( brickLen * 0.5f, brickDepth, brickH ),
+											WallMaterial, true, _villageRoot, task.Rotation + 90f, PieceAnchor.Base,
+											BrickForm.Half, BrickOrientation.Header );
+										task.PiecesPlaced = brickIdx + 1;
+										_totalPiecesPlaced++;
+										task.PlacedBricks.Add( new BrickSlot( modulesX, wythe, row,
+											BrickForm.Half, BrickOrientation.Header ) );
+									}
+									else
+									{
+										// Non-corner wythes: normal half stretcher
+										SpawnBox( pos, new Vector3( brickLen * 0.5f, brickDepth, brickH ),
+											WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base,
+											BrickForm.Half, BrickOrientation.Stretcher );
+										task.PiecesPlaced = brickIdx + 1;
+										_totalPiecesPlaced++;
+										task.PlacedBricks.Add( BrickSlot.HalfStretcher( modulesX, wythe, row ) );
+									}
 								}
 								else
 								{
@@ -946,23 +977,37 @@ namespace Lute.Building
 									&& IsCornerColumn( col, isLeft, isRight );
 								if ( placeHeader )
 								{
-									// Header: rotate 90° so long axis crosses the joint.
-									// Position at the wall endpoint (joint line), not the
-									// column center, so the header spans across the joint
-									// into the perpendicular wall's volume.
-									float headerX = isLeft ? -segLen * 0.5f : segLen * 0.5f;
-									var headerPos = RotateLocal( new Vector3( headerX, yCenter, z ) );
-									SpawnBox( headerPos, new Vector3( brickDepth, brickLen, brickH ),
-										WallMaterial, true, _villageRoot, task.Rotation + 90f, PieceAnchor.Base );
-									task.PiecesPlaced = brickIdx + 1;
-									_totalPiecesPlaced++;
-									task.PlacedBricks.Add( new BrickSlot( col, wythe, row,
-										BrickForm.Full, BrickOrientation.Header ) );
+									// One header per owner course (wythe 0 only).
+									// Offset inward by half the header length so the
+									// header spans from the joint into the wall.
+									if ( wythe == 0 )
+									{
+										float headerX = isLeft ? -segLen * 0.5f + BrickModuleX * 0.5f : segLen * 0.5f - BrickModuleX * 0.5f;
+										var headerPos = RotateLocal( new Vector3( headerX, yCenter, z ) );
+										SpawnBox( headerPos, new Vector3( brickLen, brickDepth, brickH ),
+											WallMaterial, true, _villageRoot, task.Rotation + 90f, PieceAnchor.Base,
+											BrickForm.Full, BrickOrientation.Header );
+										task.PiecesPlaced = brickIdx + 1;
+										_totalPiecesPlaced++;
+										task.PlacedBricks.Add( new BrickSlot( col, wythe, row,
+											BrickForm.Full, BrickOrientation.Header ) );
+									}
+									else
+									{
+										// Non-corner wythes: normal stretcher
+										SpawnBox( pos, new Vector3( brickLen, brickDepth, brickH ),
+											WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base,
+											BrickForm.Full, BrickOrientation.Stretcher );
+										task.PiecesPlaced = brickIdx + 1;
+										_totalPiecesPlaced++;
+										task.PlacedBricks.Add( BrickSlot.Stretcher( col, wythe, row ) );
+									}
 								}
 								else
 								{
 									SpawnBox( pos, new Vector3( brickLen, brickDepth, brickH ),
-										WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base );
+										WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base,
+										BrickForm.Full, BrickOrientation.Stretcher );
 									task.PiecesPlaced = brickIdx + 1;
 									_totalPiecesPlaced++;
 									task.PlacedBricks.Add( BrickSlot.Stretcher( col, wythe, row ) );
@@ -1536,7 +1581,8 @@ namespace Lute.Building
 	}
 
 	// ── Helper: spawn a box mesh piece ──
-		void SpawnBox( Vector3 worldPos, Vector3 size, string materialPath, bool collides, GameObject parent, float yaw = 0f, PieceAnchor anchor = PieceAnchor.Center )
+		void SpawnBox( Vector3 worldPos, Vector3 size, string materialPath, bool collides, GameObject parent, float yaw = 0f, PieceAnchor anchor = PieceAnchor.Center,
+		BrickForm form = BrickForm.Full, BrickOrientation orientation = BrickOrientation.Stretcher )
 		{
 			// Wall bricks are scaled to module size, so the anchor lift
 			// must use the module height (BrickModuleZ), not the body size.
@@ -1597,25 +1643,22 @@ namespace Lute.Building
 			// Scale: dev/box.vmdl is 50x50x50, but cloud brick models have
 			// their own native bounds. Scale wall bricks to the MODULE size
 			// (which includes mortar gap) so courses fill without blue gaps.
-			// Half bricks get half the X module; full bricks get full module.
+			// Form (Full/Half/Quarter) determines dimensions.
+			// Orientation (Stretcher/Header) determines rotation only —
+			// the render size is NOT swapped for headers; the +90° yaw
+			// handles the visual rotation.
 			if ( isWallBrick && renderer.Model is not null )
 			{
 				var modelSize = renderer.Model.Bounds.Size;
 				if ( modelSize.x > 0 && modelSize.y > 0 && modelSize.z > 0 )
 				{
-					// Derive render envelope from the requested size ratio.
-					// Full brick: BrickModuleSize. Half brick: half X module.
-					// Header brick (size.y > size.x): rotated 90°, so X and Y
-					// module dimensions swap — narrow along wall, long across.
-					bool isHalf = size.x < BrickBodySize.x * 0.75f && size.y <= BrickBodySize.y * 1.5f;
-					bool isHeader = size.y > size.x && size.x < BrickBodySize.x * 0.75f;
-					Vector3 renderSize;
-					if ( isHeader )
-						renderSize = new Vector3( BrickModuleY, BrickModuleX, BrickModuleZ );
-					else if ( isHalf )
-						renderSize = new Vector3( BrickModuleX * 0.5f, BrickModuleY, BrickModuleZ );
-					else
-						renderSize = BrickModuleSize;
+					float length = form switch
+					{
+						BrickForm.Half    => BrickModuleX * 0.5f,
+						BrickForm.Quarter => BrickModuleX * 0.25f,
+						_                 => BrickModuleX
+					};
+					var renderSize = new Vector3( length, BrickModuleY, BrickModuleZ );
 					go.WorldScale = renderSize / modelSize;
 				}
 				else
