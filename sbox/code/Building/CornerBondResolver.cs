@@ -243,54 +243,49 @@ namespace Lute.Building
 		public static IReadOnlyList<CornerBrickPlacement> PlacementsFor(
 			Vector3 junction, Vector3 inwardA, Vector3 inwardB, int course )
 		{
-			// The 2x2 core spans one module (BrickModuleX = 0.25m) along each
-			// wall's length direction, starting at the junction and extending
-			// inward. Two full bricks, each one module long, cover the core.
+			// The corner assembly fills BOTH walls' gaps on every course.
+			// Each wall's first brick (col=0) is 1 module from the junction,
+			// and the wall skips col=0 (ShouldButt). The assembly places 2
+			// bricks per wall per course: 2 along Wall A + 2 along Wall B.
+			// Each brick is 2 modules long (covering the 1-module gap from
+			// the wall endpoint to the junction + 1 module at the junction).
+			// The 4 wythes are centered on each wall's centerline.
 			//
-			// Even course: bricks align with Wall A (long axis = inwardA).
-			//   Brick 0: cell row V=0, U=0..1
-			//   Brick 1: cell row V=1, U=0..1
-			// Odd course: bricks align with Wall B (long axis = inwardB).
-			//   Brick 0: cell col U=0, V=0..1
-			//   Brick 1: cell col U=1, V=0..1
-			//
-			// The bricks are offset from the junction by half a module so
-			// their near face sits exactly at the junction (no overhang),
-			// using the body size for the rendered box.
+			// This produces a solid L-shaped corner with no gaps on either
+			// wall, on every course (no alternating stair-step).
 
-			bool alignA = (course & 1) == 0;
-			var longAxis = alignA ? inwardA : inwardB;
-			var shortAxis = alignA ? inwardB : inwardA;
-
-			// Body size: a full brick is BrickModuleX long, BrickModuleY deep,
-			// BrickModuleZ tall. We use the module size for placement so the
-			// body sits inside the cell with no exterior overhang.
-			float brickLen = BrickModuleX;
+			float brickLen = BrickModuleX * 2f;
 			float brickDepth = BrickModuleY;
 			float brickH = 0.0625f * M;
 			var worldSize = new Vector3( brickLen, brickDepth, brickH );
 
-			// Yaw so the box's +X axis points along longAxis.
+			var result = new List<CornerBrickPlacement>( 8 );
+
+			// Wall A bricks: 4 wythes along Wall B's depth, long axis = inwardA.
+			AddWallBricks( result, junction, inwardA, inwardB, course, true, brickLen, brickDepth, brickH, worldSize );
+			// Wall B bricks: 4 wythes along Wall A's depth, long axis = inwardB.
+			AddWallBricks( result, junction, inwardB, inwardA, course, false, brickLen, brickDepth, brickH, worldSize );
+
+			return result;
+		}
+
+		static void AddWallBricks(
+			List<CornerBrickPlacement> result,
+			Vector3 junction, Vector3 longAxis, Vector3 shortAxis,
+			int course, bool isWallA,
+			float brickLen, float brickDepth, float brickH, Vector3 worldSize )
+		{
 			float yaw = MathF.Atan2( longAxis.y, longAxis.x );
+			// Center at col=0 position (1 module from junction toward wall).
+			var col0Center = junction - longAxis * BrickModuleX;
 
-			var result = new List<CornerBrickPlacement>( 2 );
-
-			// Both bricks span the full 2x2 core along the long axis (one
-			// module each, stacked along the short axis). Each brick covers
-			// one row of two cells.
-			for ( int i = 0; i < 2; i++ )
+			for ( int i = 0; i < 4; i++ )
 			{
-				// Center: start at junction, move half a module along
-				// longAxis (so near face is at junction), then offset along
-				// shortAxis by (i + 0.5) modules.
-				var center = junction
-					+ longAxis * (brickLen * 0.5f)
-					+ shortAxis * (brickDepth * (i + 0.5f));
+				var center = col0Center
+					+ shortAxis * (brickDepth * (i - 1.5f));
 
-				// Cells occupied: for alignA, U in {0,1}, V = i.
-				// For alignB (odd), V in {0,1}, U = i.
 				var cells = new CornerCell[2];
-				if ( alignA )
+				if ( isWallA )
 				{
 					cells[0] = new CornerCell( 0, i, course );
 					cells[1] = new CornerCell( 1, i, course );
@@ -302,16 +297,14 @@ namespace Lute.Building
 				}
 
 				var slot = new BrickSlot(
-					/*col*/ alignA ? 0 : i,
-					/*wythe*/ alignA ? i : 0,
+					/*col*/ isWallA ? 0 : i,
+					/*wythe*/ isWallA ? i : 0,
 					course,
 					BrickForm.Full, BrickOrientation.Stretcher );
 
 				result.Add( new CornerBrickPlacement(
 					slot, center, yaw, worldSize, cells ) );
 			}
-
-			return result;
 		}
 
 		/// <summary>

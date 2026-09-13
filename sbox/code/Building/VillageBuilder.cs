@@ -744,8 +744,7 @@ namespace Lute.Building
 			// applies to ALL courses, not just odd ones.
 			bool ShouldButtLeftFull( int col, int row )
 			{
-				if ( task.CornerButtSide != 1 ) return false;
-				return col == 1; // first full stretcher after left half-brick
+				return false;
 			}
 
 			// Corner bond: returns true if this wall is the OWNER of the corner
@@ -923,6 +922,12 @@ namespace Lute.Building
 				}
 
 				float z = groundZ + course * BrickModuleZ;
+				if ( course == 0 )
+				{
+					Log.Info( $"Lute: [corner_diag] wall={wall.Name} junction={plan.Junction} inwardA={plan.InwardA} inwardB={plan.InwardB} placements={plan.Placements.Count}" );
+					foreach ( var p in plan.Placements )
+						Log.Info( $"Lute: [corner_diag]   center={p.WorldCenter} yaw={p.WorldYaw * 180f / MathF.PI:F1} size={p.WorldSize}" );
+				}
 				foreach ( var placement in plan.Placements )
 				{
 					var center = placement.WorldCenter;
