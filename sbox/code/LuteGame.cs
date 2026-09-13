@@ -43,6 +43,10 @@ public sealed class LuteGame : Component
 		// registers its resolver here.
 		Lute.Building.JunctionResolverInit.Initialize();
 
+		// Initialize the profession/capability catalog so task eligibility
+		// is derived from capabilities, not role strings (PR #6 §3).
+		Lute.Building.CapabilityRegistry.InitializeDefaults();
+
 		// Build the Sanctuary Realm (Temple of Time).
 		var world = Components.GetOrCreate<LuteWorld>();
 		var sanctuary = world.Build();

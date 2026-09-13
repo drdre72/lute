@@ -92,6 +92,20 @@ namespace Lute.Building
 		public int PiecesBuilt { get; set; }
 		public string LastCompletedTaskId { get; set; }
 		public bool Active { get; set; }
+
+		/// <summary>
+		/// Profession id (e.g. "mason", "carpenter"). Defaults to "builder"
+		/// (GeneralConstruction) for backward compatibility with existing
+		/// VillageBuilder NPCs that don't have a profession profile.
+		/// </summary>
+		public string ProfessionId { get; set; } = "builder";
+
+		/// <summary>
+		/// Capabilities this builder possesses, derived from
+		/// <see cref="ProfessionId"/> via <see cref="CapabilityRegistry"/>.
+		/// Cached on registration for fast eligibility checks.
+		/// </summary>
+		public HashSet<NpcCapability> Capabilities { get; set; } = new() { NpcCapability.GeneralConstruction };
 	}
 
 	/// <summary>
@@ -121,20 +135,28 @@ namespace Lute.Building
 		/// Register or reactivate a builder without destroying its current state.
 		/// VillageBuilder and VillageBuilderController can safely register the same id.
 		/// </summary>
-		public static void RegisterBuilder( int builderId, string npcName )
+		public static void RegisterBuilder( int builderId, string npcName, string professionId = null )
 		{
 			if ( _builders.TryGetValue( builderId, out var existing ) )
 			{
 				existing.NpcName = npcName;
 				existing.Active = true;
+				if ( !string.IsNullOrEmpty( professionId ) )
+				{
+					existing.ProfessionId = professionId;
+					existing.Capabilities = CapabilityRegistry.CapabilitiesForProfession( professionId );
+				}
 				return;
 			}
 
+			var prof = !string.IsNullOrEmpty( professionId ) ? professionId : "builder";
 			_builders[builderId] = new BuilderState
 			{
 				BuilderId = builderId,
 				NpcName = npcName,
 				Active = true,
+				ProfessionId = prof,
+				Capabilities = CapabilityRegistry.CapabilitiesForProfession( prof ),
 			};
 		}
 
@@ -413,6 +435,17 @@ namespace Lute.Building
 				state.CurrentTaskId = null;
 			}
 
+			// Capability filter: a builder can only claim tasks whose
+			// TaskType is within its capability set. This is the
+			// authoritative eligibility check (per PR #6 §3) — not role
+			// strings. GeneralConstruction (the default "builder"
+			// profession) can do anything in the current village task
+			// list, so existing NPCs remain backward-compatible.
+			var builderCaps = state.Capabilities ?? new HashSet<NpcCapability> { NpcCapability.GeneralConstruction };
+			bool CanPerform( DirectedTask t ) =>
+				t.BuildTask == null ||
+				CapabilityRegistry.CanPerformTask( builderCaps, t.BuildTask.TaskType );
+
 			// Build a candidate list: tasks assigned to this builder first,
 			// then stealable tasks from other builders, then unassigned tasks.
 			// We try each candidate until one reserves successfully, so a
@@ -436,7 +469,8 @@ namespace Lute.Building
 
 			var candidates = _tasks.Values
 				.Where( t => t.AssignedBuilder == builderId &&
-					t.Status == TaskStatus.Pending && t.DependenciesSatisfied && t.PreconditionsSatisfied )
+					t.Status == TaskStatus.Pending && t.DependenciesSatisfied && t.PreconditionsSatisfied &&
+					CanPerform( t ) )
 				.OrderBy( t =>
 				{
 					// Same wall line as last task = 0, different = 1
@@ -462,7 +496,8 @@ namespace Lute.Building
 			// Add stealable tasks from other builders, preferring same wall line.
 			foreach ( var t in _tasks.Values
 				.Where( t => t.AssignedBuilder != builderId && t.AssignedBuilder >= 0 &&
-					t.Status == TaskStatus.Pending && t.DependenciesSatisfied && t.PreconditionsSatisfied )
+					t.Status == TaskStatus.Pending && t.DependenciesSatisfied && t.PreconditionsSatisfied &&
+					CanPerform( t ) )
 				.OrderBy( t =>
 				{
 					string thisLine = t.BuildTask != null ? ExtractWallLine( t.BuildTask.Name ) : null;
@@ -477,7 +512,8 @@ namespace Lute.Building
 			// Add unassigned tasks, preferring same wall line.
 			foreach ( var t in _tasks.Values
 				.Where( t => t.AssignedBuilder == -1 &&
-					t.Status == TaskStatus.Pending && t.DependenciesSatisfied && t.PreconditionsSatisfied )
+					t.Status == TaskStatus.Pending && t.DependenciesSatisfied && t.PreconditionsSatisfied &&
+					CanPerform( t ) )
 				.OrderBy( t =>
 				{
 					string thisLine = t.BuildTask != null ? ExtractWallLine( t.BuildTask.Name ) : null;
@@ -612,9 +648,15 @@ namespace Lute.Building
 			if ( other == null )
 				return null;
 
+			// Only steal tasks the stealing builder can actually perform.
+			var builderCaps = _builders.TryGetValue( builderId, out var bs )
+				? bs.Capabilities ?? new HashSet<NpcCapability> { NpcCapability.GeneralConstruction }
+				: new HashSet<NpcCapability> { NpcCapability.GeneralConstruction };
+
 			var victim = _tasks.Values
 				.Where( t => t.AssignedBuilder == other.BuilderId &&
-					t.Status == TaskStatus.Pending && t.DependenciesSatisfied && t.PreconditionsSatisfied )
+					t.Status == TaskStatus.Pending && t.DependenciesSatisfied && t.PreconditionsSatisfied &&
+					( t.BuildTask == null || CapabilityRegistry.CanPerformTask( builderCaps, t.BuildTask.TaskType ) ) )
 				.OrderBy( t => t.EstimatedPieces )
 				.ThenBy( t => t.Id )
 				.FirstOrDefault();
