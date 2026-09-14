@@ -485,6 +485,9 @@ namespace Lute.Building
 				State = NpcState.Building;
 				_stateTimer = 0;
 				_buildingTaskIndex = Builder.CurrentTaskIndex;
+				// Set _activeDirectedTaskId so HandleBuilding (director mode)
+				// doesn't immediately reset to Idle because the id is empty.
+				_activeDirectedTaskId = Builder.CurrentDirectedTaskId ?? Builder.CurrentTask?.Name ?? "";
 				Controller.WishVelocity = Vector3.Zero;
 				Log.Info( $"Lute: VillageBuilderController arrived at '{Builder.CurrentTask.Name}'. Building." );
 				return;
