@@ -51,12 +51,20 @@ namespace Lute.Building
 		float _supplyTimer;
 		float _logTimer;
 		bool _initialized;
+		bool _needInjected;
 		int _houseCompleteCount;
 		string _lastCompletedTask;
 
 		protected override void OnStart()
 		{
 			Log.Info( $"Lute: Gate3Benchmark started — Level={Level}, Center={Center}" );
+			// Static state persists across play sessions in S&Box. Reset
+			// the need board so a fresh play session starts clean (otherwise
+			// _lastEvaluation from a prior session makes Evaluate() return
+			// early forever because Time.Now resets to 0).
+			SettlementNeedBoard.Clear();
+			_needInjected = false;
+			Log.Info( $"Lute: Gate3Benchmark — cleared SettlementNeedBoard for fresh session." );
 		}
 
 		protected override void OnUpdate()
@@ -87,6 +95,32 @@ namespace Lute.Building
 			{
 				_logTimer = 0f;
 				LogStatus();
+			}
+
+			// Evaluate settlement needs — this drives adaptive planning.
+			// The SettlementNeedBoard generates StructureRequests from
+			// needs, which the Surveyor resolves by selecting sites.
+			SettlementNeedBoard.Evaluate( Time.Now );
+
+			// Inject a test shelter need after 30 seconds (first tiny test
+			// per the professor's proposal: can the settlement recognize
+			// it needs a house, select a valid plot, and build it?).
+			if ( !_needInjected && Time.Now > 30f )
+			{
+				_needInjected = true;
+				// Count existing cottages to set the "existing" count.
+				int existingCottages = ConstructionDirector.AllTasks()
+					.Count( t => t.BuildTask?.TaskType == "cottage" );
+				SettlementNeedBoard.RegisterNeed( new SettlementNeed
+				{
+					Type = SettlementNeedType.Shelter,
+					StructureType = "cottage",
+					Urgency = 0.8f,
+					DesiredCount = existingCottages + 2,
+					ExistingCount = existingCottages,
+					Reason = "Test: inject shelter need for adaptive planning",
+				} );
+				Log.Info( $"Lute: Gate3Benchmark — injected test Shelter need (existing={existingCottages}, desired={existingCottages + 2})." );
 			}
 		}
 

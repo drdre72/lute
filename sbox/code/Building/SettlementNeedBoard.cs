@@ -250,13 +250,67 @@ namespace Lute.Building
 		}
 
 		/// <summary>
+		/// Dispatched/reserved site positions (rounded to ~1m grid) so the
+		/// Surveyor doesn't pick the same spot repeatedly before the builder
+		/// has registered it in SpatialRegistry.
+		/// </summary>
+		static readonly HashSet<long> _dispatchedSites = new();
+
+		static long SiteKey( Vector3 pos )
+		{
+			// Round to ~1m (39.37 units) grid to deduplicate nearby sites.
+			long x = (long)Math.Round( pos.x / 39.37f );
+			long y = (long)Math.Round( pos.y / 39.37f );
+			return ( x << 32 ) ^ ( y & 0xFFFFFFFFL );
+		}
+
+		/// <summary> True if a site within ~minSep meters of pos was already dispatched. </summary>
+		public static bool IsSiteTaken( Vector3 pos, float minSepMeters = 8f )
+		{
+			long key = SiteKey( pos );
+			// Check a small neighborhood of grid cells.
+			int span = Math.Max( 1, (int)Math.Ceiling( minSepMeters / 1f ) );
+			for ( int dx = -span; dx <= span; dx++ )
+			for ( int dy = -span; dy <= span; dy++ )
+			{
+				long k = key + ( (long)dx << 32 ) + dy;
+				if ( _dispatchedSites.Contains( k ) ) return true;
+			}
+			return false;
+		}
+
+		/// <summary>
 		/// Mark a request as dispatched (registered with ConstructionDirector).
+		/// Also records the resolved site as taken and decrements the
+		/// originating need so it gets fulfilled after the right number of
+		/// dispatches (preventing unlimited duplicate request generation).
 		/// </summary>
 		public static void DispatchRequest( string requestId )
 		{
 			var req = _requests.FirstOrDefault( r => r.Id == requestId );
 			if ( req == null ) return;
 			req.Status = StructureRequestStatus.Dispatched;
+
+			// Record the resolved site as taken so the Surveyor won't
+			// pick the same spot again next cycle.
+			if ( req.ResolvedPosition.HasValue )
+				_dispatchedSites.Add( SiteKey( req.ResolvedPosition.Value ) );
+
+			// Decrement the originating need: each dispatch satisfies one
+			// unit of the shortfall (DesiredCount - ExistingCount). Bump
+			// ExistingCount toward DesiredCount so the need becomes
+			// fulfilled after the requested number of structures.
+			if ( !string.IsNullOrEmpty( req.NeedId ) )
+			{
+				var need = _needs.FirstOrDefault( n => n.Id == req.NeedId );
+				if ( need != null && need.ExistingCount < need.DesiredCount )
+				{
+					need.ExistingCount++;
+					Log.Info( $"Lute: SettlementNeedBoard — need {need.Id} ({need.StructureType})" +
+						$" progress {need.ExistingCount}/{need.DesiredCount} after dispatch." );
+				}
+			}
+
 			Log.Info( $"Lute: SettlementNeedBoard — request {req.Id} ({req.StructureType}) dispatched" );
 		}
 
@@ -305,6 +359,7 @@ namespace Lute.Building
 		{
 			_needs.Clear();
 			_requests.Clear();
+			_dispatchedSites.Clear();
 			_lastEvaluation = 0f;
 			_villageCenter = null;
 		}

@@ -579,6 +579,16 @@ public sealed class LuteWorld : Component
 			crafterMarker.NpcName = crafterNames[i];
 		}
 
+		// Surveyor NPC - autonomously selects build sites
+		var surveyorGo = Scene.CreateObject( true );
+		surveyorGo.Name = "SurveyorMarker";
+		surveyorGo.SetParent( parent );
+		surveyorGo.WorldPosition = new Vector3( -395f * M, -395f * M, 0f );
+		surveyorGo.WorldRotation = Rotation.Identity;
+		var surveyorMarker = surveyorGo.AddComponent<SpawnMarker>();
+		surveyorMarker.NpcType = "Surveyor";
+		surveyorMarker.NpcName = "SurveyorNPC";
+
 		Log.Info( $"Lute: Gate3Benchmark setup — benchmark + hauler marker + village stockpile at (-390m, -400m)." );
 	}
 

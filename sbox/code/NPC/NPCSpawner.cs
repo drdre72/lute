@@ -64,7 +64,10 @@ namespace Lute.Npc
 				case "Crafter":
 					SpawnCrafter( marker, parent, name );
 					break;
-				default:
+			case "Surveyor":
+					SpawnSurveyor( marker, parent, name );
+					break;
+			default:
 					Log.Warning( $"Lute: NPCSpawner unknown NpcType '{marker.NpcType}' on marker '{marker.GameObject.Name}' — skipped." );
 					break;
 			}
@@ -342,6 +345,69 @@ namespace Lute.Npc
 		interactable.IsAvailable = true;
 
 		Log.Info( $"Lute: NPCSpawner crafter body '{name}' at {go.WorldPosition} (bench={crafter.PreferredBench})." );
+	}
+
+	/// <summary>
+	/// Spawn a Surveyor NPC — the profession that autonomously selects
+	/// build sites by evaluating StructureRequests from the
+	/// SettlementNeedBoard. Uses the same citizen body + controller
+	/// stack as other NPCs, but with a SurveyorController instead.
+	/// </summary>
+	static void SpawnSurveyor( SpawnMarker marker, GameObject parent, string name )
+	{
+		var pos = marker.WorldPosition;
+
+		var go = marker.Scene.CreateObject( true );
+		go.Name = name;
+		go.SetParent( parent );
+		go.WorldPosition = pos;
+		go.WorldRotation = Rotation.Identity;
+
+		// Body — citizen model.
+		var bodyGo = marker.Scene.CreateObject( true );
+		bodyGo.Name = "Body";
+		bodyGo.SetParent( go );
+		bodyGo.LocalPosition = Vector3.Zero;
+		bodyGo.WorldRotation = Rotation.Identity;
+		var bodyRenderer = bodyGo.AddComponent<SkinnedModelRenderer>();
+		bodyRenderer.Model = Model.Load( "models/citizen/citizen.vmdl" );
+
+		// Colliders.
+		var collidersGo = marker.Scene.CreateObject( true );
+		collidersGo.Name = "Colliders";
+		collidersGo.SetParent( go );
+		var capsule = collidersGo.AddComponent<CapsuleCollider>();
+		capsule.Radius = 16f;
+		capsule.Start = new Vector3( 0, 0, 0 );
+		capsule.End = new Vector3( 0, 0, 72f );
+		var box = collidersGo.AddComponent<BoxCollider>();
+		box.Scale = new Vector3( 32f, 32f, 72f );
+
+		// Rigidbody.
+		var rb = go.AddComponent<Rigidbody>();
+		rb.Gravity = true;
+
+		// PlayerController.
+		var controller = go.AddComponent<PlayerController>();
+		controller.UseInputControls = false;
+		controller.UseCameraControls = false;
+		controller.UseAnimatorControls = true;
+		controller.Renderer = bodyRenderer;
+
+		// NavMeshAgent.
+		var navAgent = go.AddComponent<NavMeshAgent>();
+		navAgent.Height = 64f;
+		navAgent.Radius = 16f;
+		navAgent.MaxSpeed = 5f * 39.37f;
+		navAgent.Acceleration = 5f * 39.37f;
+		navAgent.UpdatePosition = false;
+		navAgent.UpdateRotation = false;
+
+		// Surveyor controller.
+		var surveyor = go.AddComponent<Lute.Building.SurveyorController>();
+		surveyor.NpcName = name;
+
+		Log.Info( $"Lute: NPCSpawner surveyor body '{name}' at {go.WorldPosition}." );
 	}
 
 	/// <summary>
