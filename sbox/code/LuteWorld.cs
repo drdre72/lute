@@ -503,7 +503,7 @@ public sealed class LuteWorld : Component
 		benchGo.SetParent( parent );
 		benchGo.WorldPosition = new Vector3( -400f * M, -400f * M, 0f );
 		var benchmark = benchGo.AddComponent<Lute.Building.Gate3Benchmark>();
-		benchmark.Level = Lute.Building.Gate3Benchmark.TestLevel.Test3_1_PreStocked;
+		benchmark.Level = Lute.Building.Gate3Benchmark.TestLevel.Test3_2_Crafter;
 		benchmark.Center = new Vector3( -400f * M, -400f * M, 0f );
 
 		// Spawn hauler NPCs near the village.
@@ -528,6 +528,8 @@ public sealed class LuteWorld : Component
 		stockGo.Name = "VillageStockpile";
 		stockGo.SetParent( parent );
 		stockGo.WorldPosition = new Vector3( -390f * M, -400f * M, 0f );
+		var stockMr = stockGo.AddComponent<ModelRenderer>();
+		stockMr.Model = Model.Load( "models/citizen_props/crate01.vmdl" );
 		var stockInv = stockGo.AddComponent<Lute.Items.LuteInventory>();
 		var stockpile = new Lute.Building.Stockpile(
 			"village_stockpile",
@@ -537,7 +539,47 @@ public sealed class LuteWorld : Component
 			stockInv );
 		Lute.Building.ResourceRegistry.RegisterStockpile( stockpile );
 
-		Log.Info( $"Lute: Gate3Benchmark setup � benchmark + hauler marker + village stockpile at (-390m, -400m)." );
+		// ── Gate 3.2: Crafting benches + crafter NPCs ──
+		// Spawn a sawmill (carpenter) and brick bench (mason) near the
+		// village. The crafters will process raw materials (Wood → Plank,
+		// Clay+Straw → Brick) and deposit them in the village stockpile.
+		// Haulers then deliver processed materials to build sites.
+
+		// Sawmill bench (carpenter crafts planks/timber).
+		var sawmillGo = Scene.CreateObject( true );
+		sawmillGo.Name = "Sawmill";
+		sawmillGo.SetParent( parent );
+		sawmillGo.WorldPosition = new Vector3( -370f * M, -400f * M, 0f );
+		var sawmillBench = sawmillGo.AddComponent<Lute.Crafting.CraftingBench>();
+		sawmillBench.Bench = Lute.Crafting.BenchType.Sawmill;
+
+		// Brick bench (mason crafts bricks).
+		var brickBenchGo = Scene.CreateObject( true );
+		brickBenchGo.Name = "BrickBench";
+		brickBenchGo.SetParent( parent );
+		brickBenchGo.WorldPosition = new Vector3( -365f * M, -400f * M, 0f );
+		var brickBench = brickBenchGo.AddComponent<Lute.Crafting.CraftingBench>();
+		brickBench.Bench = Lute.Crafting.BenchType.BrickBench;
+
+		// Re-discover workstations so the new benches are registered.
+		Lute.Building.WorkstationRegistry.DiscoverAll();
+
+		// Spawn crafter NPCs: 1 carpenter (sawmill) + 1 mason (brick bench).
+		var crafterCount = 2;
+		var crafterNames = new[] { "Carpenter_Sawmill", "Mason_Brick" };
+		for ( int i = 0; i < crafterCount; i++ )
+		{
+			var crafterGo = Scene.CreateObject( true );
+			crafterGo.Name = $"CrafterMarker_{i}";
+			crafterGo.SetParent( parent );
+			crafterGo.WorldPosition = new Vector3( (-368f + i * 3f) * M, -395f * M, 0f );
+			crafterGo.WorldRotation = Rotation.Identity;
+			var crafterMarker = crafterGo.AddComponent<SpawnMarker>();
+			crafterMarker.NpcType = "Crafter";
+			crafterMarker.NpcName = crafterNames[i];
+		}
+
+		Log.Info( $"Lute: Gate3Benchmark setup — benchmark + hauler marker + village stockpile at (-390m, -400m)." );
 	}
 
 	/// <summary> Creates a GameObject with a ModelRenderer using a primitive model. </summary>

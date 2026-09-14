@@ -191,7 +191,7 @@ namespace Lute.Building
 				new() { "Pickaxe" } ) );
 
 			Register( new ProfessionDefinition( "carpenter", "Carpenter",
-				new() { { NpcCapability.Carpentry, 1.0f }, { NpcCapability.BuildWood, 1.0f }, { NpcCapability.RepairTool, 0.3f } },
+				new() { { NpcCapability.Carpentry, 1.0f }, { NpcCapability.BuildWood, 1.0f }, { NpcCapability.OperateSawmill, 1.0f }, { NpcCapability.RepairTool, 0.3f } },
 				new() { "Hammer", "Saw" } ) );
 
 			Register( new ProfessionDefinition( "mason", "Mason",

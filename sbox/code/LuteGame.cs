@@ -49,7 +49,9 @@ public sealed class LuteGame : Component
 
 		// Spawn bootstrap resource sources and stockyard so the resource
 		// loop is testable with placeholder visuals (PR #6 §5, §17).
-		Lute.Building.ResourceBootstrap.Initialize( new Vector3( 5000, 5000, 0 ) );
+		// Use the village center (same as Gate 3 benchmark) so sources
+		// are just outside the village perimeter, not 20k units away.
+		Lute.Building.ResourceBootstrap.Initialize( new Vector3( -400f * 39.37f, -400f * 39.37f, 0f ) );
 
 		// Build the Sanctuary Realm (Temple of Time).
 		var world = Components.GetOrCreate<LuteWorld>();

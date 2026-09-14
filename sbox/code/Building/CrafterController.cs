@@ -139,7 +139,19 @@ namespace Lute.Building
 						Stop();
 						State = CrafterState.FetchingInputs;
 						_stateTimer = 0f;
-						Log.Info( $"Lute: Crafter '{NpcName}' reached bench {_station.Id} → FetchingInputs." );
+						Log.Info( $"Lute: Crafter '{NpcName}' reached bench {_station.Id}." );
+					}
+					else
+					{
+						_stateTimer += Time.Delta;
+						if ( _stateTimer > 10f )
+						{
+							WorldPosition = _station.Position;
+							Stop();
+							State = CrafterState.FetchingInputs;
+							_stateTimer = 0f;
+							Log.Info( $"Lute: Crafter '{NpcName}' warped to bench {_station.Id} (was stuck)." );
+						}
 					}
 					break;
 				}
@@ -503,7 +515,13 @@ namespace Lute.Building
 			}
 
 			nav.MoveTo( target );
-			Controller.WishVelocity = nav.WishVelocity;
+			var wish = nav.WishVelocity;
+			// If NavMesh can't produce a useful velocity (agent off-mesh
+			// or no path), fall back to direct steering.
+			if ( wish.LengthSquared < 1f )
+				return false;
+
+			Controller.WishVelocity = wish;
 			_usingNavMesh = true;
 			return true;
 		}

@@ -90,54 +90,73 @@ namespace Lute.Building
 
 			// ── Synthetic fallback sources (no physical node) ──
 			// Only add these if discovery found nothing, so we don't
-			// double-register. These let the loop be tested in a scene
-			// that has no ResourceNode components placed yet.
+			// double-register. Sources are placed just 10m outside the
+			// village perimeter (perimeter half-width ~669 units, so
+			// sources at ~1063 units from center).
 			if ( discovered == 0 )
 			{
+				float offset = 1063f; // ~17m perimeter + 10m outside
+
 				var trees = new ResourceSource( "tree_cluster_north",
 					ItemType.Wood,
-					center + new Vector3( 0, -6000, 0 ),
-					totalYield: 500, yieldPerGather: 10, radius: 400f,
+					center + new Vector3( 0, -offset, 0 ),
+					totalYield: 500, yieldPerGather: 10, radius: 100f,
 					requiredCapability: NpcCapability.GatherWood,
 					requiredTool: ItemType.Pickaxe );
 				ResourceRegistry.RegisterSource( trees );
-				SpawnSourcePlaceholder( trees, new Color( 0.2f, 0.5f, 0.2f ) );
+				SpawnSourcePlaceholder( trees, "models/sbox_props/trees/oak/tree_oak_big_a.vmdl", Vector3.One );
 
 				var quarry = new ResourceSource( "quarry_east",
 					ItemType.Stone,
-					center + new Vector3( 6000, 0, 0 ),
-					totalYield: 800, yieldPerGather: 15, radius: 500f,
+					center + new Vector3( offset, 0, 0 ),
+					totalYield: 800, yieldPerGather: 15, radius: 100f,
 					requiredCapability: NpcCapability.GatherStone,
 					requiredTool: ItemType.Pickaxe );
 				ResourceRegistry.RegisterSource( quarry );
-				SpawnSourcePlaceholder( quarry, new Color( 0.5f, 0.5f, 0.5f ) );
+				SpawnSourcePlaceholder( quarry, "models/castle_kit/rocks-large.vmdl", Vector3.One );
 
 				var mine = new ResourceSource( "mine_west",
 					ItemType.Ore,
-					center + new Vector3( -6000, 0, 0 ),
-					totalYield: 300, yieldPerGather: 5, radius: 300f,
+					center + new Vector3( -offset, 0, 0 ),
+					totalYield: 300, yieldPerGather: 5, radius: 100f,
 					requiredCapability: NpcCapability.GatherOre,
 					requiredTool: ItemType.Pickaxe );
 				ResourceRegistry.RegisterSource( mine );
-				SpawnSourcePlaceholder( mine, new Color( 0.6f, 0.3f, 0.1f ) );
+				SpawnSourcePlaceholder( mine, "models/props/rock_scatter/rock_scatter_pile_02.vmdl", Vector3.One );
 
-				synthetic = 3;
+				var clayDeposit = new ResourceSource( "clay_south",
+					ItemType.Clay,
+					center + new Vector3( 0, offset, 0 ),
+					totalYield: 500, yieldPerGather: 10, radius: 100f,
+					requiredCapability: NpcCapability.GatherClay,
+					requiredTool: ItemType.Shovel );
+				ResourceRegistry.RegisterSource( clayDeposit );
+				SpawnSourcePlaceholder( clayDeposit, "models/props/dirt_pile/dirt_pile_01.vmdl", Vector3.One );
+
+				var strawField = new ResourceSource( "straw_southeast",
+					ItemType.Straw,
+					center + new Vector3( offset * 0.7f, offset * 0.7f, 0 ),
+					totalYield: 300, yieldPerGather: 10, radius: 100f,
+					requiredCapability: NpcCapability.GatherClay,
+					requiredTool: ItemType.Spade );
+				ResourceRegistry.RegisterSource( strawField );
+				SpawnSourcePlaceholder( strawField, "models/sbox_props/nature/tallgrass/tallgrass_c.vmdl", new Vector3( 3f, 3f, 3f ) );
+
+				synthetic = 5;
 			}
 
 			// ── Central stockyard (real LuteInventory) ──
 			var stockyard = CreateStockpile( "stockyard_0",
 				center + new Vector3( -300, -300, 0 ),
 				new Vector3( 200, 200, 100 ),
-				capacity: 2000,
-				color: new Color( 0.4f, 0.3f, 0.2f ) );
+				capacity: 2000 );
 			ResourceRegistry.RegisterStockpile( stockyard );
 
-			// ── Brick staging stockpile near the quarry ──
+			// ── Brick staging stockpile near the village ──
 			var brickStaging = CreateStockpile( "brick_staging_0",
-				center + new Vector3( 5500, 0, 0 ),
+				center + new Vector3( 800, 0, 0 ),
 				new Vector3( 150, 150, 80 ),
-				capacity: 500,
-				color: new Color( 0.5f, 0.4f, 0.3f ) );
+				capacity: 500 );
 			ResourceRegistry.RegisterStockpile( brickStaging );
 
 			// ── Emergency bootstrap supplies (into the real inventory) ──
@@ -172,17 +191,17 @@ namespace Lute.Building
 		/// Create a stockpile backed by a real <see cref="LuteInventory"/>
 		/// on a spawned GameObject. The inventory component is what holds
 		/// the material — the Stockpile is the registry-facing wrapper.
+		/// Uses a crate model instead of a tinted primitive box.
 		/// </summary>
 		static Stockpile CreateStockpile( string id, Vector3 pos, Vector3 halfExtents,
-			int capacity, Color color )
+			int capacity )
 		{
 			var go = new GameObject();
 			go.Name = $"Stockpile_{id}";
 			go.WorldPosition = pos;
-			go.WorldScale = halfExtents * 2f;
 
 			var mr = go.Components.Create<ModelRenderer>();
-			mr.Tint = color;
+			mr.Model = Model.Load( "models/citizen_props/crate01.vmdl" );
 
 			var inv = go.Components.Create<LuteInventory>();
 
@@ -193,15 +212,20 @@ namespace Lute.Building
 			return pile;
 		}
 
-		static void SpawnSourcePlaceholder( ResourceSource source, Color color )
+		/// <summary>
+		/// Spawn a real model as the visual marker for a resource source
+		/// (tree, rock pile, dirt pile, grass clump, etc.) instead of a
+		/// tinted primitive box.
+		/// </summary>
+		static void SpawnSourcePlaceholder( ResourceSource source, string modelPath, Vector3 scale )
 		{
 			var go = new GameObject();
 			go.Name = $"ResourceSource_{source.Id}";
 			go.WorldPosition = source.Position;
-			go.WorldScale = new Vector3( source.Radius, source.Radius, source.Radius * 0.3f );
+			go.WorldScale = scale;
 
 			var mr = go.Components.Create<ModelRenderer>();
-			mr.Tint = color;
+			mr.Model = Model.Load( modelPath );
 
 			source.VisualGo = go;
 		}
