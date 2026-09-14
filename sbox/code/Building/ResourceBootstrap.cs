@@ -90,12 +90,14 @@ namespace Lute.Building
 
 			// ── Synthetic fallback sources (no physical node) ──
 			// Only add these if discovery found nothing, so we don't
-			// double-register. Sources are placed just 10m outside the
-			// village perimeter (perimeter half-width ~669 units, so
-			// sources at ~1063 units from center).
+			// double-register. NOTE: the curtain wall (WallOuterHalfWidth
+			// ~17m) does NOT bound the whole village — VillageGrammar
+			// scatters cottages/rows out to ~198m east/west and ~148m
+			// north along the roads (see GenerateBuildingTasks). Sources
+			// must clear that full footprint, not just the wall.
 			if ( discovered == 0 )
 			{
-				float offset = 1063f; // ~17m perimeter + 10m outside
+				float offset = 230f * 39.37f; // ~230m — clears the ~200m building footprint
 
 				var trees = new ResourceSource( "tree_cluster_north",
 					ItemType.Wood,
@@ -113,7 +115,7 @@ namespace Lute.Building
 					requiredCapability: NpcCapability.GatherStone,
 					requiredTool: ItemType.Pickaxe );
 				ResourceRegistry.RegisterSource( quarry );
-				SpawnSourcePlaceholder( quarry, "models/castle_kit/rocks-large.vmdl", Vector3.One );
+				SpawnSourcePlaceholder( quarry, "models/props/rock_scatter/rock_scatter_01.vmdl", Vector3.One );
 
 				var mine = new ResourceSource( "mine_west",
 					ItemType.Ore,
@@ -122,7 +124,7 @@ namespace Lute.Building
 					requiredCapability: NpcCapability.GatherOre,
 					requiredTool: ItemType.Pickaxe );
 				ResourceRegistry.RegisterSource( mine );
-				SpawnSourcePlaceholder( mine, "models/props/rock_scatter/rock_scatter_pile_02.vmdl", Vector3.One );
+				SpawnSourcePlaceholder( mine, "models/mining/ores/models/ore_iron.vmdl", Vector3.One );
 
 				var clayDeposit = new ResourceSource( "clay_south",
 					ItemType.Clay,
