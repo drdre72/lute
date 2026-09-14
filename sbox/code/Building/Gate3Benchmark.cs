@@ -53,7 +53,7 @@ namespace Lute.Building
 		bool _initialized;
 		bool _needInjected;
 		bool _nightRunSaved;
-		const float NightRunSaveTime = 47f * 60f; // 47 minutes
+		const float NightRunSaveTime = 100f * 60f; // 100 minutes
 		int _houseCompleteCount;
 		string _lastCompletedTask;
 
