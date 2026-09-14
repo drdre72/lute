@@ -687,6 +687,134 @@ namespace Lute.Building
 			}
 		}
 
+		// ── LayBrickVolume: fill a rectangular volume with bricks, one at a time ──
+		//
+		// This is the universal brick-by-brick builder. It fills a volume
+		// (localWidth × localDepth × localHeight) centered at `center`
+		// with individual bricks using the canonical Lute Masonry Unit
+		// module (25cm × 12.5cm × 6.25cm). Every brick is spawned and
+		// counted separately, so every structure — walls, gates, roads,
+		// wells, markets, cottages — is built literally brick by brick.
+		//
+		// The volume is laid in courses (rows) from bottom to top. Even
+		// courses start with a full brick at the left edge; odd courses
+		// start with a half brick (running bond / stretcher bond pattern).
+		// Multiple wythes (depth layers) fill the depth axis.
+		async Task<int> LayBrickVolume(
+			Vector3 center, float localWidth, float localDepth, float localHeight,
+			float yaw, string material, bool collides, VillageBuildTask task,
+			CancellationToken token, bool flatLayer = false )
+		{
+			if ( BuildInterval < 0.01f ) BuildInterval = 0.01f;
+
+			float brickLen = BrickBodySize.x;
+			float brickDepth = BrickBodySize.y;
+			float brickH = BrickBodySize.z;
+
+			int modulesX = (int)MathF.Round( localWidth / BrickModuleX );
+			int numRows = (int)MathF.Round( localHeight / BrickModuleZ );
+			int numWythes = (int)MathF.Round( localDepth / BrickModuleY );
+			if ( modulesX < 1 ) modulesX = 1;
+			if ( numRows < 1 ) numRows = 1;
+			// Flat layer mode: force 1 row and 1 wythe — a single layer
+			// of bricks for floors/roads. Most of the brick is buried
+			// below the surface; only the top face is visible.
+			if ( flatLayer )
+			{
+				numRows = 1;
+				numWythes = 1;
+			}
+			else
+			{
+				// Cap wythes at 2 — a real wall is 1-2 wythes deep.
+				if ( numWythes > 2 ) numWythes = 2;
+				if ( numWythes < 1 ) numWythes = 1;
+			}
+
+			int evenRows = (numRows + 1) / 2;
+			int oddRows = numRows / 2;
+			int totalBricks = (modulesX * evenRows + (modulesX + 1) * oddRows) * numWythes;
+
+			float cos = (float)Math.Cos( yaw * Math.PI / 180f );
+			float sin = (float)Math.Sin( yaw * Math.PI / 180f );
+
+			Vector3 RotateLocal( Vector3 local )
+			{
+				return center + new Vector3(
+					local.x * cos - local.y * sin,
+					local.x * sin + local.y * cos,
+					local.z );
+			}
+
+			int placed = 0;
+			float groundZ = -localHeight * 0.5f;
+
+			for ( int wythe = 0; wythe < numWythes && placed < totalBricks; wythe++ )
+			{
+				float yCenter = -localDepth * 0.5f + BrickModuleY * 0.5f + wythe * BrickModuleY;
+
+				for ( int row = 0; row < numRows && placed < totalBricks; row++ )
+				{
+					float z = groundZ + row * BrickModuleZ + BrickModuleZ * 0.5f;
+					bool isOddRow = (row % 2) == 1;
+					int colsThisRow = isOddRow ? modulesX + 1 : modulesX;
+
+					for ( int col = 0; col < colsThisRow && placed < totalBricks; col++ )
+					{
+						token.ThrowIfCancellationRequested();
+
+						float xCenter;
+						float renderLen;
+						BrickForm form;
+
+						if ( isOddRow )
+						{
+							// Odd course: half + (modulesX-1) full + half
+							if ( col == 0 )
+							{
+								xCenter = -localWidth * 0.5f + BrickModuleX * 0.25f;
+								renderLen = brickLen * 0.5f;
+								form = BrickForm.Half;
+							}
+							else if ( col == colsThisRow - 1 )
+							{
+								xCenter = localWidth * 0.5f - BrickModuleX * 0.25f;
+								renderLen = brickLen * 0.5f;
+								form = BrickForm.Half;
+							}
+							else
+							{
+								xCenter = -localWidth * 0.5f + BrickModuleX * 0.5f + (col - 1) * BrickModuleX + BrickModuleX * 0.5f;
+								renderLen = brickLen;
+								form = BrickForm.Full;
+							}
+						}
+						else
+						{
+							// Even course: modulesX full bricks
+							xCenter = -localWidth * 0.5f + BrickModuleX * 0.5f + col * BrickModuleX;
+							renderLen = brickLen;
+							form = BrickForm.Full;
+						}
+
+						var worldPos = RotateLocal( new Vector3( xCenter, yCenter, z ) );
+						SpawnBox( worldPos, new Vector3( renderLen, brickDepth, brickH ),
+							material, collides, _villageRoot, yaw, PieceAnchor.Center, form );
+
+						placed++;
+						task.PiecesPlaced++;
+						_totalPiecesPlaced++;
+						ElapsedTime += BuildInterval;
+						if ( !_reconstructMode )
+							await Task.DelaySeconds( BuildInterval );
+						MaybeSave();
+					}
+				}
+			}
+
+			return placed;
+		}
+
 		// ── Wall segment: individual bricks laid one at a time ──
 		//
 		// Canonical Lute Masonry Unit v1 geometry contract:
@@ -1223,153 +1351,97 @@ namespace Lute.Building
 		// ── Gate: two towers + lintel ──
 		async Task BuildGate( VillageBuildTask task, CancellationToken token )
 		{
-			int pieces = 30;
-			task.TotalPieces = pieces;
-
 			float towerW = 4f * M;
 			float towerH = 12f * M;
 			float gateW = 8f * M;
 			float lintelH = 3f * M;
 
-			for ( int i = 0; i < pieces; i++ )
-			{
-				token.ThrowIfCancellationRequested();
+			// Build brick-by-brick: left tower, right tower, lintel.
+			int leftBricks = await LayBrickVolume(
+				task.Position + new Vector3( -gateW / 2f - towerW / 2f, 0, towerH / 2f ),
+				towerW, towerW, towerH, task.Rotation, GateMaterial, true, task, token );
+			int rightBricks = await LayBrickVolume(
+				task.Position + new Vector3( gateW / 2f + towerW / 2f, 0, towerH / 2f ),
+				towerW, towerW, towerH, task.Rotation, GateMaterial, true, task, token );
+			int lintelBricks = await LayBrickVolume(
+				task.Position + new Vector3( 0, 0, towerH + lintelH / 2f ),
+				gateW + towerW * 2, 3f * M, lintelH, task.Rotation, GateMaterial, true, task, token );
 
-				if ( i >= task.PiecesPlaced )
-				{
-					// Left tower (0-12), right tower (13-24), lintel (25-29)
-					if ( i < 13 )
-					{
-						int layer = i;
-						float z = layer * (towerH / 13f);
-						var pos = task.Position + new Vector3( -gateW / 2f - towerW / 2f, 0, z + (towerH / 13f) / 2f );
-						SpawnBox( pos, new Vector3( towerW, towerW, towerH / 13f ), GateMaterial, true, _villageRoot, 0f, PieceAnchor.Center );
-					}
-					else if ( i < 26 )
-					{
-						int layer = i - 13;
-						float z = layer * (towerH / 13f);
-						var pos = task.Position + new Vector3( gateW / 2f + towerW / 2f, 0, z + (towerH / 13f) / 2f );
-						SpawnBox( pos, new Vector3( towerW, towerW, towerH / 13f ), GateMaterial, true, _villageRoot, 0f, PieceAnchor.Center );
-					}
-					else
-					{
-						// Lintel above gate
-						var pos = task.Position + new Vector3( 0, 0, towerH + lintelH / 2f );
-						SpawnBox( pos, new Vector3( gateW + towerW * 2, 3f * M, lintelH ), GateMaterial, true, _villageRoot, 0f, PieceAnchor.Center );
-					}
-					task.PiecesPlaced = i + 1;
-					_totalPiecesPlaced++;
-				}
-
-				ElapsedTime += BuildInterval;
-				if ( !_reconstructMode )
-					await Task.DelaySeconds( BuildInterval );
-				MaybeSave();
-			}
+			task.TotalPieces = leftBricks + rightBricks + lintelBricks;
 		}
 
 		// ── Road section: flat floor tiles ──
 		async Task BuildRoadSection( VillageBuildTask task, CancellationToken token )
 		{
-			int pieces = 8;
-			task.TotalPieces = pieces;
+			// Roads are flat brick-paved surfaces. Lay a single course of
+			// bricks (1 brick thick) across the road width and length.
 			float roadW = 10f * M;
 			float segLen = 10f * M;
-			float angle = task.Rotation * (float)Math.PI / 180f;
-			float cos = (float)Math.Cos( angle );
-			float sin = (float)Math.Sin( angle );
+			float brickH = BrickBodySize.z; // single course thickness
 
-			for ( int i = 0; i < pieces; i++ )
-			{
-				token.ThrowIfCancellationRequested();
+			int placed = await LayBrickVolume(
+				task.Position.WithZ( task.Position.z + brickH * 0.5f ),
+				roadW, segLen, brickH, task.Rotation, FloorMaterial, false, task, token, flatLayer: true );
 
-				if ( i >= task.PiecesPlaced )
-				{
-					float offset = (i - (pieces - 1) * 0.5f) * (segLen / pieces);
-					// Road Rotation describes the local width axis. Advance tiles along
-					// the perpendicular local Y axis so Rotation=0 is N/S and 90 is E/W.
-					var pos = task.Position + new Vector3( -offset * sin, offset * cos, 0 );
-					SpawnBox( pos, new Vector3( roadW, segLen / pieces, FloorThickness ), FloorMaterial, false, _villageRoot, task.Rotation, PieceAnchor.Top );
-					task.PiecesPlaced = i + 1;
-					_totalPiecesPlaced++;
-				}
-
-				ElapsedTime += BuildInterval;
-				if ( !_reconstructMode )
-					await Task.DelaySeconds( BuildInterval );
-				MaybeSave();
-			}
+			task.TotalPieces = placed;
 		}
 
 		// ── Well: circular stone wall + water ──
 		async Task BuildWell( VillageBuildTask task, CancellationToken token )
 		{
-			int pieces = 20;
-			task.TotalPieces = pieces;
 			float wellR = 2f * M;
 			float wellH = 3f * M;
+			float wallThickness = 0.5f * M;
+			float postH = 4f * M;
+			float postW = 0.5f * M;
+			float postR = wellR + 1f * M;
 
-			for ( int i = 0; i < pieces; i++ )
+			int totalPlaced = 0;
+
+			// Well wall: 4 straight brick segments forming a square around the well.
+			// Each segment is wallThickness deep, wellH tall, and 2*wellR wide.
+			float segLen = wellR * 2f + wallThickness;
+			totalPlaced += await LayBrickVolume(
+				task.Position + new Vector3( 0, wellR + wallThickness / 2f, wellH / 2f ),
+				segLen, wallThickness, wellH, 0f, WallMaterial, true, task, token );
+			totalPlaced += await LayBrickVolume(
+				task.Position + new Vector3( 0, -(wellR + wallThickness / 2f), wellH / 2f ),
+				segLen, wallThickness, wellH, 0f, WallMaterial, true, task, token );
+			totalPlaced += await LayBrickVolume(
+				task.Position + new Vector3( wellR + wallThickness / 2f, 0, wellH / 2f ),
+				wallThickness, segLen, wellH, 0f, WallMaterial, true, task, token );
+			totalPlaced += await LayBrickVolume(
+				task.Position + new Vector3( -(wellR + wallThickness / 2f), 0, wellH / 2f ),
+				wallThickness, segLen, wellH, 0f, WallMaterial, true, task, token );
+
+			// 4 wooden posts at corners
+			for ( int p = 0; p < 4; p++ )
 			{
-				token.ThrowIfCancellationRequested();
-
-				if ( i >= task.PiecesPlaced )
-				{
-					if ( i < 16 )
-					{
-						// Stone wall around well (16 segments)
-						float angle = i * (360f / 16f) * (float)Math.PI / 180f;
-						var pos = task.Position + new Vector3( wellR * (float)Math.Cos( angle ), wellR * (float)Math.Sin( angle ), wellH / 2f );
-						SpawnBox( pos, new Vector3( 1f * M, 0.5f * M, wellH ), WallMaterial, true, _villageRoot, 0f, PieceAnchor.Center );
-					}
-					else
-					{
-						// Wooden posts + roof (4 posts)
-						int post = i - 16;
-						float angle = post * 90f * (float)Math.PI / 180f;
-						float postR = wellR + 1f * M;
-						var pos = task.Position + new Vector3( postR * (float)Math.Cos( angle ), postR * (float)Math.Sin( angle ), 6f * M );
-						SpawnBox( pos, new Vector3( 0.5f * M, 0.5f * M, 4f * M ), BuildingWallMaterial, true, _villageRoot, 0f, PieceAnchor.Center );
-					}
-					task.PiecesPlaced = i + 1;
-					_totalPiecesPlaced++;
-				}
-
-				ElapsedTime += BuildInterval;
-				if ( !_reconstructMode )
-					await Task.DelaySeconds( BuildInterval );
-				MaybeSave();
+				float angle = p * 90f * (float)Math.PI / 180f;
+				var postPos = task.Position + new Vector3(
+					postR * (float)Math.Cos( angle ),
+					postR * (float)Math.Sin( angle ),
+					postH / 2f );
+				totalPlaced += await LayBrickVolume(
+					postPos, postW, postW, postH, 0f, BuildingWallMaterial, true, task, token );
 			}
+
+			task.TotalPieces = totalPlaced;
 		}
 
 		// ── Market square: flat floor tiles ──
 		async Task BuildMarketSquare( VillageBuildTask task, CancellationToken token )
 		{
-			int pieces = 25;
-			task.TotalPieces = pieces;
+			// Market square: a single course of paving bricks.
 			float sqW = 20f * M;
 			float sqH = 20f * M;
+			float brickH = BrickBodySize.z;
 
-			for ( int i = 0; i < pieces; i++ )
-			{
-				token.ThrowIfCancellationRequested();
+			int placed = await LayBrickVolume(
+				task.Position.WithZ( task.Position.z + brickH * 0.5f ),
+				sqW, sqH, brickH, 0f, FloorMaterial, false, task, token, flatLayer: true );
 
-				if ( i >= task.PiecesPlaced )
-				{
-					int col = i % 5;
-					int row = i / 5;
-					var pos = task.Position + new Vector3( (col - 2) * (sqW / 5), (row - 2) * (sqH / 5), 0 );
-					SpawnBox( pos, new Vector3( sqW / 5, sqH / 5, FloorThickness ), FloorMaterial, false, _villageRoot, 0f, PieceAnchor.Top );
-					task.PiecesPlaced = i + 1;
-					_totalPiecesPlaced++;
-				}
-
-				ElapsedTime += BuildInterval;
-				if ( !_reconstructMode )
-					await Task.DelaySeconds( BuildInterval );
-				MaybeSave();
-			}
+			task.TotalPieces = placed;
 		}
 
 		// ── Building: use StyleGrammar (if style set) or BuildingGrammar, place pieces ──
@@ -1417,77 +1489,102 @@ namespace Lute.Building
 			if ( !_reconstructMode )
 				BlueprintValidator.ValidateAndLog( bp, task.Name );
 
+			// Build each blueprint piece brick-by-brick using LayBrickVolume.
+			// Each piece (WALL, DOOR, ROOF, COLUMN, FLOOR) is converted to a
+			// rectangular brick volume so the entire building is constructed
+			// literally brick by brick.
+			int totalPlaced = 0;
+			float cosR = (float)Math.Cos( task.Rotation * Math.PI / 180f );
+			float sinR = (float)Math.Sin( task.Rotation * Math.PI / 180f );
+
 			for ( int i = 0; i < bp.Pieces.Count; i++ )
 			{
 				token.ThrowIfCancellationRequested();
 
-				if ( i >= task.PiecesPlaced )
+				var piece = bp.Pieces[i];
+				var pos = task.Position + piece.Position;
+
+				// Apply structure rotation around task position
+				if ( task.Rotation != 0 )
 				{
-					var piece = bp.Pieces[i];
-					var pos = task.Position + piece.Position;
-
-					// Apply structure rotation around task position
-					if ( task.Rotation != 0 )
-					{
-						var offset = pos - task.Position;
-						var angle = task.Rotation * (float)Math.PI / 180f;
-						var rotated = new Vector3(
-							offset.x * (float)Math.Cos( angle ) - offset.y * (float)Math.Sin( angle ),
-							offset.x * (float)Math.Sin( angle ) + offset.y * (float)Math.Cos( angle ),
-							offset.z );
-						pos = task.Position + rotated;
-					}
-
-					Vector3 size;
-					string materialPath;
-					bool collides;
-					PieceAnchor anchor;
-
-					switch ( piece.PieceType )
-					{
-						case "WALL":
-							size = new Vector3( CellSize, CellSize, WallHeight );
-							materialPath = piece.Material ?? BuildingWallMaterial;
-							collides = true;
-							anchor = PieceAnchor.Base;
-							break;
-						case "DOOR":
-							size = new Vector3( CellSize, CellSize, FloorThickness * 2f );
-							materialPath = piece.Material ?? BuildingWallMaterial;
-							collides = true;
-							anchor = PieceAnchor.Base;
-							break;
-						case "ROOF":
-							size = new Vector3( CellSize, CellSize, FloorThickness );
-							materialPath = piece.Material ?? BuildingFloorMaterial;
-							collides = false;
-							anchor = PieceAnchor.Top;
-							break;
-						case "COLUMN":
-							size = piece.Size.Length > 0 ? piece.Size : new Vector3( CellSize * 0.3f, CellSize * 0.3f, WallHeight );
-							materialPath = piece.Material ?? BuildingWallMaterial;
-							collides = true;
-							anchor = PieceAnchor.Base;
-							break;
-						case "FLOOR":
-						default:
-							size = new Vector3( CellSize, CellSize, FloorThickness );
-							materialPath = piece.Material ?? BuildingFloorMaterial;
-							collides = false;
-							anchor = PieceAnchor.Top;
-							break;
-					}
-
-					SpawnBox( pos, size, materialPath, collides, _villageRoot, 0f, anchor );
-					task.PiecesPlaced = i + 1;
-					_totalPiecesPlaced++;
+					var offset = pos - task.Position;
+					var rotated = new Vector3(
+						offset.x * cosR - offset.y * sinR,
+						offset.x * sinR + offset.y * cosR,
+						offset.z );
+					pos = task.Position + rotated;
 				}
 
-				ElapsedTime += BuildInterval;
-				if ( !_reconstructMode )
-					await Task.DelaySeconds( BuildInterval );
-				MaybeSave();
+				// Determine volume dimensions and material per piece type.
+				float volW, volD, volH;
+				string materialPath;
+				bool collides;
+
+				switch ( piece.PieceType )
+				{
+					case "WALL":
+						volW = CellSize;
+						volD = CellSize;
+						volH = WallHeight;
+						materialPath = piece.Material ?? BuildingWallMaterial;
+						collides = true;
+						break;
+					case "DOOR":
+						volW = CellSize;
+						volD = CellSize;
+						volH = FloorThickness * 2f;
+						materialPath = piece.Material ?? BuildingWallMaterial;
+						collides = true;
+						break;
+					case "ROOF":
+						volW = CellSize;
+						volD = CellSize;
+						volH = BrickBodySize.z; // single course
+						materialPath = piece.Material ?? BuildingFloorMaterial;
+						collides = false;
+						break;
+					case "COLUMN":
+						if ( piece.Size.Length > 0 )
+						{
+							volW = piece.Size.x;
+							volD = piece.Size.y;
+							volH = piece.Size.z;
+						}
+						else
+						{
+							volW = CellSize * 0.3f;
+							volD = CellSize * 0.3f;
+							volH = WallHeight;
+						}
+						materialPath = piece.Material ?? BuildingWallMaterial;
+						collides = true;
+						break;
+					case "FLOOR":
+					default:
+						volW = CellSize;
+						volD = CellSize;
+						volH = BrickBodySize.z; // single course
+						materialPath = piece.Material ?? BuildingFloorMaterial;
+						collides = false;
+						break;
+				}
+
+				// Center the volume at the piece position. For WALL/COLUMN/DOOR
+				// the piece position is at the base, so shift up by volH/2.
+				// For FLOOR/ROOF the position is at the top, so shift down.
+				Vector3 center;
+				if ( piece.PieceType == "WALL" || piece.PieceType == "COLUMN" || piece.PieceType == "DOOR" )
+					center = pos.WithZ( pos.z + volH * 0.5f );
+				else
+					center = pos.WithZ( pos.z - volH * 0.5f );
+
+				// FLOOR and ROOF pieces are single-layer brick surfaces.
+				bool isFlat = piece.PieceType == "FLOOR" || piece.PieceType == "ROOF";
+				totalPlaced += await LayBrickVolume(
+					center, volW, volD, volH, task.Rotation, materialPath, collides, task, token, flatLayer: isFlat );
 			}
+
+			task.TotalPieces = totalPlaced;
 		}
 
 		// ── Helper: snap foundation to ground ──
