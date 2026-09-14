@@ -78,6 +78,7 @@ namespace Lute.Building
 		WorkstationRegistry.Workstation _station;
 		string _recipeName;
 		CraftRecipe? _recipe;
+		bool _craftQueued;
 		float _stateTimer;
 		float _logTimer;
 		bool _usingNavMesh;
@@ -333,37 +334,45 @@ namespace Lute.Building
 				return;
 			}
 
-			// Check if we have the inputs.
-			if ( !_recipe.Value.CanCraft( Inventory ) )
+			// If the craft is already queued, skip the input check —
+			// QueueCraft consumes inputs immediately, so CanCraft would
+			// return false on subsequent ticks even though the craft is
+			// in progress.
+			if ( !_craftQueued )
 			{
-				Log.Warning( $"Lute: Crafter '{NpcName}' missing inputs for {_recipeName} at craft time." );
-				State = CrafterState.FetchingInputs;
-				_stateTimer = 0f;
-				return;
+				// Check if we have the inputs.
+				if ( !_recipe.Value.CanCraft( Inventory ) )
+				{
+					Log.Warning( $"Lute: Crafter '{NpcName}' missing inputs for {_recipeName} at craft time." );
+					State = CrafterState.FetchingInputs;
+					_stateTimer = 0f;
+					return;
+				}
+
+				// Queue the craft on the bench.
+				if ( !_station.Bench.IsValid() )
+				{
+					Log.Warning( $"Lute: Crafter '{NpcName}' bench became invalid during craft." );
+					ResetToIdle();
+					return;
+				}
+
+				// Set ourselves as the bench user so outputs go to our inventory.
+				_station.Bench.SetUser( GameObject, Inventory );
+
+				// Queue the craft (consumes inputs from our inventory).
+				if ( !_station.Bench.QueueCraft( _recipeName, Inventory ) )
+				{
+					Log.Warning( $"Lute: Crafter '{NpcName}' QueueCraft failed for {_recipeName}." );
+					_station.Bench.Release();
+					ReleaseBench();
+					ResetToIdle();
+					return;
+				}
+
+				_craftQueued = true;
+				Log.Info( $"Lute: Crafter '{NpcName}' queued {_recipeName} on {_station.Id}." );
 			}
-
-			// Queue the craft on the bench.
-			if ( !_station.Bench.IsValid() )
-			{
-				Log.Warning( $"Lute: Crafter '{NpcName}' bench became invalid during craft." );
-				ResetToIdle();
-				return;
-			}
-
-			// Set ourselves as the bench user so outputs go to our inventory.
-			_station.Bench.SetUser( GameObject, Inventory );
-
-			// Queue the craft (consumes inputs from our inventory).
-			if ( !_station.Bench.QueueCraft( _recipeName, Inventory ) )
-			{
-				Log.Warning( $"Lute: Crafter '{NpcName}' QueueCraft failed for {_recipeName}." );
-				_station.Bench.Release();
-				ReleaseBench();
-				ResetToIdle();
-				return;
-			}
-
-			Log.Info( $"Lute: Crafter '{NpcName}' queued {_recipeName} on {_station.Id}." );
 
 			// Wait for the craft to complete. The bench's OnUpdate
 			// processes the queue and adds output to our inventory.
@@ -389,6 +398,7 @@ namespace Lute.Building
 
 			Log.Info( $"Lute: Crafter '{NpcName}' crafted {outputCount} {_recipe.Value.OutputType}." );
 			_station.Bench.Release();
+			_craftQueued = false;
 			State = CrafterState.DepositingOutput;
 			_stateTimer = 0f;
 		}
@@ -455,6 +465,7 @@ namespace Lute.Building
 			}
 			_recipeName = "";
 			_recipe = null;
+			_craftQueued = false;
 		}
 
 		void ResetToIdle()
