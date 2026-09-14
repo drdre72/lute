@@ -716,13 +716,13 @@ namespace Lute.Building
 			int numWythes = (int)MathF.Round( localDepth / BrickModuleY );
 			if ( modulesX < 1 ) modulesX = 1;
 			if ( numRows < 1 ) numRows = 1;
-			// Flat layer mode: force 1 row and 1 wythe — a single layer
-			// of bricks for floors/roads. Most of the brick is buried
-			// below the surface; only the top face is visible.
+			// Flat layer mode: force 1 row (single course, buried) but
+			// allow multiple wythes so roads/floors span their full
+			// length/depth. This produces a cobblestone-like surface
+			// (many rows of bricks, single course, mostly buried).
 			if ( flatLayer )
 			{
 				numRows = 1;
-				numWythes = 1;
 			}
 			else
 			{
@@ -1373,11 +1373,12 @@ namespace Lute.Building
 		// ── Road section: flat floor tiles ──
 		async Task BuildRoadSection( VillageBuildTask task, CancellationToken token )
 		{
-			// Roads are flat brick-paved surfaces. Lay a single course of
-			// bricks (1 brick thick) across the road width and length.
-			float roadW = 10f * M;
-			float segLen = 10f * M;
-			float brickH = BrickBodySize.z; // single course thickness
+			// Roads are flat cobblestone-like brick surfaces. Single course
+			// (buried) with multiple rows across the width (8-10 bricks
+			// wide) and multiple wythes along the length.
+			float roadW = 8f * BrickModuleX; // 8 bricks wide
+			float segLen = 10f * M;          // full segment length
+			float brickH = BrickBodySize.z;  // single course thickness
 
 			int placed = await LayBrickVolume(
 				task.Position.WithZ( task.Position.z + brickH * 0.5f ),

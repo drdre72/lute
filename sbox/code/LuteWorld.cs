@@ -481,7 +481,7 @@ public sealed class LuteWorld : Component
 		marker.NpcName = "VillageBuilderNPC";
 		marker.VillageSeed = 42;     // deterministic village layout
 		marker.FreshBuild = true;    // clear any existing save — start from nothing
-		marker.BuilderCount = 3;     // multi-builder mode: 3 builders share the task list
+		marker.BuilderCount = 4;     // multi-builder mode: 4 builders share the task list
 
 		Log.Info( $"Lute: VillageMarker placed at {markerGo.WorldPosition} (~400m SW of sanctuary). Fresh build — 3 builders will construct the full village (~270 tasks) from nothing." );
 	}
@@ -507,7 +507,7 @@ public sealed class LuteWorld : Component
 		benchmark.Center = new Vector3( -400f * M, -400f * M, 0f );
 
 		// Spawn hauler NPCs near the village.
-		var haulerCount = 3;
+		var haulerCount = 4;
 		for ( int i = 0; i < haulerCount; i++ )
 		{
 			var haulerGo = Scene.CreateObject( true );
