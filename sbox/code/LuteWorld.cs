@@ -589,6 +589,27 @@ public sealed class LuteWorld : Component
 		surveyorMarker.NpcType = "Surveyor";
 		surveyorMarker.NpcName = "SurveyorNPC";
 
+		// Gate 3.3 gatherers — sources only → gather → haul → process → build.
+		// 2 Lumberjacks (wood), 1 Quarryman (stone/ore), 1 Forager (clay/straw).
+		var gathererDefs = new[]
+		{
+			( Name: "Lumberjack_0",  Type: "Lumberjack",  Pos: new Vector3( -385f * M, -395f * M, 0f ) ),
+			( Name: "Lumberjack_1",  Type: "Lumberjack",  Pos: new Vector3( -385f * M, -405f * M, 0f ) ),
+			( Name: "Quarryman_0",   Type: "Quarryman",   Pos: new Vector3( -395f * M, -405f * M, 0f ) ),
+			( Name: "Forager_0",     Type: "Forager",     Pos: new Vector3( -405f * M, -395f * M, 0f ) ),
+		};
+		foreach ( var g in gathererDefs )
+		{
+			var gGo = Scene.CreateObject( true );
+			gGo.Name = $"{g.Type}Marker_{g.Name}";
+			gGo.SetParent( parent );
+			gGo.WorldPosition = g.Pos;
+			gGo.WorldRotation = Rotation.Identity;
+			var gMarker = gGo.AddComponent<SpawnMarker>();
+			gMarker.NpcType = g.Type;
+			gMarker.NpcName = g.Name;
+		}
+
 		Log.Info( $"Lute: Gate3Benchmark setup — benchmark + hauler marker + village stockpile at (-390m, -400m)." );
 	}
 

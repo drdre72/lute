@@ -45,6 +45,9 @@ public sealed class LuteGame : Component
 
 		// Initialize the profession/capability catalog so task eligibility
 		// is derived from capabilities, not role strings (PR #6 §3).
+		// Clear first so a fresh play session picks up any newly-added
+		// professions (static state persists across sessions in S&Box).
+		Lute.Building.CapabilityRegistry.Clear();
 		Lute.Building.CapabilityRegistry.InitializeDefaults();
 
 		// Spawn bootstrap resource sources and stockyard so the resource

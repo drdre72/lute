@@ -40,7 +40,7 @@ namespace Lute.Building
 			Test3_4_Failure,
 		}
 
-		[Property] public TestLevel Level { get; set; } = TestLevel.Test3_1_PreStocked;
+		[Property] public TestLevel Level { get; set; } = TestLevel.Test3_3_FullLoop;
 
 		/// <summary> Center of the benchmark area. </summary>
 		[Property] public Vector3 Center { get; set; } = new Vector3( 5000, 5000, 0 );
@@ -52,6 +52,8 @@ namespace Lute.Building
 		float _logTimer;
 		bool _initialized;
 		bool _needInjected;
+		bool _nightRunSaved;
+		const float NightRunSaveTime = 47f * 60f; // 47 minutes
 		int _houseCompleteCount;
 		string _lastCompletedTask;
 
@@ -121,6 +123,26 @@ namespace Lute.Building
 					Reason = "Test: inject shelter need for adaptive planning",
 				} );
 				Log.Info( $"Lute: Gate3Benchmark — injected test Shelter need (existing={existingCottages}, desired={existingCottages + 2})." );
+			}
+
+			// Night-run save: at ~47 minutes, snapshot village progress to
+			// "night_run.json" for the daily proof-of-concept run. This lets
+			// us leave the sim running overnight (120-min shadow timeout) and
+			// capture a mid-run save without manual intervention. The save is
+			// non-redundant (skips if nothing changed since last save).
+			if ( !_nightRunSaved && Time.Now >= NightRunSaveTime )
+			{
+				_nightRunSaved = true;
+				var tasks = ConstructionDirector.AllTasks()
+					.Select( t => t.BuildTask )
+					.Where( b => b != null )
+					.ToList();
+				bool saved = VillagePersistence.SaveProgress( "night_run.json",
+					Center, tasks, Time.Now );
+				int done = tasks.Count( t => t.Status == 2 );
+				Log.Info( $"Lute: Gate3Benchmark — NIGHT RUN SAVE at {Time.Now / 60f:F1}min:" +
+					$" {( saved ? "saved" : "no change (skipped)" )}," +
+					$" {tasks.Count} tasks, {done} completed → night_run.json" );
 			}
 		}
 
@@ -272,6 +294,29 @@ namespace Lute.Building
 			Log.Info( $"Lute: Gate3Benchmark — EnforceMaterialGating={ConstructionDirector.EnforceMaterialGating}" );
 			Log.Info( LogisticsBoard.Summary() );
 			Log.Info( ResourceRegistry.Summary() );
+		}
+
+		/// <summary>
+		/// Manually trigger a night-run save to "night_run.json". Use this
+		/// to snapshot the current simulation state at any point during a
+		/// long overnight run.
+		/// </summary>
+		[ConCmd( "gate3_night_run_save" )]
+		public static void NightRunSave()
+		{
+			// Use the known Gate 3 benchmark center; the save file stores
+			// the village center for resume.
+			var center = new Vector3( -400f * 39.37f, -400f * 39.37f, 0f );
+			var tasks = ConstructionDirector.AllTasks()
+				.Select( t => t.BuildTask )
+				.Where( b => b != null )
+				.ToList();
+			bool saved = VillagePersistence.SaveProgress( "night_run.json",
+				center, tasks, Sandbox.Time.Now );
+			int done = tasks.Count( t => t.Status == 2 );
+			Log.Info( $"Lute: Gate3Benchmark — manual NIGHT RUN SAVE:" +
+				$" {( saved ? "saved" : "no change (skipped)" )}," +
+				$" {tasks.Count} tasks, {done} completed → night_run.json" );
 		}
 	}
 }

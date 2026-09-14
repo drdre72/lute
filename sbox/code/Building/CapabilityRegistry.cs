@@ -33,6 +33,8 @@ namespace Lute.Building
 		GatherOre = 5,
 		/// <summary> Gather clay/straw from deposits/fields. </summary>
 		GatherClay = 6,
+		/// <summary> Gather straw from fields (separate from clay). </summary>
+		GatherStraw = 16,
 		/// <summary> Haul materials between locations. </summary>
 		Haul = 7,
 		/// <summary> Operate a sawmill / process timber. </summary>
@@ -168,6 +170,9 @@ namespace Lute.Building
 			return false;
 		}
 
+		/// <summary> Clear all registered professions (fresh session reset). </summary>
+		public static void Clear() => _professions.Clear();
+
 		/// <summary>
 		/// Initialize the built-in profession catalog. Called once at
 		/// startup (from LuteGame.OnStart or JunctionResolverInit).
@@ -189,6 +194,10 @@ namespace Lute.Building
 			Register( new ProfessionDefinition( "quarryman", "Quarryman",
 				new() { { NpcCapability.GatherStone, 1.0f }, { NpcCapability.GatherOre, 0.5f } },
 				new() { "Pickaxe" } ) );
+
+			Register( new ProfessionDefinition( "forager", "Forager",
+				new() { { NpcCapability.GatherClay, 1.0f }, { NpcCapability.GatherStraw, 1.0f } },
+				new() { "Sickle" } ) );
 
 			Register( new ProfessionDefinition( "carpenter", "Carpenter",
 				new() { { NpcCapability.Carpentry, 1.0f }, { NpcCapability.BuildWood, 1.0f }, { NpcCapability.OperateSawmill, 1.0f }, { NpcCapability.RepairTool, 0.3f } },
