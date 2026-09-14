@@ -62,7 +62,7 @@ namespace Lute.Building
 		}
 
 		/// <summary> Seconds between placed pieces. 1s = ~73-minute pace. </summary>
-		[Property] public float BuildInterval { get; set; } = 0.5f;
+		[Property] public float BuildInterval { get; set; } = 0.1f;
 
 	/// <summary>
 	/// Set this to a wall task name (e.g. "Wall_N_0") to request finalization
@@ -174,7 +174,7 @@ namespace Lute.Building
 			ReservationManager.SetScene( Scene );
 
 			// Force build speed — 0.5s per brick lay with LAY animation.
-			BuildInterval = 0.5f;
+			BuildInterval = 0.1f;
 			// Clamp to minimum 0.01s to prevent engine stalls from spawning
 			// thousands of GameObjects per second when BuildInterval is set to 0.
 			if ( BuildInterval < 0.01f )
