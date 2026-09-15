@@ -1,39 +1,45 @@
 # Lute
 
-An AI-directed persistent sandbox engine for S&Box (Source 2) in which language models propose world changes through a deterministic, validated construction pipeline.
+A deterministic autonomous medieval-village simulation for S&Box (Source 2), built in C#.
 
-Players, NPCs, and external agents can describe desired structures or world changes in natural language. Lute translates those requests into structured blueprints, validates them against architectural, geometric, and gameplay constraints, and executes them through deterministic S&Box systems.
+Lute simulates a self-sustaining settlement: NPCs gather resources, craft materials, haul goods, and construct structures brick-by-brick through a deterministic, validated pipeline. The architecture separates **authoritative simulation logic** (deterministic C#) from **authoring tooling** (LLMs may propose blueprints offline, but never drive runtime NPC behavior).
 
 ## Architecture
 
-```
-Natural Language
-      ↓
-    LLM / NLP
-      ↓
-Semantic Intent
-      ↓
-BuildingGrammar / StyleGrammar / MonumentBlueprintProducer
-      ↓
-Blueprint (Intermediate Representation)
-      ↓
-BlueprintValidator
-      ↓
-Executor (VillageBuilder / NPCBuilder)
-      ↓
-Persistent World
+```text
+World → SpatialRegistry / ResourceRegistry → SettlementNeedBoard
+     → Surveyor → ConstructionDirector (authoritative task DAG)
+     → LogisticsPlanner / ProductionPlanner / Professions
+     → VillageBuilder (village orchestration)
+     → StructureExecutor (single-structure realization)
+     → physical NPC execution → world mutation
 ```
 
-The LLM doesn't directly place geometry. It proposes structured modifications (BuildingCritique JSON). The deterministic C# engine validates and executes them. This is the core design principle: **AI proposes, structured systems reason, validators enforce reality.**
+### Core design rules
+
+- **Runtime NPC intelligence is deterministic.** NPCs never call LLMs for gameplay behavior or conversation. They act on goals, needs, beliefs, memory, blackboard state, intents, construction tasks, reservations, and world state.
+- **AI proposes; structured systems reason; validators enforce reality.** LLMs may be used by development tooling or offline content generation, but never by an NPC at runtime.
+- **ConstructionDirector is the task authority.** It owns the task DAG, reservations, and completion transitions.
+- **StructureExecutor realizes one authorized plan; it does not know what a "village" is.** Village-level orchestration stays in VillageBuilder.
 
 ## Key Systems
 
-- **Blueprint IR** — universal piece-list format produced by all generators (BuildingGrammar, StyleGrammar, MonumentBlueprintProducer) and consumed by all executors. Supports JSON export/import for inspection and hand-authoring.
-- **BlueprintValidator** — pre-execution validation: piece bounds, collision overlaps, structural integrity (floating walls), dimension constraints. Catches producer bugs before they become invisible in-world problems.
-- **VillageBuilder** — incremental procedural village construction with save/resume, multi-builder parallelism, and balanced task partitioning.
-- **MonumentBlueprintProducer** — massing-level monument generation (St. Peter's Basilica, etc.) with parametric volumes (nave, dome, towers, colonnades).
-- **SpatialBlackboard** — shared NPC coordination: positions, claims, reservations, and messages.
-- **NPCBrain** — LLM/NLP bridge for building critiques, console commands, and architect/critic interaction.
+- **Blueprint IR** — universal piece-list intermediate representation produced by all generators and consumed by all executors. Supports JSON export/import.
+- **BlueprintValidator** — pre-execution validation: piece bounds, collision overlaps, structural integrity, dimension constraints.
+- **ConstructionDirector** — authoritative task scheduling, dependency DAG, reservations, and completion transitions.
+- **ReservationManager** — task-tied spatial reservations, occupancy ledger, conflict detection.
+- **SettlementNeedBoard** — demand-driven need registration and reconciliation against the director's task catalog.
+- **Surveyor** — surveys the world and proposes construction candidates from settlement needs.
+- **LogisticsPlanner / ProductionPlanner** — haul jobs to supply build sites; demand-driven crafting orders when stockpiles lack crafted materials.
+- **CompletionEffectsManager** — completed structures activate production capacity (sawmill → +workstation) and housing capacity (cottage → +housing).
+- **RepresentationCollapser** — collapses completed per-brick GameObjects into a single static representation for performance.
+- **VillageBuilder** — village-level orchestration: build loop, multi-builder partitioning, save/resume, director registration. Delegates structure realization to StructureExecutor.
+- **StructureExecutor** — single-structure realization authority (walls, gates, roads, wells, markets, buildings).
+- **SpatialRegistry / ResourceRegistry** — authoritative spatial and resource state for the simulation.
+- **ConstructionEventBus** — pub/sub event system for construction state transitions.
+- **Deterministic NLP pipeline** — tokenizer, grammar parser, entity resolver, speech templates for NPC-to-NPC structured coordination (no LLM).
+- **ConversationManager** — async message delivery, exactly-once consumption for agent coordination.
+- **BeliefModel** — per-NPC self-beliefs, task history, reputation, trust, conversation state.
 
 ## Tech Stack
 
@@ -46,21 +52,23 @@ The LLM doesn't directly place geometry. It proposes structured modifications (B
 
 ```
 lute/
-├── README.md                  ← this file (current product)
+├── README.md                  ← this file (current product overview)
 ├── PRD.md                     ← product requirements (game design)
-├── AGENTS.md                  ← rules for AI agents (read before writing S&Box code)
+├── AGENTS.md                  ← rules and knowledge for AI agents (read before writing S&Box code)
 ├── ARCHITECTURE.md            ← technical architecture
+├── LUTE_STATE.md              ← single-page source of truth for current implementation state
 ├── PROGRESS_LOG.md            ← chronological development history
+├── docs/decisions/            ← ADRs (immutable architectural decisions)
+├── docs/history/              ← historical project phases (Godot, Unreal)
 ├── sbox/
 │   └── code/                  ← all C# gameplay code
-│       ├── Building/          ← Blueprint, validators, grammars, builders
-│       ├── NPC/               ← NPC spawner, spawn markers
-│       ├── LuteWorld.cs       ← world setup (terrain, monuments, village)
-│       └── LuteMonumentBuilder.cs ← hand-authored Neutral Market monument
+│       ├── Building/          ← Blueprint, validators, grammars, director, executors, planners
+│       ├── NPC/               ← NPC spawner, spawn markers, controllers
+│       ├── Items/             ← inventory, resources
+│       ├── NLP/               ← deterministic NLP pipeline
+│       └── LuteWorld.cs        ← world setup (terrain, monuments, village)
 ├── agent/                     ← verification scripts (MCP probing, collision, telemetry)
-├── docs/
-│   └── history/               ← historical project phases (Godot, Unreal)
-└── docs_cache/                ← auto-generated API reference
+└── docs_cache/                ← auto-generated S&Box API reference
 ```
 
 ## Documentation
@@ -71,7 +79,9 @@ lute/
 | `PRD.md` | Product requirements and game design |
 | `AGENTS.md` | Rules and knowledge for AI agents working on this repo |
 | `ARCHITECTURE.md` | Technical architecture and system design |
+| `LUTE_STATE.md` | Single-page source of truth for current implementation state |
 | `PROGRESS_LOG.md` | Chronological development log |
+| `docs/decisions/` | ADRs — immutable architectural decisions |
 | `docs/history/` | Historical project phases (Godot, Unreal prototypes) |
 
 ## Building
@@ -91,7 +101,8 @@ Runtime verification uses the S&Box MCP server (text-based, not visual):
 - `agent/sbox_eyes.py` — spatial probing via raycasts and object inspection
 - `agent/collision_probes.py` — automated collision and traversal checks
 - `agent/scene_telemetry.py` — scene graph audit (counts, materials, bounds)
-- Console commands: `village_status`, `village_blackboard`, `blueprint_export`, `blueprint_import`, `monument_export`
+- `agent/sbox_verify.ps1` — combined screenshot/log/scene report
+- `agent/gpt_eyes.py` — GPT-5 vision bridge (screenshot → text description)
 
 ## License
 
