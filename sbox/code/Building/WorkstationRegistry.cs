@@ -136,10 +136,32 @@ namespace Lute.Building
 		public static Workstation Get( string stationId ) =>
 			_stations.TryGetValue( stationId, out var ws ) ? ws : null;
 
-		/// <summary>
-		/// All registered workstations.
+			/// <summary>
+		/// All registered workstations with valid (non-destroyed) benches.
+		/// Destroyed/invalid benches are pruned from the registry as a
+		/// side effect so they don't accumulate over long play sessions.
 		/// </summary>
-		public static List<Workstation> All() => _stations.Values.ToList();
+		public static List<Workstation> All()
+		{
+			// Prune destroyed benches periodically. We can't remove during
+			// foreach over Values, so collect dead keys first.
+			List<string> dead = null;
+			foreach ( var ws in _stations.Values )
+			{
+				if ( ws?.Bench == null || !ws.Bench.IsValid() )
+				{
+					dead ??= new List<string>();
+					dead.Add( ws.Id );
+				}
+			}
+			if ( dead != null )
+			{
+				foreach ( var id in dead )
+					_stations.Remove( id );
+				Log.Info( $"Lute: WorkstationRegistry pruned {dead.Count} destroyed workstation(s) ({_stations.Count} remaining)." );
+			}
+			return _stations.Values.ToList();
+		}
 
 		/// <summary>
 		/// Clear all registrations and reservations (scene reset).

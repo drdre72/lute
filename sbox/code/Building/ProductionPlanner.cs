@@ -184,6 +184,8 @@ namespace Lute.Building
 			}
 
 			// Find a workstation of that bench type.
+			// All() prunes destroyed benches, but a bench can be destroyed
+			// between All() and this loop, so guard every Bench access.
 			var stations = WorkstationRegistry.All()
 				.Where( s => s?.Bench != null && s.Bench.IsValid() && s.Type == benchType )
 				.ToList();
@@ -201,15 +203,21 @@ namespace Lute.Building
 				// Skip destroyed/invalid components — accessing
 				// WorldPosition on a destroyed GameObject throws.
 				if ( !station.Bench.IsValid() ) continue;
+
 				Vector3 stationPos;
-				try { stationPos = station.Position; }
-				catch { continue; }
+				string stationId;
+				try
+				{
+					stationPos = station.Position;
+					stationId = station.Id;
+				}
+				catch { continue; } // Bench destroyed mid-iteration.
 
 				// Find the stockpile nearest to this workstation.
 				var stationPile = ResourceRegistry.NearestStockpileWithSpace( stationPos );
 				if ( stationPile == null )
 				{
-					Log.Warning( $"Lute: ProductionPlanner — no stockpile near {station.Id} ({benchType})." );
+					Log.Warning( $"Lute: ProductionPlanner — no stockpile near {stationId} ({benchType})." );
 					continue;
 				}
 
@@ -225,7 +233,7 @@ namespace Lute.Building
 
 					// Check we don't already have a pending supply job
 					// for this workstation + input type.
-					string supplyKey = $"{station.Id}:{input.Key}";
+					string supplyKey = $"{stationId}:{input.Key}";
 					if ( _pendingSupply.Contains( supplyKey ) )
 						continue;
 
@@ -263,7 +271,7 @@ namespace Lute.Building
 					{
 						_pendingSupply.Add( supplyKey );
 						created++;
-						Log.Info( $"Lute: ProductionPlanner — supply order: haul {toSupply} {input.Key} → {stationPile.Id} (near {station.Id} {benchType}) for {outputMaterial} production." );
+						Log.Info( $"Lute: ProductionPlanner — supply order: haul {toSupply} {input.Key} → {stationPile.Id} (near {stationId} {benchType}) for {outputMaterial} production." );
 					}
 				}
 			}
@@ -305,9 +313,14 @@ namespace Lute.Building
 				{ _pendingSupply.Remove( key ); continue; }
 
 				var station = WorkstationRegistry.Get( stationId );
-				if ( station?.Bench == null ) { _pendingSupply.Remove( key ); continue; }
+				if ( station?.Bench == null || !station.Bench.IsValid() )
+				{ _pendingSupply.Remove( key ); continue; }
 
-				var pile = ResourceRegistry.NearestStockpileWithSpace( station.Position );
+				Vector3 stationPos;
+				try { stationPos = station.Position; }
+				catch { _pendingSupply.Remove( key ); continue; }
+
+				var pile = ResourceRegistry.NearestStockpileWithSpace( stationPos );
 				if ( pile == null ) { _pendingSupply.Remove( key ); continue; }
 
 				bool hasPending = LogisticsBoard.AllJobs().Any( j =>
