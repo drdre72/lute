@@ -83,6 +83,16 @@ public sealed class LuteGame : Component
 		productionGo.SetParent( GameObject );
 		productionGo.AddComponent<Lute.Building.ProductionPlanner>();
 
+		// Add the completion effects manager — applies gameplay effects
+		// when a structure finishes building. A completed sawmill spawns
+		// a CraftingBench (Sawmill) workstation, increasing plank/timber
+		// production capacity. A completed cottage increases housing.
+		// Move 8: completed structures change the settlement's capacity.
+		var effectsGo = Scene.CreateObject( true );
+		effectsGo.Name = "CompletionEffectsManager";
+		effectsGo.SetParent( GameObject );
+		effectsGo.AddComponent<Lute.Building.CompletionEffectsManager>();
+
 		// Initialize the profession/capability catalog so task eligibility
 		// is derived from capabilities, not role strings (PR #6 §3).
 		// Clear first so a fresh play session picks up any newly-added
