@@ -114,6 +114,19 @@ namespace Lute.Building
 		/// Only meaningful when CornerButtCourses != 0.
 		/// </summary>
 		public int CornerButtSide = 0;
+
+		/// <summary>
+		/// Authoritative wall height in world units for this task.
+		/// Set by the planner (VillageGrammar) when the task is created
+		/// and consumed by both BuildWallSegment (brick placement +
+		/// segment collider) and RepresentationCollapser (collapsed
+		/// static representation). This is the single source of truth
+		/// for wall height — runtime overrides of
+		/// <c>VillageBuilder.WallHeight</c> (e.g. by NPCSpawner) must
+		/// also update this field so the collapser cannot diverge from
+		/// the brick-built geometry.
+		/// </summary>
+		public float WallHeight = 4f * 39.37f; // 157.48 units (4m) default
 	}
 
 	/// <summary>

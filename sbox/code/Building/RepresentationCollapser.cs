@@ -164,6 +164,21 @@ namespace Lute.Building
 				destroyed++;
 			}
 
+			// Also destroy the segment-level collider created by
+			// BuildWallSegment (named Village_{name}_collider) so it
+			// does not remain underneath the new collapsed collider
+			// with potentially stale/different dimensions.
+			string colliderName = $"Village_{task.BuildTask.Name}_collider";
+			foreach ( var go in Scene.GetAllObjects( false ) )
+			{
+				if ( go.Name == colliderName )
+				{
+					go.Destroy();
+					destroyed++;
+					break;
+				}
+			}
+
 			// Build the collapsed static representation: one GameObject
 			// with a ModelRenderer (box model + castle_wall material)
 			// and a BoxCollider sized to the wall's world bounds.
@@ -171,7 +186,14 @@ namespace Lute.Building
 			// segment-level collider, plus a renderer.
 			float segLen = 2f * 39.37f;        // WallSegmentLength (2m)
 			float wallDepth = 0.5f * 39.37f;   // WallThickness (0.5m)
-			float wallH = 4f * 39.37f;  // 4m wall height (VillageBuildTask.WallHeight default)
+			// Authoritative wall height from the task itself — set by
+			// VillageBuilder after GenerateLayout (propagated from the
+			// runtime WallHeight, which NPCSpawner may override to 160).
+			// This guarantees the collapsed representation matches the
+			// brick-built geometry exactly. Fallback to 4m if unset.
+			float wallH = task.BuildTask.WallHeight > 0f
+				? task.BuildTask.WallHeight
+				: 4f * 39.37f;
 
 			// If an existing FinalizedMeshGo exists (from FinalizeWall),
 			// destroy it so we don't stack colliders.

@@ -210,6 +210,13 @@ namespace Lute.Building
 				var rng = VillageSeed > 0 ? new Random( VillageSeed ) : new Random();
 				var grammar = new VillageGrammar( rng );
 				Tasks = grammar.GenerateLayout( Center );
+				// Propagate the runtime WallHeight (which NPCSpawner may
+				// override to 160) onto each wall task so BuildWallSegment
+				// and RepresentationCollapser share one authoritative height
+				// and cannot diverge from the brick-built geometry.
+				foreach ( var t in Tasks )
+					if ( t.TaskType == "wall" )
+						t.WallHeight = WallHeight;
 				_sharedTasks = Tasks;
 			}
 			else
@@ -846,7 +853,7 @@ namespace Lute.Building
 			if ( BuildInterval < 0.01f )
 				BuildInterval = 0.01f;
 			float segLen = WallSegmentLength;
-			float wallH = WallHeight;
+			float wallH = task.WallHeight > 0 ? task.WallHeight : WallHeight;
 			float wallDepth = WallThickness;
 			float brickLen = BrickBodySize.x;
 			float brickDepth = BrickBodySize.y;
@@ -1247,7 +1254,7 @@ namespace Lute.Building
 		// visual from brick_single_04 to flat boxes with castle_wall.vmat.
 
 		float segLen = WallSegmentLength;
-		float wallH = WallHeight;
+		float wallH = task.WallHeight > 0 ? task.WallHeight : WallHeight;
 		float wallDepth = WallThickness;
 
 		// Add a single segment-level BoxCollider for physics.
@@ -1303,7 +1310,7 @@ namespace Lute.Building
 			if ( task.TaskType != "wall" ) return false;
 			if ( task.WallState != WallSegmentState.Finalized ) { Log.Warning( $"Lute: DeconstructWall('{task.Name}') rejected - not Finalized." ); return false; }
 			float segLen = WallSegmentLength;
-			float wallH = WallHeight;
+			float wallH = task.WallHeight > 0 ? task.WallHeight : WallHeight;
 			float wallDepth = WallThickness;
 			float brickLen = BrickBodySize.x;
 			float brickDepth = BrickBodySize.y;
