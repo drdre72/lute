@@ -245,6 +245,24 @@ namespace Lute.Building
 				return;
 			}
 
+			// Safety net: DoSurvey() should have compiled _structureDef
+			// already, but if a state path reached dispatch without it,
+			// compile now rather than emitting a malformed "000000" task
+			// name. This keeps the authoritative chain intact.
+			if ( _structureDef == null )
+			{
+				int baseW = EstimateBaseWidth( _currentRequest.StructureType );
+				int baseH = EstimateBaseHeight( _currentRequest.StructureType );
+				int seed = (int)( _currentRequest.Id.GetHashCode() ) % 100000;
+				if ( seed < 0 ) seed = -seed;
+				_structureDef = StructureDefinition.Compile(
+					_currentRequest.StructureType, baseW, baseH,
+					wealthFactor: 1.5f, layoutSeed: seed );
+				_currentRequest.StructureDefinitionId = _structureDef.Id;
+				Log.Warning( $"Lute: Surveyor '{NpcName}' compiled StructureDefinition {_structureDef.Id}" +
+					$" at dispatch (DoSurvey compile was skipped) for {_currentRequest.StructureType}." );
+			}
+
 			var pos = _currentRequest.ResolvedPosition.Value;
 			var rot = _currentRequest.ResolvedRotation ?? 0f;
 
@@ -255,13 +273,11 @@ namespace Lute.Building
 			// precompiled StructureDefinition so the executor builds from
 			// the exact same Blueprint the Surveyor validated against.
 			var def = _structureDef;
-			int baseW = EstimateBaseWidth( _currentRequest.StructureType );
-			int baseH = EstimateBaseHeight( _currentRequest.StructureType );
-			int seed = def?.Blueprint?.Provenance?.Seed ?? 0;
+			int bW = EstimateBaseWidth( _currentRequest.StructureType );
+			int bH = EstimateBaseHeight( _currentRequest.StructureType );
+			int sd = def?.Blueprint?.Provenance?.Seed ?? 0;
 
 			// Deterministic name: structureType + definition id suffix.
-			// No more Guid.NewGuid() — the professor flagged this as
-			// non-deterministic.
 			string defSuffix = def != null ? def.Id.Substring( Math.Max( 0, def.Id.Length - 6 ) ) : "000000";
 			var buildTask = new VillageBuildTask
 			{
@@ -270,10 +286,10 @@ namespace Lute.Building
 				Rotation = rot,
 				TaskType = _currentRequest.StructureType,
 				Priority = 10 + (int)( _currentRequest.Priority * 100 ),
-				BaseWidth = baseW,
-				BaseHeight = baseH,
+				BaseWidth = bW,
+				BaseHeight = bH,
 				WealthFactor = 1.5f,
-				LayoutSeed = seed,
+				LayoutSeed = sd,
 				Style = ArchitecturalStyle.Vernacular,
 				StructureDefinitionId = def?.Id,
 				TotalPieces = def?.TotalPieces ?? 0,
