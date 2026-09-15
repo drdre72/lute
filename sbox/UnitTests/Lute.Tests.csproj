@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!--
+		Lute unit tests. References the lute gameplay project so tests
+		can exercise the real Blueprint, BlueprintValidator, and other
+		engine-coupled types. Runs via `dotnet test` on a machine with the
+		S&Box binaries present (the same bin/managed layout the editor uses).
+
+		Tests here must NOT call Log.Info/Log.Warning directly or
+		indirectly — those require a live engine. Stick to the pure-data
+		paths (BlueprintValidator.Validate, Blueprint construction, etc.).
+	-->
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<LangVersion>14</LangVersion>
+		<IsPackable>false</IsPackable>
+		<IsPublishable>false</IsPublishable>
+		<Nullable>disable</Nullable>
+		<RootNamespace>Lute.Tests</RootNamespace>
+		<DefineConstants>SANDBOX</DefineConstants>
+		<NoWarn>1701;1702;1591;CA2007;CA2000</NoWarn>
+		<UseWindowsThreadPool>true</UseWindowsThreadPool>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+		<PackageReference Include="MSTest.TestAdapter" Version="3.6.4" />
+		<PackageReference Include="MSTest.TestFramework" Version="3.6.4" />
+		<PackageReference Include="coverlet.collector" Version="6.0.2">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- S&Box engine binaries (same layout as lute.csproj) -->
+		<Reference Include="../../../bin/managed/Sandbox.System.dll" />
+		<Reference Include="../../../bin/managed/Sandbox.Engine.dll" />
+		<Reference Include="../../../bin/managed/Sandbox.Filesystem.dll" />
+		<Reference Include="../../../bin/managed/Sandbox.Reflection.dll" />
+		<Reference Include="../../../bin/managed/Sandbox.Mounting.dll" />
+		<Reference Include="../../../bin/managed/Microsoft.AspNetCore.Components.dll" />
+		<Analyzer Include="../../../bin/managed/Sandbox.CodeUpgrader.dll" />
+		<Analyzer Include="../../../bin/managed/Sandbox.Generator.dll" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\code\lute.csproj" />
+	</ItemGroup>
+
+</Project>

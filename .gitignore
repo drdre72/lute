@@ -91,3 +91,7 @@ xcuserdata/
 agent/.openai_key
 .openai_key
 scrap/gpt_eyes_test.png
+
+# Test build output
+sbox/UnitTests/bin/
+sbox/UnitTests/obj/
