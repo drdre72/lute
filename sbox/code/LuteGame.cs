@@ -71,6 +71,18 @@ public sealed class LuteGame : Component
 		logisticsGo.SetParent( GameObject );
 		logisticsGo.AddComponent<Lute.Building.LogisticsPlanner>();
 
+		// Add the production planner — demand-driven crafting supply.
+		// When a task needs a crafted material (Plank, Brick, Timber)
+		// that no stockpile has, this creates haul jobs to bring raw
+		// inputs to the appropriate workstation stockpile so crafters
+		// can produce the finished good. Move 7: resource pressure
+		// generates production orders; production doesn't just pick the
+		// nearest source.
+		var productionGo = Scene.CreateObject( true );
+		productionGo.Name = "ProductionPlanner";
+		productionGo.SetParent( GameObject );
+		productionGo.AddComponent<Lute.Building.ProductionPlanner>();
+
 		// Initialize the profession/capability catalog so task eligibility
 		// is derived from capabilities, not role strings (PR #6 §3).
 		// Clear first so a fresh play session picks up any newly-added

@@ -397,6 +397,12 @@ namespace Lute.Building
 				ResourceSource src = null;
 				Stockpile pile = null;
 
+				// Crafted materials (Plank, Brick, Timber) must come from
+				// a stockpile — they cannot be gathered directly from a
+				// source. The ProductionPlanner is responsible for
+				// ensuring raw inputs reach the workstation so crafters
+				// can produce them. Only raw materials can be hauled
+				// directly from a source to the build site.
 				if ( ItemDefs.IsRawMaterial( req.Type ) )
 				{
 					src = ResourceRegistry.NearestSource( req.Type, taskPosition );
@@ -414,16 +420,21 @@ namespace Lute.Building
 				}
 				else if ( src != null )
 				{
-					// Gather from source, deliver to build site. Raw
-					// materials need processing at a workstation before
-					// they can be used for construction — but for the
-					// bootstrap test, allow direct delivery.
+					// Gather raw material from source, deliver directly
+					// to the build site. Crafted materials are not
+					// hauled from sources — they must be produced by
+					// crafters (driven by ProductionPlanner).
 					var jobId = CreateJob( req.Type, needed,
 						$"source:{src.Id}", src.Position,
 						$"task:{task.Id}", taskPosition,
 						forTaskId: task.Id );
 					if ( jobId != null ) created++;
 				}
+				// If req.Type is a crafted material and no stockpile has
+				// it, no haul job is created here. The ProductionPlanner
+				// will detect the unmet demand and create supply orders
+				// to bring raw inputs to the workstation so crafters can
+				// produce it.
 			}
 
 			return created;
