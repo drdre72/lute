@@ -129,29 +129,30 @@ namespace Lute.Building
 
 				case CrafterState.WalkingToBench:
 				{
-					if ( _station?.Bench is null || !_station.Bench.IsValid() )
+					var benchPos = SafeStationPosition();
+					if ( benchPos is null )
 					{
 						ResetToIdle();
 						break;
 					}
-					SteerToward( _station.Position );
-					if ( WithinStopRadius( _station.Position ) )
+					SteerToward( benchPos.Value );
+					if ( WithinStopRadius( benchPos.Value ) )
 					{
 						Stop();
 						State = CrafterState.FetchingInputs;
 						_stateTimer = 0f;
-						Log.Info( $"Lute: Crafter '{NpcName}' reached bench {_station.Id}." );
+						Log.Info( $"Lute: Crafter '{NpcName}' reached bench {_station?.Id}." );
 					}
 					else
 					{
 						_stateTimer += Time.Delta;
 						if ( _stateTimer > 10f )
 						{
-							WorldPosition = _station.Position;
+							WorldPosition = benchPos.Value;
 							Stop();
 							State = CrafterState.FetchingInputs;
 							_stateTimer = 0f;
-							Log.Info( $"Lute: Crafter '{NpcName}' warped to bench {_station.Id} (was stuck)." );
+							Log.Info( $"Lute: Crafter '{NpcName}' warped to bench {_station?.Id} (was stuck)." );
 						}
 					}
 					break;
@@ -165,13 +166,14 @@ namespace Lute.Building
 
 				case CrafterState.WalkingToBenchWithInputs:
 				{
-					if ( _station?.Bench is null || !_station.Bench.IsValid() )
+					var benchPos = SafeStationPosition();
+					if ( benchPos is null )
 					{
 						ResetToIdle();
 						break;
 					}
-					SteerToward( _station.Position );
-					if ( WithinStopRadius( _station.Position ) )
+					SteerToward( benchPos.Value );
+					if ( WithinStopRadius( benchPos.Value ) )
 					{
 						Stop();
 						State = CrafterState.Crafting;
@@ -454,6 +456,18 @@ namespace Lute.Building
 			Log.Info( $"Lute: Crafter '{NpcName}' deposited {deposited} {_recipe.Value.OutputType} at {pile.Id}." );
 			State = CrafterState.Done;
 			_stateTimer = 0f;
+		}
+
+		// Safe accessor for the station position. The bench GameObject can
+		// be destroyed between the IsValid() check and the Position access
+		// (same race that caused the ProductionPlanner NRE). Returns null
+		// when the station is no longer usable so callers can bail out.
+		Vector3? SafeStationPosition()
+		{
+			if ( _station?.Bench is null || !_station.Bench.IsValid() )
+				return null;
+			try { return _station.Position; }
+			catch { return null; }
 		}
 
 		void ReleaseBench()
