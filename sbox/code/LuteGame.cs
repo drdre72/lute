@@ -53,6 +53,24 @@ public sealed class LuteGame : Component
 		tickerGo.SetParent( GameObject );
 		tickerGo.AddComponent<Lute.Building.LuteSimulationTicker>();
 
+		// Add the production settlement planner — drives adaptive
+		// settlement planning (need evaluation → structure requests →
+		// Surveyor site selection). This replaces the need-evaluation
+		// loop that was previously inside Gate3Benchmark.
+		var plannerGo = Scene.CreateObject( true );
+		plannerGo.Name = "SettlementPlanner";
+		plannerGo.SetParent( GameObject );
+		plannerGo.AddComponent<Lute.Building.SettlementPlanner>();
+
+		// Add the production logistics planner — drives the closed-loop
+		// economy by creating haul jobs for unsatisfied task material
+		// requirements. This replaces the SupplyUnsatisfiedTasks() call
+		// that was previously inside Gate3Benchmark.
+		var logisticsGo = Scene.CreateObject( true );
+		logisticsGo.Name = "LogisticsPlanner";
+		logisticsGo.SetParent( GameObject );
+		logisticsGo.AddComponent<Lute.Building.LogisticsPlanner>();
+
 		// Initialize the profession/capability catalog so task eligibility
 		// is derived from capabilities, not role strings (PR #6 §3).
 		// Clear first so a fresh play session picks up any newly-added
