@@ -186,7 +186,7 @@ namespace Lute.Building
 			collapsedGo.WorldPosition = task.BuildTask.Position + new Vector3( 0, 0, wallH * 0.5f );
 			if ( task.BuildTask.Rotation != 0 )
 				collapsedGo.WorldRotation = Rotation.FromYaw( task.BuildTask.Rotation );
-			collapsedGo.WorldScale = new Vector3( segLen, wallDepth, wallH );
+			collapsedGo.WorldScale = new Vector3( segLen, wallDepth, wallH ) / 50f; // box.vmdl native = 50 units
 
 			var renderer = collapsedGo.AddComponent<ModelRenderer>();
 			renderer.Model = Model.Load( "models/dev/box.vmdl" );
