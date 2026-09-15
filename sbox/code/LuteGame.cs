@@ -31,11 +31,14 @@ public sealed class LuteGame : Component
 		// (that only happens in editor), so we also kick off generation
 		// explicitly. NavMesh.Generate() builds tiles from the world's
 		// static colliders (PlazaFloor, walls, etc.).
+		// NOTE: We enable the NavMesh here but defer generation until
+		// after LuteWorld.Build() completes — the village terrain and
+		// resource sources are spawned during Build(), and the NavMesh
+		// must include their colliders or village-area NPCs spawn off-mesh.
 		if ( Scene.NavMesh is not null && !Scene.NavMesh.IsEnabled )
 		{
 			Scene.NavMesh.IsEnabled = true;
-			Log.Info( "Lute: NavMesh enabled by LuteGame (was disabled in scene)." );
-			_ = GenerateNavMeshAsync();
+			Log.Info( "Lute: NavMesh enabled by LuteGame (generation deferred until world build completes)." );
 		}
 
 		// Initialize the junction resolver registry (corners, gates,
@@ -121,6 +124,15 @@ public sealed class LuteGame : Component
 		var sanctuary = world.Build();
 		TimePortalSpawn = sanctuary;
 
+		// Now that the world (terrain, structures, resource sources) is
+		// built, generate the NavMesh so it covers the village area.
+		// Village-area NPCs spawn at ~(-15748,-15748) — without this
+		// post-build generation they'd be off-mesh and unable to path.
+		if ( Scene.NavMesh is not null && Scene.NavMesh.IsEnabled )
+		{
+			_ = GenerateNavMeshAsync();
+		}
+
 		// Create the HUD root (ScreenPanel) + compass.
 		// ScreenPanel renders UI to the screen; PanelComponents (like the
 		// compass) only execute on the client, so this is safe on server too.
@@ -158,8 +170,26 @@ public sealed class LuteGame : Component
 	{
 		try
 		{
+			// The full-scene Generate() calculates bounds from ALL physics
+			// bodies, which with a 3km × 3km ground plane produces ~3700+
+			// tiles and hangs. Use tight CustomBounds around the village
+			// center only — that's where haulers/crafters/surveyor operate.
+			// Sanctuary builder NPCs near origin already have navmesh from
+			// the scene's initial generation.
+			var M = 39.37f;
+			var villageCenter = new Vector3( -400f * M, -400f * M, 0f );
+			float radius = 300f * M; // 300m radius — ~24 tiles per axis
+
+			var navBounds = new BBox(
+				villageCenter - new Vector3( radius, radius, 100f * M ),
+				villageCenter + new Vector3( radius, radius, 200f * M ) );
+
+			Scene.NavMesh.CustomBounds = true;
+			Scene.NavMesh.Bounds = navBounds;
+			Log.Info( $"Lute: NavMesh — generating village navmesh (radius {radius / M:F0}m, bounds {navBounds})." );
+
 			var generated = await Scene.NavMesh.Generate( Scene.PhysicsWorld );
-			Log.Info( $"Lute: NavMesh generation {(generated ? "complete" : "failed")}." );
+			Log.Info( $"Lute: NavMesh generation {(generated ? "complete" : "failed")} (village bounds)." );
 		}
 		catch ( Exception ex )
 		{
