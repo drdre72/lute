@@ -10,22 +10,69 @@
 
 ## Active TODOs
 
-- [ ] Decide: keep BuilderNpc autonomous build-test sequence, or make it
-      purely agent-driven? (Currently both run; AgentControlled takes
-      priority but the state machine still places test blocks on fresh play
-      and they can deflect the velocity-driven body.)
-- [ ] Add Acropolis walkable collision (concave `PhysicsMeshFromRender` or
-      multi-hull) so the NPC can climb terraces — current single convex hull
-      makes the base a ~5m wall.
-- [ ] Next from-scratch build target (watchtower done) — pick: bridge,
-      guild hall shell, or more towers.
-- [ ] Tighten NPC agent-drive: velocity is sometimes fought by
-      PlayerController friction / deflected by collision. Consider driving
-      via `Input.AnalogMove`-equivalent or a kinematic mode instead of raw
-      Rigidbody velocity.
+- [x] Move 1: Unify task authority + fix piece accounting (commit ac74b49)
+- [x] Move 2: One global simulation clock — LuteSimulationTicker (commit ac74b49)
+- [x] Move 3: Correct SettlementNeed lifecycle — planned/existing/failed
+      separation + deterministic IDs (commit ac74b49)
+- [ ] Move 4: Make Surveyor consume authoritative structure definitions
+      (exact footprint, bounds, BOM, work estimate) — IN PROGRESS
+- [ ] Move 5: Move benchmark orchestration into production services
+- [ ] Move 6: Run Gate 3.4 failure injection (after hardening)
+- [ ] Move 7: Demand-driven production
+- [ ] Move 8: Completion effects (built sawmill → +plank capacity)
+- [ ] Move 9: Representation collapse (bricks → static mesh when done)
+- [ ] Move 10: Extract StructureExecutor from VillageBuilder
+
+## Architecture (current state — post ac74b49)
+
+Professor's three prerequisites are DONE:
+1. `ConstructionDirector` is the sole task catalog. `VillageBuilder.Tasks`
+   is the executor view. Piece accounting fixed (TotalPieces initialized
+   before build, defensive clamp on complete/load).
+2. `LuteSimulationTicker` (scene component) advances all global clocks
+   once per frame. Per-builder clock advancement removed from
+   `VillageBuilderController`.
+3. `SettlementNeed` has ExistingCount (completed only), PlannedCount,
+   InProgressCount, FailedCount. Dispatch increments Planned, completion
+   moves Planned→Existing, failure/cancel reopens. Guid IDs replaced with
+   deterministic counters. `StructureRequest` has DirectedTaskId for
+   lifecycle reconciliation.
+
+Key authority chain (stable):
+```
+World → SpatialRegistry/ResourceRegistry → SettlementNeedBoard
+  → Surveyor → ConstructionDirector → Logistics/professions
+  → physical NPC execution → world mutation
+```
+
+## Night run #1 results (baseline — pre-hardening)
+
+- 100 minutes, 148 tasks, 51 completed (34%), 93 pending
+- Anomalies found: Chapel 5309/1383, cottage_5 2461/18, gates TotalPieces=0
+- 2 adaptive Surveyor cottages stuck pending (material starvation)
+- Root causes: piece accounting, task authority split, clock scaling,
+  need lifecycle — ALL FIXED in ac74b49
 
 ## Recent session activity (newest last; prune when >~15 entries)
 
+- [2026-09-14] Architecture hardening commit ac74b49: three professor
+  prerequisites implemented. LuteSimulationTicker (one global clock),
+  SettlementNeed lifecycle (planned vs completed), piece accounting fix
+  (TotalPieces initialized before build + defensive clamp). Runtime
+  verified: existing=0 planned=70 for shelter need (correctly NOT
+  fulfilled). Full Gate 3.3 loop running: gatherers→crafters→haulers→
+  builders.
+- [2026-09-14] Night run #1 (100 min): 148 tasks, 51 completed, 93
+  pending. Found piece-count corruption (PiecesPlaced > TotalPieces),
+  adaptive cottages stuck, material bottleneck. Plan pushed to GitHub
+  (commits 2fb2e0a, 76c2b14).
+- [2026-09-14] Gate 3.3 full loop proven: GathererController (Lumberjack,
+  Quarryman, Forager) → CrafterController → HaulerController →
+  VillageBuilderController. No pre-stocked materials — all from source
+  nodes. Commit ecabcea.
+- [2026-09-14] Adaptive Surveyor site selection: SettlementNeedBoard →
+  StructureRequest → SurveyorController scores candidate sites →
+  ConstructionDirector.RegisterTask. Commit 220e0e0.
 - [2026-09-09] Acropolis lowered flush to floor (world z 1332.59 → 1135.74,
   base now at z=0). Collision intact (ModelCollider, hull top z≈3837).
 - [2026-09-09] **CRITICAL FIX**: MeshComponent runtime collision/render bug.
@@ -91,18 +138,49 @@
 
 ## File map (gameplay code — `sbox/code/`)
 
-- `LuteGame.cs` — entry; spawns LuteWorld + LutePlayer.
-- `LuteWorld.cs` — builds sanctuary: world ground, monument, temple floor,
-  hex walls, time portal, archway, **Acropolis** (ModelCollider), builder
-  NPC, **watchtower**.
-- `LutePlayer.cs` — player extension on PlayerController (noclip etc).
-- `LuteBuilderNpc.cs` — citizen body NPC; autonomous build-test sequence +
-  **agent-drive mode** (`AgentControlled`/`AgentTick`). Block placer.
-- `LuteWatchtower.cs` — from-scratch watchtower builder (MeshComponent +
-  PolygonMesh blocks). Reusable `PlaceBox` helper.
+### Construction simulation (current focus — `sbox/code/Building/`)
+- `ConstructionDirector.cs` — sole authoritative task catalog + scheduler.
+  DirectedTask, BuilderState, material requirements, dependency graph.
+- `VillageBuilder.cs` — executor. Generates layout via VillageGrammar,
+  builds brick-by-brick. Tasks is now an executor view, not authority.
+- `VillageBuilderController.cs` — NPC body + FSM. Reads director tasks.
+  No longer advances global clocks (ticker does that).
+- `VillageGrammar.cs` — fixed village layout generator. VillageBuildTask
+  definition lives here.
+- `VillageSaveData.cs` — VillagePersistence + VillageSaveData + TaskProgress.
+  Save/load with piece-count clamp.
+- `LuteSimulationTicker.cs` — single global simulation clock (scene component).
+- `SettlementNeed.cs` — SettlementNeed + SettlementNeedType. Lifecycle
+  counts: ExistingCount (completed), PlannedCount, InProgressCount,
+  FailedCount. Deterministic IDs.
+- `SettlementNeedBoard.cs` — needs → StructureRequests → Surveyor dispatch.
+  OnTaskCompleted/Failed/Cancelled reconciliation.
+- `StructureRequest.cs` — StructureRequest + StructureRequestStatus +
+  SiteRequirements. DirectedTaskId links to ConstructionDirector task.
+- `SurveyorController.cs` — autonomous site selection. Scores candidates
+  by road access, slope, clearance, proximity.
+- `Gate3Benchmark.cs` — test harness. Night-run save at 100 min. Injects
+  shelter need after 30s. Still creates logistics demand (Move 5 target).
+- `GathererController.cs` — Lumberjack/Quarryman/Forager. Gathers from
+  source nodes, hauls to stockpiles.
+- `CrafterController.cs` — Carpenter/Mason. Fetches raw materials,
+  crafts processed materials (Plank/Brick).
+- `HaulerController.cs` — hauls materials from stockpiles to build sites.
+- `ConstructionEventBus.cs` — TaskCompleted/TaskFailed/TaskCancelled events.
+- `SpatialBlackboard.cs` — spatial position registry. Global clock ticked
+  by LuteSimulationTicker only.
+- `ReservationManager.cs` — spatial reservation for task bounds.
+- `CapabilityRegistry.cs` — profession → capability mapping.
+
+### Core game (`sbox/code/`)
+- `LuteGame.cs` — entry. Spawns LuteWorld, HUD, LuteSimulationTicker.
+  Initializes CapabilityRegistry, ResourceBootstrap.
+- `LuteWorld.cs` — builds sanctuary: world ground, monument, temple.
+- `LutePlayer.cs` — player extension on PlayerController.
+- `LuteBuilderNpc.cs` — citizen body NPC + agent-drive mode.
+- `LuteWatchtower.cs` — from-scratch watchtower builder.
 - `LuteMonumentBuilder.cs` — Neutral Market monument whitebox.
-- `LuteTerrainGenerator.cs` — procedural terrain (currently disabled during
-  monument whitebox work).
+- `LuteTerrainGenerator.cs` — procedural terrain (currently disabled).
 - `LuteAgentChat.razor` / `.scss` — in-game chat panel (key J).
 - `LuteCompass.razor` / `.scss` — compass HUD.
 - `lute.csproj` — build; references `sbox/base/code/Base Library.csproj`.
@@ -177,3 +255,16 @@ grab the `LuteBuilderNpc` component id → `set_component` to drive it.
 - **Stair walkability**: solid blocks from ground up, risers ≤0.46m
   (18u StepUpHeight), ascend toward the destination.
 - **`File.*` from game code**: blocked by whitelist — use `Log.Info` only.
+- **`edit` tool whitespace**: must match tabs exactly. This repo uses
+  tabs + CRLF. Diagnose with the PowerShell T-counter snippet (see
+  AGENTS.md "Agent Workflow First Principles").
+- **PowerShell from bash**: use `shell_flavor: "powershell"` for any
+  command with backslashes, backticks, or `$` in C# strings. Never nest
+  shells.
+- **`read_console` MCP**: parameter is `limit` (not `lineCount`). Set
+  `PYTHONIOENCODING=utf-8` when piping — console output has Unicode arrows.
+- **`write` tool**: replaces ENTIRE file. Always verify nothing was
+  dropped (grep for class/enum after writing).
+- **Static state persists across sessions**: S&Box static fields survive
+  play_stop/play_start. Call `Clear()` before `InitializeDefaults()` in
+  `LuteGame.OnStart` (pattern: CapabilityRegistry, SettlementNeedBoard).

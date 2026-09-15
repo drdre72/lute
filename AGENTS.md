@@ -868,3 +868,143 @@ MCP endpoint: `http://127.0.0.1:7269/mcp` (JSON-RPC `tools/call`).
   `sbox/.sbox/cloud.db`, `*.slnx`, and `scrap/verify_*.txt`/
   `scrap/sbox_capture_*.png` are gitignored (build artifacts / transient
   verification output — regenerate, don't commit).
+
+## Agent Workflow First Principles (learned, not re-derived)
+
+> Hard-won patterns from real sessions. Follow these to avoid repeating
+> the same mistakes. Each has a first-principle scope — it generalizes
+> beyond the specific incident that revealed it.
+
+### Tool: `edit` — whitespace must match exactly
+
+The `edit` tool does **literal string matching**. It fails silently if the
+whitespace doesn't match byte-for-byte. This repo's C# files use **tabs**
+(not spaces), and line endings are **CRLF** (`\r\n`).
+
+**Principle**: Before using `edit`, verify the exact indentation by reading
+the file. When the `edit` tool fails with "String not found", the cause is
+almost always:
+1. Tabs vs spaces mismatch (this repo = tabs)
+2. Wrong number of tabs (nested blocks add tabs)
+3. CRLF vs LF mismatch
+
+**Diagnostic**: Use this PowerShell snippet to see exact indentation:
+```powershell
+$lines = [System.IO.File]::ReadAllLines($p)
+for ($i = $startLine; $i -le $endLine; $i++) {
+    $line = $lines[$i]
+    $prefix = ''
+    for ($j = 0; $j -lt $line.Length -and $line[$j] -eq "`t"; $j++) { $prefix += 'T' }
+    Write-Output "${i}: ${prefix}|$($line.TrimStart())"
+}
+```
+`T` = one tab. Count them precisely before constructing the `old_string`.
+
+### Tool: `write` replaces the ENTIRE file — verify nothing is lost
+
+The `write` tool overwrites the whole file. If the file had content after
+the lines you read (truncated by the read tool), that content is GONE.
+
+**Principle**: When rewriting a file with `write`:
+1. Read the full file first (or check line count)
+2. If truncated, read the remaining lines or use `git show HEAD:path` to
+   recover the full original
+3. After writing, verify the file has all expected classes/enums — grep
+   for `class` / `enum` to confirm nothing was dropped
+
+### Tool: PowerShell from bash — backslashes and backticks break
+
+When `exec` runs through bash (default), PowerShell paths with backslashes
+get mangled (`C:\Users\...` → `C:Users...`), and backtick characters
+(`` ` ``) in PowerShell strings get consumed by bash.
+
+**Principle**: Use `shell_flavor: "powershell"` for any command containing:
+- Windows paths with backslashes
+- PowerShell backtick escapes (`` `t ``, `` `r`n ``)
+- `$` in C# string interpolation that PowerShell should NOT expand
+
+This runs the command directly in PowerShell, bypassing bash entirely.
+Never nest shells (`powershell -Command "..."` from bash) — the quoting
+parses twice and breaks.
+
+### Tool: `grep` (ripgrep) — context lines parameter
+
+The `grep` tool uses `context_lines` (not `-A`/`-B`). It accepts:
+`pattern`, `path`, `output_mode`, `context_lines`, `case_insensitive`,
+`glob_pattern`, `max_results`.
+
+### S&Box MCP `read_console` — correct parameters
+
+The `read_console` MCP tool accepts: `limit` (int), `filter` (string),
+`since` (int cursor), `minimumLevel` (Trace/Info/Warn/Error).
+
+**NOT** `lineCount` — that will be rejected. Use `limit`.
+
+### S&Box MCP `read_console` — Unicode encoding
+
+Console output may contain Unicode characters (arrows `→`, em-dashes
+`—`). When piping through Python, set `PYTHONIOENCODING=utf-8` or write
+to a file with `encoding='utf-8'` and read it back. The default `cp1252`
+codec on Windows will crash on these characters.
+
+**Principle**: Always set UTF-8 encoding for any Python script that
+reads S&Box console output or processes C# source containing em-dashes
+or arrows.
+
+### Workflow: Verify changes actually took effect
+
+After a PowerShell script reports `done`, the changes may not have
+applied if the string matching failed (returns silently with `hit=False`).
+
+**Principle**: Always have the script report `hit=True/False` for each
+replacement, and verify with `grep` afterward. A script that says "done"
+but didn't match is a no-op.
+
+### Workflow: Sync to addon copy BEFORE restarting play mode
+
+The S&Box editor only sees the addon copy, not the repo. The reliable
+cycle is: **edit in repo → build (`dotnet build`) → copy changed files
+to addon → stop play → start play**. Building first catches compile
+errors before the editor recompiles.
+
+### Workflow: `find_file_by_name` vs `grep` for locating files
+
+- `find_file_by_name` — use for **file names** (glob patterns like
+  `**/*.cs`). Fast, matches paths.
+- `grep` — use for **file contents** (class names, method names, string
+  literals). Searches inside files.
+- If `find_file_by_name` finds nothing, the class may be defined inside
+  a differently-named file (e.g. `VillagePersistence` is inside
+  `VillageSaveData.cs`). Use `grep` with `class ClassName` to locate it.
+
+### Principle: TotalPieces must be set before building, not after
+
+The night-run anomaly (`PiecesPlaced > TotalPieces`) had a first-principle
+root cause: **a value set at the end of a process is unknown during the
+process**. If a save can happen mid-process, the value is stale or zero.
+
+**Generalization**: Any field that represents a "final total" must be
+initialized with an estimate BEFORE the process begins, then updated with
+the actual value at the end. This applies to piece counts, work estimates,
+and any accumulator that can be observed mid-execution.
+
+### Principle: Global clocks must have one driver
+
+Multiple components calling `Update()` on the same global static system
+causes population-dependent time scaling (N builders = N× clock speed).
+
+**Generalization**: Any shared global state that advances over time must
+have exactly one driver. Per-entity updates to shared state should be
+publish-only (position, status) — never advance the clock. Use a single
+scene-level component as the authoritative ticker.
+
+### Principle: Planned is not completed
+
+Counting dispatched/planned work as satisfying a need creates a broken
+feedback loop: the need disappears before the work is done, and if the
+work fails, the need never reopens.
+
+**Generalization**: Separate "pipeline" state (planned/in-progress) from
+"realized" state (completed). Needs are satisfied by realized state only.
+Failure/cancellation must reopen the need by decrementing pipeline counts
+and incrementing failure counts.
