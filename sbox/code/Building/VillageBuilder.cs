@@ -1149,7 +1149,7 @@ namespace Lute.Building
 				segColliderGo.SetParent( _villageRoot );
 				segColliderGo.WorldPosition = task.Position + new Vector3( 0, 0, wallH * 0.5f );
 				if ( task.Rotation != 0 ) segColliderGo.WorldRotation = Rotation.FromYaw( task.Rotation );
-				segColliderGo.WorldScale = new Vector3( segLen, wallDepth, wallH );
+				segColliderGo.WorldScale = new Vector3( segLen, wallDepth, wallH ) / BoxModelNativeSize;
 				var segCollider = segColliderGo.AddComponent<BoxCollider>();
 				segCollider.Scale = new Vector3( BoxModelNativeSize, BoxModelNativeSize, BoxModelNativeSize );
 				segColliderGo.Enabled = true;
