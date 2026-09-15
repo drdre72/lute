@@ -168,10 +168,19 @@ namespace Lute.Building
 		private GameObject _villageRoot;
 		private bool _reconstructMode; // when true, skip delays and place all pieces instantly
 
+		/// <summary>
+		/// Single-structure execution authority (Move 10). VillageBuilder
+		/// delegates structure realization here; it no longer calls the
+		/// per-type build methods directly. The executor is the seam
+		/// that will eventually own the build methods outright.
+		/// </summary>
+		private StructureExecutor _executor;
+
 		protected override async void OnStart()
 		{
 			_cts = new CancellationTokenSource();
 			ReservationManager.SetScene( Scene );
+			_executor = new StructureExecutor( this );
 
 			// Force build speed — 0.5s per brick lay with LAY animation.
 			BuildInterval = 0.1f;
@@ -341,7 +350,7 @@ namespace Lute.Building
 				if ( task != null )
 				{
 					Log.Info( $"Lute: MCP requested FinalizeWall('{taskName}')." );
-					FinalizeWall( task );
+					_executor.FinalizeWall( task );
 				}
 				else
 				{
@@ -358,7 +367,7 @@ namespace Lute.Building
 			if ( task != null )
 			{
 				Log.Info( $"Lute: MCP requested DeconstructWall('{taskName}')." );
-				DeconstructWall( task );
+				_executor.DeconstructWall( task );
 			}
 			else
 			{
@@ -679,27 +688,10 @@ namespace Lute.Building
 			// compiled Blueprint/BuildPlan, making it authoritative. Until
 			// then, TotalPieces is "unknown until build completes" (0).
 
-			switch ( task.TaskType )
-			{
-				case "wall":
-					await BuildWallSegment( task, token );
-					break;
-				case "gate":
-					await BuildGate( task, token );
-					break;
-				case "road":
-					await BuildRoadSection( task, token );
-					break;
-				case "well":
-					await BuildWell( task, token );
-					break;
-				case "market_square":
-					await BuildMarketSquare( task, token );
-					break;
-				default:
-					await BuildBuilding( task, token );
-					break;
-			}
+			// Move 10: structure realization is delegated to the
+			// StructureExecutor, the single-structure authority. The
+			// per-type dispatch now lives on the executor.
+			await _executor.Execute( task, token );
 		}
 
 		// ── LayBrickVolume: fill a rectangular volume with bricks, one at a time ──
@@ -841,7 +833,7 @@ namespace Lute.Building
 		//   Odd course:  1 half + 7 full + 1 half (9 pieces, fills -1.0 .. +1.0)
 		//   Brick centers start at -segLen/2 + moduleX/2 so the first brick's
 		//   left face sits exactly on -segLen/2 (no overflow, no edge gap).
-		async Task BuildWallSegment( VillageBuildTask task, CancellationToken token )
+		internal async Task BuildWallSegment( VillageBuildTask task, CancellationToken token )
 		{
 			// Clamp BuildInterval to prevent engine stalls from spawning
 			// thousands of GameObjects per second when set to 0 via MCP.
@@ -1364,7 +1356,7 @@ namespace Lute.Building
 		}
 
 		// ── Gate: two towers + lintel ──
-		async Task BuildGate( VillageBuildTask task, CancellationToken token )
+		internal async Task BuildGate( VillageBuildTask task, CancellationToken token )
 		{
 			float towerW = 4f * M;
 			float towerH = 12f * M;
@@ -1386,7 +1378,7 @@ namespace Lute.Building
 		}
 
 		// ── Road section: flat floor tiles ──
-		async Task BuildRoadSection( VillageBuildTask task, CancellationToken token )
+		internal async Task BuildRoadSection( VillageBuildTask task, CancellationToken token )
 		{
 			// Roads are flat cobblestone-like brick surfaces. Single course
 			// (buried) with multiple rows across the width (8-10 bricks
@@ -1403,7 +1395,7 @@ namespace Lute.Building
 		}
 
 		// ── Well: circular stone wall + water ──
-		async Task BuildWell( VillageBuildTask task, CancellationToken token )
+		internal async Task BuildWell( VillageBuildTask task, CancellationToken token )
 		{
 			float wellR = 2f * M;
 			float wellH = 3f * M;
@@ -1446,7 +1438,7 @@ namespace Lute.Building
 		}
 
 		// ── Market square: flat floor tiles ──
-		async Task BuildMarketSquare( VillageBuildTask task, CancellationToken token )
+		internal async Task BuildMarketSquare( VillageBuildTask task, CancellationToken token )
 		{
 			// Market square: a single course of paving bricks.
 			float sqW = 20f * M;
@@ -1490,7 +1482,7 @@ namespace Lute.Building
 			return bp;
 		}
 
-		async Task BuildBuilding( VillageBuildTask task, CancellationToken token )
+		internal async Task BuildBuilding( VillageBuildTask task, CancellationToken token )
 		{
 			Blueprint bp;
 
