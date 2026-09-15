@@ -171,7 +171,7 @@ namespace Lute.Building
 			// segment-level collider, plus a renderer.
 			float segLen = 2f * 39.37f;        // WallSegmentLength (2m)
 			float wallDepth = 0.5f * 39.37f;   // WallThickness (0.5m)
-			float wallH = task.BuildTask.WallHeight;  // Use task actual height (4m = 157.48 units)
+			float wallH = 4f * 39.37f;  // 4m wall height (VillageBuildTask.WallHeight default)
 
 			// If an existing FinalizedMeshGo exists (from FinalizeWall),
 			// destroy it so we don't stack colliders.
