@@ -171,7 +171,7 @@ namespace Lute.Building
 			// segment-level collider, plus a renderer.
 			float segLen = 2f * 39.37f;        // WallSegmentLength (2m)
 			float wallDepth = 0.5f * 39.37f;   // WallThickness (0.5m)
-			float wallH = 80f;                 // WallHeight default
+			float wallH = task.BuildTask.WallHeight;  // Use task actual height (4m = 157.48 units)
 
 			// If an existing FinalizedMeshGo exists (from FinalizeWall),
 			// destroy it so we don't stack colliders.
@@ -186,7 +186,7 @@ namespace Lute.Building
 			collapsedGo.WorldPosition = task.BuildTask.Position + new Vector3( 0, 0, wallH * 0.5f );
 			if ( task.BuildTask.Rotation != 0 )
 				collapsedGo.WorldRotation = Rotation.FromYaw( task.BuildTask.Rotation );
-			collapsedGo.WorldScale = new Vector3( segLen, wallDepth, wallH ) / 100f; // box.vmdl dimensions are half-extents (50), total = 100
+			collapsedGo.WorldScale = new Vector3( segLen, wallDepth, wallH ) / 50f; // box.vmdl native = 50 units (full dimensions)
 
 			var renderer = collapsedGo.AddComponent<ModelRenderer>();
 			renderer.Model = Model.Load( "models/dev/box.vmdl" );
