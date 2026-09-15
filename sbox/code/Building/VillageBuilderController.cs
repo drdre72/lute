@@ -179,7 +179,6 @@ namespace Lute.Building
 				if ( !_npcIdResolved )
 					ResolveNpcId();
 
-				SpatialBlackboard.Update( Time.Delta );
 				SpatialBlackboard.UpdatePosition( _npcId, WorldPosition );
 			}
 
@@ -190,8 +189,6 @@ namespace Lute.Building
 				_helpRequestCooldown -= Time.Delta;
 			}
 
-			// Update construction event bus clock
-			ConstructionEventBus.Update( Time.Delta );
 
 			switch ( State )
 			{
@@ -212,8 +209,6 @@ namespace Lute.Building
 					break;
 			}
 
-			// Tick liveness state for all builders
-			BuilderLivenessRegistry.TickAll( Time.Delta );
 
 			// Periodic status log (every 60s)
 			if ( _logTimer >= 60f )

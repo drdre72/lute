@@ -809,7 +809,20 @@ namespace Lute.Building
 
 			t.Status = TaskStatus.Complete;
 			if ( t.BuildTask != null )
+			{
 				t.PiecesPlaced = Math.Max( t.PiecesPlaced, t.BuildTask.PiecesPlaced );
+				// Defensive clamp: PiecesPlaced must never exceed TotalPieces.
+				// This prevents the night-run anomaly (e.g. 5309/1383) from
+				// corrupting save/resume. The root cause is fixed upstream
+				// (TotalPieces is now initialized before building), but this
+				// clamp catches any remaining edge cases.
+				if ( t.BuildTask.TotalPieces > 0 && t.PiecesPlaced > t.BuildTask.TotalPieces )
+				{
+					Log.Warning( $"Lute: ConstructionDirector clamped PiecesPlaced {t.PiecesPlaced} -> {t.BuildTask.TotalPieces} for '{t.BuildTask.Name}' (was > TotalPieces)." );
+					t.PiecesPlaced = t.BuildTask.TotalPieces;
+					t.BuildTask.PiecesPlaced = t.BuildTask.TotalPieces;
+				}
+			}
 			if ( t.AssignedBuilder >= 0 && _builders.TryGetValue( t.AssignedBuilder, out var b ) )
 			{
 				b.CurrentTaskId = null;
@@ -820,6 +833,11 @@ namespace Lute.Building
 			ConstructionEventBus.Fire( ConstructionEventType.TaskCompleted,
 				taskId: t.Id,
 				actor: _builders.TryGetValue( t.AssignedBuilder, out var cb ) ? cb.NpcName : null );
+
+			// Reconcile the originating settlement need: only a completed
+			// structure satisfies a need. This moves one unit from
+			// PlannedCount to ExistingCount on the need.
+			SettlementNeedBoard.OnTaskCompleted( t.Id );
 
 			// Completing a dependency can make blocked work runnable immediately.
 			AssignTasks();
@@ -873,6 +891,10 @@ namespace Lute.Building
 				Log.Warning( $"Lute: ConstructionDirector task {taskId} failed permanently ({reason}) after {t.RetryCount} attempts." );
 				ConstructionEventBus.Fire( ConstructionEventType.TaskFailed,
 					taskId: t.Id, parameters: new() { { "reason", reason ?? "" } } );
+
+				// Reopen the originating settlement need so the settlement
+				// can replan after a permanent failure.
+				SettlementNeedBoard.OnTaskFailed( t.Id );
 			}
 		}
 
@@ -884,6 +906,10 @@ namespace Lute.Building
 			t.Status = TaskStatus.Cancelled;
 			if ( t.AssignedBuilder >= 0 && _builders.TryGetValue( t.AssignedBuilder, out var b ) )
 				b.CurrentTaskId = null;
+
+			// Reopen the originating settlement need so the settlement
+			// can replan after a cancellation.
+			SettlementNeedBoard.OnTaskCancelled( t.Id );
 		}
 
 		public static List<DirectedTask> TasksNeedingReconstruction() => _tasks.Values

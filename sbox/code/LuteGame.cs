@@ -43,6 +43,16 @@ public sealed class LuteGame : Component
 		// registers its resolver here.
 		Lute.Building.JunctionResolverInit.Initialize();
 
+		// Add the single global simulation ticker so shared static
+		// clocks (SpatialBlackboard, ConstructionEventBus,
+		// BuilderLivenessRegistry) advance exactly once per frame,
+		// independent of builder population. Per-NPC clock advancement
+		// was removed from VillageBuilderController.OnFixedUpdate().
+		var tickerGo = Scene.CreateObject( true );
+		tickerGo.Name = "LuteSimulationTicker";
+		tickerGo.SetParent( GameObject );
+		tickerGo.AddComponent<Lute.Building.LuteSimulationTicker>();
+
 		// Initialize the profession/capability catalog so task eligibility
 		// is derived from capabilities, not role strings (PR #6 §3).
 		// Clear first so a fresh play session picks up any newly-added
@@ -81,9 +91,9 @@ public sealed class LuteGame : Component
 	protected override void OnUpdate()
 	{
 		// Drive deterministic NPC communication: observe construction state
-		// and emit world-fact messages through the NLP pipeline. Also tick
-		// builder liveness timers so stall detection stays current.
-		Lute.Building.BuilderLivenessRegistry.TickAll( Time.Delta );
+		// and emit world-fact messages through the NLP pipeline.
+		// (BuilderLivenessRegistry is now ticked by LuteSimulationTicker,
+		// not here — so liveness timing is population-independent.)
 		Lute.Building.WorldFactProvider.Tick();
 	}
 

@@ -151,6 +151,16 @@ namespace Lute.Building
 					task.Status = saved.Status;
 					task.PiecesPlaced = saved.PiecesPlaced;
 					task.TotalPieces = saved.TotalPieces;
+
+					// Defensive clamp: PiecesPlaced must never exceed
+					// TotalPieces. Fixes corrupted saves from the night run
+					// (e.g. Chapel 5309/1383, cottage_5 2461/18) so they
+					// don't break reconstruction or completion checks.
+					if ( task.TotalPieces > 0 && task.PiecesPlaced > task.TotalPieces )
+					{
+						Log.Warning( $"Lute: VillagePersistence clamped PiecesPlaced {task.PiecesPlaced} -> {task.TotalPieces} for '{task.Name}' on load (was > TotalPieces)." );
+						task.PiecesPlaced = task.TotalPieces;
+					}
 				}
 			}
 		}

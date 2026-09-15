@@ -243,7 +243,7 @@ namespace Lute.Building
 
 			// Register with ConstructionDirector.
 			var taskId = ConstructionDirector.RegisterTask( buildTask );
-			SettlementNeedBoard.DispatchRequest( _currentRequest.Id );
+			SettlementNeedBoard.DispatchRequest( _currentRequest.Id, taskId );
 
 			Log.Info( $"Lute: Surveyor '{NpcName}' dispatched '{buildTask.Name}' ({_currentRequest.StructureType})" +
 				$" at {pos} as task {taskId}." );

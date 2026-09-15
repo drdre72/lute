@@ -60,7 +60,14 @@ namespace Lute.Building
 			if ( existing != null )
 			{
 				existing.Urgency = MathF.Max( existing.Urgency, need.Urgency );
-				existing.ExistingCount = need.ExistingCount;
+				// Only update ExistingCount from a fresh need if the
+				// existing need has no completed structures yet. This
+				// lets world-state evaluators set the baseline existing
+				// count (e.g. count of built cottages) without clobbering
+				// lifecycle counts accumulated by the dispatch/complete
+				// pipeline.
+				if ( need.ExistingCount > existing.ExistingCount )
+					existing.ExistingCount = need.ExistingCount;
 				existing.DesiredCount = Math.Max( existing.DesiredCount, need.DesiredCount );
 				return;
 			}
@@ -98,8 +105,16 @@ namespace Lute.Building
 				if ( need.Type == SettlementNeedType.ResourcePressure ) continue;
 				if ( string.IsNullOrEmpty( need.StructureType ) ) continue;
 
-				// Don't create a duplicate request for the same structure type
-				// that's still pending or being surveyed.
+				// Duplicate-suppression: don't create a new request if the
+				// pipeline already has enough structures (completed +
+				// planned + in-progress) to satisfy DesiredCount. This
+				// prevents redundant requests WITHOUT counting planned
+				// work as fulfilling the need.
+				if ( need.PipelineCount >= need.DesiredCount ) continue;
+
+				// Also check for an existing pending/surveying/resolved
+				// request for the same structure type that hasn't been
+				// dispatched yet.
 				bool hasPending = _requests.Any( r =>
 					r.StructureType == need.StructureType &&
 					( r.Status == StructureRequestStatus.Pending ||
@@ -281,33 +296,37 @@ namespace Lute.Building
 
 		/// <summary>
 		/// Mark a request as dispatched (registered with ConstructionDirector).
-		/// Also records the resolved site as taken and decrements the
-		/// originating need so it gets fulfilled after the right number of
-		/// dispatches (preventing unlimited duplicate request generation).
+		/// Also records the resolved site as taken and increments the
+		/// originating need's PlannedCount (NOT ExistingCount) so the need
+		/// is NOT considered fulfilled until the structure actually completes.
+		/// Duplicate-suppression uses PipelineCount (existing + planned +
+		/// in-progress) so we don't generate redundant requests for work
+		/// already in the pipeline.
 		/// </summary>
-		public static void DispatchRequest( string requestId )
+		public static void DispatchRequest( string requestId, string directedTaskId = null )
 		{
 			var req = _requests.FirstOrDefault( r => r.Id == requestId );
 			if ( req == null ) return;
 			req.Status = StructureRequestStatus.Dispatched;
+			req.DirectedTaskId = directedTaskId;
 
 			// Record the resolved site as taken so the Surveyor won't
 			// pick the same spot again next cycle.
 			if ( req.ResolvedPosition.HasValue )
 				_dispatchedSites.Add( SiteKey( req.ResolvedPosition.Value ) );
 
-			// Decrement the originating need: each dispatch satisfies one
-			// unit of the shortfall (DesiredCount - ExistingCount). Bump
-			// ExistingCount toward DesiredCount so the need becomes
-			// fulfilled after the requested number of structures.
+			// Increment PlannedCount (NOT ExistingCount) on the originating
+			// need. The need is fulfilled only when the structure completes
+			// (OnTaskCompleted). This prevents a dispatched-but-unbuilt
+			// cottage from satisfying a housing need.
 			if ( !string.IsNullOrEmpty( req.NeedId ) )
 			{
 				var need = _needs.FirstOrDefault( n => n.Id == req.NeedId );
-				if ( need != null && need.ExistingCount < need.DesiredCount )
+				if ( need != null && need.PipelineCount < need.DesiredCount )
 				{
-					need.ExistingCount++;
+					need.PlannedCount++;
 					Log.Info( $"Lute: SettlementNeedBoard — need {need.Id} ({need.StructureType})" +
-						$" progress {need.ExistingCount}/{need.DesiredCount} after dispatch." );
+						$" planned {need.PlannedCount} (existing={need.ExistingCount}/{need.DesiredCount}) after dispatch." );
 				}
 			}
 
@@ -333,6 +352,91 @@ namespace Lute.Building
 			var req = _requests.FirstOrDefault( r => r.Id == requestId );
 			if ( req == null ) return;
 			req.Status = StructureRequestStatus.Cancelled;
+		}
+
+		/// <summary>
+		/// Find the StructureRequest associated with a ConstructionDirector
+		/// task id (set by <see cref="DispatchRequest"/>). Returns null if
+		/// no request tracks this task.
+		/// </summary>
+		public static StructureRequest FindRequestByTaskId( string directedTaskId )
+		{
+			if ( string.IsNullOrEmpty( directedTaskId ) ) return null;
+			return _requests.FirstOrDefault( r => r.DirectedTaskId == directedTaskId );
+		}
+
+		/// <summary>
+		/// Reconcile a need when a dispatched structure's task completes.
+		/// Moves one unit from PlannedCount to ExistingCount on the
+		/// originating need. This is the ONLY path that increments
+		/// ExistingCount — a need is fulfilled only by completed structures.
+		/// </summary>
+		public static void OnTaskCompleted( string directedTaskId )
+		{
+			var req = FindRequestByTaskId( directedTaskId );
+			if ( req == null ) return;
+
+			if ( !string.IsNullOrEmpty( req.NeedId ) )
+			{
+				var need = _needs.FirstOrDefault( n => n.Id == req.NeedId );
+				if ( need != null )
+				{
+					// Move one unit from planned → existing.
+					if ( need.PlannedCount > 0 ) need.PlannedCount--;
+					need.ExistingCount++;
+					Log.Info( $"Lute: SettlementNeedBoard — need {need.Id} ({need.StructureType})" +
+						$" completed structure: existing={need.ExistingCount}/{need.DesiredCount}" +
+						$" planned={need.PlannedCount} → {(need.IsFulfilled ? "FULFILLED" : "still pending")}." );
+				}
+			}
+		}
+
+		/// <summary>
+		/// Reconcile a need when a dispatched structure's task fails
+		/// permanently. Decrements PlannedCount and increments FailedCount,
+		/// reopening the need so the settlement can replan.
+		/// </summary>
+		public static void OnTaskFailed( string directedTaskId )
+		{
+			var req = FindRequestByTaskId( directedTaskId );
+			if ( req == null ) return;
+
+			if ( !string.IsNullOrEmpty( req.NeedId ) )
+			{
+				var need = _needs.FirstOrDefault( n => n.Id == req.NeedId );
+				if ( need != null )
+				{
+					if ( need.PlannedCount > 0 ) need.PlannedCount--;
+					need.FailedCount++;
+					Log.Warning( $"Lute: SettlementNeedBoard — need {need.Id} ({need.StructureType})" +
+						$" failed structure: existing={need.ExistingCount}/{need.DesiredCount}" +
+						$" failed={need.FailedCount} → need REOPENED for replanning." );
+				}
+			}
+		}
+
+		/// <summary>
+		/// Reconcile a need when a dispatched structure's task is cancelled.
+		/// Decrements PlannedCount (the work is no longer in the pipeline)
+		/// and increments FailedCount so the need reopens for replanning.
+		/// </summary>
+		public static void OnTaskCancelled( string directedTaskId )
+		{
+			var req = FindRequestByTaskId( directedTaskId );
+			if ( req == null ) return;
+
+			if ( !string.IsNullOrEmpty( req.NeedId ) )
+			{
+				var need = _needs.FirstOrDefault( n => n.Id == req.NeedId );
+				if ( need != null )
+				{
+					if ( need.PlannedCount > 0 ) need.PlannedCount--;
+					need.FailedCount++;
+					Log.Info( $"Lute: SettlementNeedBoard — need {need.Id} ({need.StructureType})" +
+						$" cancelled structure: existing={need.ExistingCount}/{need.DesiredCount}" +
+						$" → need REOPENED for replanning." );
+				}
+			}
 		}
 
 		/// <summary>
@@ -373,7 +477,9 @@ namespace Lute.Building
 			{
 				sb.AppendLine( $"  Need {n.Type}" +
 					( n.StructureType != null ? $" ({n.StructureType})" : "" ) +
-					$" urgency={n.Urgency:F2} {n.ExistingCount}/{n.DesiredCount} fulfilled={n.IsFulfilled}" );
+						$" urgency={n.Urgency:F2} existing={n.ExistingCount}/{n.DesiredCount}" +
+							$" planned={n.PlannedCount} inProgress={n.InProgressCount} failed={n.FailedCount}" +
+							$" fulfilled={n.IsFulfilled}" );
 			}
 			foreach ( var r in _requests )
 			{

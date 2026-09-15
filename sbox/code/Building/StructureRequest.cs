@@ -32,8 +32,10 @@ namespace Lute.Building
 	/// </summary>
 	public sealed class StructureRequest
 	{
-		/// <summary> Unique id for this request. </summary>
-		public string Id { get; init; } = $"req_{Guid.NewGuid():N}".Substring( 0, 12 );
+		static int _nextId;
+
+		/// <summary> Unique id for this request (deterministic counter). </summary>
+		public string Id { get; init; } = $"req_{_nextId:D6}";
 
 		/// <summary>
 		/// The structure type to build (e.g. "cottage", "sawmill",
@@ -88,12 +90,21 @@ namespace Lute.Building
 		public bool IsResolved => ResolvedPosition.HasValue;
 
 		/// <summary>
+		/// The <see cref="ConstructionDirector"/> task id assigned when
+		/// this request was dispatched. Set by <see cref="SettlementNeedBoard.DispatchRequest"/>.
+		/// Used to reconcile the originating need when the task completes,
+		/// fails, or is cancelled.
+		/// </summary>
+		public string DirectedTaskId { get; set; }
+
+		/// <summary>
 		/// Status of this request in the pipeline.
 		/// </summary>
 		public StructureRequestStatus Status { get; set; } = StructureRequestStatus.Pending;
 
 		public StructureRequest()
 		{
+			_nextId++;
 		}
 	}
 

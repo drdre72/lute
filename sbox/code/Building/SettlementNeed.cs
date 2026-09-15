@@ -41,6 +41,8 @@ namespace Lute.Building
 	/// </summary>
 	public sealed class SettlementNeed
 	{
+		static int _nextId;
+
 		/// <summary> Unique id for this need instance. </summary>
 		public string Id { get; init; }
 
@@ -57,8 +59,42 @@ namespace Lute.Building
 		/// <summary> How many of this thing are desired. </summary>
 		public int DesiredCount { get; set; }
 
-		/// <summary> How many currently exist. </summary>
+		/// <summary>
+		/// How many completed functional structures currently exist.
+		/// Only completed structures satisfy a need — dispatched/planned
+		/// work does NOT count toward fulfillment.
+		/// </summary>
 		public int ExistingCount { get; set; }
+
+		/// <summary>
+		/// How many structures have been dispatched / planned but not yet
+		/// completed. Used for duplicate-suppression (we don't want to
+		/// generate a new request for work already in the pipeline) but
+		/// does NOT satisfy the need.
+		/// </summary>
+		public int PlannedCount { get; set; }
+
+		/// <summary>
+		/// How many structures are actively being built right now. Subset
+		/// of <see cref="PlannedCount"/>. Used for capacity planning and
+		/// diagnostics; does NOT satisfy the need.
+		/// </summary>
+		public int InProgressCount { get; set; }
+
+		/// <summary>
+		/// How many structures failed or were cancelled. Used to detect
+		/// repeated failures (e.g. a site that never works) and to reopen
+		/// the originating need so the settlement can replan.
+		/// </summary>
+		public int FailedCount { get; set; }
+
+		/// <summary>
+		/// Effective existing count used for duplicate-suppression: the
+		/// total of completed, planned, and in-progress structures. This
+		/// prevents generating a new request for work already in the
+		/// pipeline, WITHOUT counting that work as fulfilling the need.
+		/// </summary>
+		public int PipelineCount => ExistingCount + PlannedCount + InProgressCount;
 
 		/// <summary>
 		/// The specific structure type that would satisfy this need
@@ -86,7 +122,8 @@ namespace Lute.Building
 
 		/// <summary>
 		/// True when the need has been fulfilled (ExistingCount >= DesiredCount
-		/// or resource pressure resolved).
+		/// or resource pressure resolved). Only completed structures count
+		/// — planned/in-progress work does NOT satisfy the need.
 		/// </summary>
 		public bool IsFulfilled =>
 			Type == SettlementNeedType.ResourcePressure
@@ -95,7 +132,8 @@ namespace Lute.Building
 
 		public SettlementNeed()
 		{
-			Id = $"need_{Guid.NewGuid():N}".Substring( 0, 12 );
+			Id = $"need_{_nextId:D6}";
+			_nextId++;
 			CreatedAt = 0f;
 		}
 	}
