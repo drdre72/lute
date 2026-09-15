@@ -106,6 +106,15 @@ namespace Lute.Building
 		bool _usingNavMesh;
 		int _builderId = -1;
 
+		/// <summary>
+		/// When > 0, the gatherer found no non-depleted source on its last
+		/// PickNextSource attempt. The Idle state waits this long before
+		/// retrying, instead of re-firing every 0.5s (which floods the log
+		/// when all sources are depleted -- Gate 3.4 failure scenario).
+		/// Reset to 0 when a source is found.
+		/// </summary>
+		float _noSourceCooldown;
+
 		protected override void OnStart()
 		{
 			Log.Info( $"Lute: GathererController '{NpcName}' started at {WorldPosition} (profession={ProfessionId})." );
@@ -131,7 +140,14 @@ namespace Lute.Building
 				case GathererState.Idle:
 				{
 					_stateTimer += Time.Delta;
-					if ( _stateTimer > 0.5f )
+					// Back off when all sources are depleted: re-firing
+					// PickNextSource every 0.5s floods the log and wastes
+					// CPU. When the last attempt found no source, wait
+					// _noSourceCooldown before trying again (Gate 3.4
+					// recovery: a depleted source may recover or a new
+					// one may be registered later).
+					float idleRetry = _noSourceCooldown > 0f ? _noSourceCooldown : 0.5f;
+					if ( _stateTimer > idleRetry )
 					{
 						_stateTimer = 0f;
 						PickNextSource();
@@ -310,10 +326,17 @@ namespace Lute.Building
 
 			if ( best == null )
 			{
-				Log.Warning( $"Lute: Gatherer '{NpcName}' no non-depleted source for {string.Join( ", ", gatherTypes )}." );
+				// Back off: all sources of every gatherable type are
+				// depleted. Don't re-fire every 0.5s -- wait 15s before
+				// retrying so the log isn't flooded during Gate 3.4
+				// failure-injection runs.
+				if ( _noSourceCooldown <= 0f )
+					Log.Warning( $"Lute: Gatherer '{NpcName}' all sources depleted for {string.Join( ", ", gatherTypes )} -- backing off for 15s." );
+				_noSourceCooldown = 15f;
 				return;
 			}
 
+			_noSourceCooldown = 0f;
 			_targetSource = best;
 			State = GathererState.WalkingToSource;
 			_stateTimer = 0f;

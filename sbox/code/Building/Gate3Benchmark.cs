@@ -55,7 +55,18 @@ namespace Lute.Building
 		bool _initialized;
 		bool _needInjected;
 		bool _nightRunSaved;
+		bool _failureInjected;
 		const float NightRunSaveTime = 100f * 60f; // 100 minutes
+		/// <summary>
+		/// For Test 3.4: simulate the failure at this simulation time
+		/// (seconds). The closed-loop economy should be running by then,
+		/// with at least one construction task material-unsatisfied and
+		/// awaiting wood. Depleting the wood source at this point tests
+		/// that gatherers detect depletion, logistics stops creating
+		/// unfulfillable haul jobs, the starvation watchdog fails the
+		/// task, and SettlementNeedBoard.OnTaskFailed reopens the need.
+		/// </summary>
+		const float FailureInjectTime = 90f;
 		int _houseCompleteCount;
 		string _lastCompletedTask;
 
@@ -109,6 +120,29 @@ namespace Lute.Building
 					Reason = "Test: inject shelter need for adaptive planning",
 				} );
 				Log.Info( $"Lute: Gate3Benchmark — injected test Shelter need (existing={existingCottages}, desired={existingCottages + 2}). Planned/in-progress counts will be derived by ReconcileFromDirector." );
+			}
+
+			// Gate 3.4: auto-inject failure at FailureInjectTime. Deplete
+			// the preferred wood source so the closed-loop economy has to
+			// cope: gatherers detect depletion, LogisticsPlanner stops
+			// creating unfulfillable haul jobs, the starvation watchdog
+			// fails the wood-starved task, and SettlementNeedBoard reopens
+			// the originating need. The simulation must continue (not
+			// hang) and the need must reopen for replanning.
+			if ( !_failureInjected && Level == TestLevel.Test3_4_Failure && Time.Now >= FailureInjectTime )
+			{
+				_failureInjected = true;
+				var woodSource = ResourceRegistry.AllSources()
+					.FirstOrDefault( s => s.Type == ItemType.Wood && !s.IsDepleted );
+				if ( woodSource != null )
+				{
+					woodSource.RemainingYield = 0;
+					Log.Info( $"Lute: Gate3Benchmark — AUTO FAILURE INJECTED at {Time.Now:F1}s: depleted wood source '{woodSource.Id}'. Testing starvation recovery." );
+				}
+				else
+				{
+					Log.Warning( "Lute: Gate3Benchmark — Test 3.4 wanted to inject failure but no non-depleted wood source found." );
+				}
 			}
 
 			// Night-run save: at 100 minutes, snapshot village progress to
@@ -191,7 +225,22 @@ namespace Lute.Building
 			int completed = jobs.Count( j => j.Status == LogisticsJobStatus.Completed );
 			int failed = jobs.Count( j => j.Status == LogisticsJobStatus.Failed );
 
-			Log.Info( $"Lute: Gate3Benchmark status — tasks: {tasks.Count} total, {tasks.Count( t => t.MaterialsSatisfied )} materials-satisfied, {tasks.Count( t => t.Status == TaskStatus.Complete )} completed | jobs: {pending} pending, {assigned} assigned, {inProgress} in-progress, {completed} completed, {failed} failed" );
+			int taskFailed = tasks.Count( t => t.Status == TaskStatus.Failed );
+			int taskBlocked = tasks.Count( t => t.Status == TaskStatus.Blocked );
+			int taskUnsatisfied = tasks.Count( t => !t.MaterialsSatisfied
+				&& t.Status != TaskStatus.Complete
+				&& t.Status != TaskStatus.Cancelled
+				&& t.Status != TaskStatus.Failed );
+
+			Log.Info( $"Lute: Gate3Benchmark status — tasks: {tasks.Count} total, {tasks.Count( t => t.MaterialsSatisfied )} materials-satisfied, {tasks.Count( t => t.Status == TaskStatus.Complete )} completed, {taskBlocked} blocked, {taskFailed} failed, {taskUnsatisfied} unsatisfied | jobs: {pending} pending, {assigned} assigned, {inProgress} in-progress, {completed} completed, {failed} failed" );
+
+			// Gate 3.4 verification: report any permanently failed tasks
+			// (starvation watchdog should produce these after wood
+			// depletion), and confirm needs reopened for replanning.
+			foreach ( var t in tasks.Where( x => x.Status == TaskStatus.Failed ) )
+			{
+				Log.Info( $"Lute: Gate3Benchmark — FAILED task '{t.Id}' ({t.BuildTask?.Name}) reason: {t.FailureReason ?? "(none)"} retry={t.RetryCount}/{t.MaxRetries}" );
+			}
 
 			// Check for newly completed tasks.
 			foreach ( var task in tasks.Where( t => t.Status == TaskStatus.Complete && t.Id != _lastCompletedTask ) )

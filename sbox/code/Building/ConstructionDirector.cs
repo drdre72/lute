@@ -40,6 +40,13 @@ namespace Lute.Building
 		public string ReservationId { get; set; }
 		public int RetryCount { get; set; }
 		public int MaxRetries { get; set; } = 10;
+		/// <summary>
+		/// Reason recorded when the task last failed permanently (Status
+		/// == Failed). Null while the task is still retrying or has not
+		/// failed. Presisted so save/resume and status reporting can show
+		/// why a task was abandoned (e.g. material starvation).
+		/// </summary>
+		public string FailureReason { get; set; }
 		public string BlockedByTaskId { get; set; }
 		/// <summary>
 		/// First unsatisfied prerequisite task id when this task is blocked by
@@ -902,6 +909,7 @@ namespace Lute.Building
 			else
 			{
 				t.Status = TaskStatus.Failed;
+				t.FailureReason = reason;
 				Log.Warning( $"Lute: ConstructionDirector task {taskId} failed permanently ({reason}) after {t.RetryCount} attempts." );
 				ConstructionEventBus.Fire( ConstructionEventType.TaskFailed,
 					taskId: t.Id, parameters: new() { { "reason", reason ?? "" } } );

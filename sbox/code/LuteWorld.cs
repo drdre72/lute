@@ -503,7 +503,7 @@ public sealed class LuteWorld : Component
 		benchGo.SetParent( parent );
 		benchGo.WorldPosition = new Vector3( -400f * M, -400f * M, 0f );
 		var benchmark = benchGo.AddComponent<Lute.Building.Gate3Benchmark>();
-		benchmark.Level = Lute.Building.Gate3Benchmark.TestLevel.Test3_2_Crafter;
+		benchmark.Level = Lute.Building.Gate3Benchmark.TestLevel.Test3_4_Failure;
 		benchmark.Center = new Vector3( -400f * M, -400f * M, 0f );
 
 		// Spawn hauler NPCs near the village.
