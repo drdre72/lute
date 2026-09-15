@@ -96,6 +96,15 @@ namespace Lute.Building
 		public string DirectedTaskId { get; set; }
 
 		/// <summary>
+		/// The <see cref="StructureDefinition"/> id compiled by the
+		/// Surveyor before site selection. Carries the authoritative
+		/// Blueprint (exact footprint, bounds, piece count, BOM). The
+		/// executor uses this to build from the same definition the
+		/// Surveyor validated against.
+		/// </summary>
+		public string StructureDefinitionId { get; set; }
+
+		/// <summary>
 		/// Status of this request in the pipeline.
 		/// </summary>
 		public StructureRequestStatus Status { get; set; } = StructureRequestStatus.Pending;

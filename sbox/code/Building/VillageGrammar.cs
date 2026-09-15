@@ -61,6 +61,17 @@ namespace Lute.Building
 		public int TotalPieces = 0;
 
 		/// <summary>
+		/// The <see cref="StructureDefinition"/> id compiled by the
+		/// Surveyor before site selection. When set, the executor looks
+		/// up the precompiled Blueprint (authoritative piece count, bounds,
+		/// BOM) instead of regenerating one. This ensures the Surveyor
+		/// validates the exact footprint the executor builds. Null for
+		/// grammar-generated (fixed village) tasks that don't go through
+		/// the Surveyor.
+		/// </summary>
+		public string StructureDefinitionId;
+
+		/// <summary>
 		/// Runtime: wall segment construction state machine.
 		/// Only used for "wall" task type. Other tasks use Status directly.
 		/// </summary>

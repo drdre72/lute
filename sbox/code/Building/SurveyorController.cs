@@ -69,6 +69,7 @@ namespace Lute.Building
 
 		int _builderId = -1;
 		StructureRequest _currentRequest;
+		StructureDefinition _structureDef;
 		float _stateTimer;
 		float _logTimer;
 		bool _usingNavMesh;
@@ -186,6 +187,29 @@ namespace Lute.Building
 				return;
 			}
 
+			// Compile the authoritative StructureDefinition BEFORE site
+			// selection. The Surveyor validates against the exact footprint,
+			// bounds, and piece count from the compiled Blueprint — not the
+			// approximate MinWidth/MinDepth from SiteRequirements. Per the
+			// professor's review: "One definition. Surveyor validates
+			// BuildPlan.Bounds, ReservationManager reserves BuildPlan.Bounds,
+			// ConstructionDirector uses BuildPlan.Materials, StructureExecutor
+			// realizes BuildPlan geometry."
+			if ( _structureDef == null )
+			{
+				int baseW = EstimateBaseWidth( _currentRequest.StructureType );
+				int baseH = EstimateBaseHeight( _currentRequest.StructureType );
+				int seed = (int)( _currentRequest.Id.GetHashCode() ) % 100000;
+				if ( seed < 0 ) seed = -seed;
+				_structureDef = StructureDefinition.Compile(
+					_currentRequest.StructureType, baseW, baseH,
+					wealthFactor: 1.5f, layoutSeed: seed );
+				_currentRequest.StructureDefinitionId = _structureDef.Id;
+				Log.Info( $"Lute: Surveyor '{NpcName}' compiled StructureDefinition {_structureDef.Id}" +
+					$" for {_currentRequest.StructureType}: { _structureDef.TotalPieces} pieces," +
+					$" bounds={_structureDef.LocalBounds.Mins}..{_structureDef.LocalBounds.Maxs}." );
+			}
+
 			// Generate candidates if not done yet.
 			if ( _candidates == null )
 			{
@@ -197,6 +221,7 @@ namespace Lute.Building
 					Log.Warning( $"Lute: Surveyor '{NpcName}' no valid candidate sites for {_currentRequest.StructureType}." );
 					SettlementNeedBoard.RejectRequest( _currentRequest.Id, "no valid candidate sites" );
 					_currentRequest = null;
+					_structureDef = null;
 					ResetToIdle();
 					return;
 				}
@@ -226,19 +251,32 @@ namespace Lute.Building
 			// Mark the request as resolved.
 			SettlementNeedBoard.ResolveRequest( _currentRequest.Id, pos, rot );
 
-			// Create a VillageBuildTask for this structure.
+			// Create a VillageBuildTask for this structure, linked to the
+			// precompiled StructureDefinition so the executor builds from
+			// the exact same Blueprint the Surveyor validated against.
+			var def = _structureDef;
+			int baseW = EstimateBaseWidth( _currentRequest.StructureType );
+			int baseH = EstimateBaseHeight( _currentRequest.StructureType );
+			int seed = def?.Blueprint?.Provenance?.Seed ?? 0;
+
+			// Deterministic name: structureType + definition id suffix.
+			// No more Guid.NewGuid() — the professor flagged this as
+			// non-deterministic.
+			string defSuffix = def != null ? def.Id.Substring( Math.Max( 0, def.Id.Length - 6 ) ) : "000000";
 			var buildTask = new VillageBuildTask
 			{
-				Name = $"{_currentRequest.StructureType}_{Guid.NewGuid():N}".Substring( 0, 20 ),
+				Name = $"{_currentRequest.StructureType}_{defSuffix}",
 				Position = pos,
 				Rotation = rot,
 				TaskType = _currentRequest.StructureType,
 				Priority = 10 + (int)( _currentRequest.Priority * 100 ),
-				BaseWidth = EstimateBaseWidth( _currentRequest.StructureType ),
-				BaseHeight = EstimateBaseHeight( _currentRequest.StructureType ),
+				BaseWidth = baseW,
+				BaseHeight = baseH,
 				WealthFactor = 1.5f,
-				LayoutSeed = (int)( pos.x + pos.y ) % 100000,
+				LayoutSeed = seed,
 				Style = ArchitecturalStyle.Vernacular,
+				StructureDefinitionId = def?.Id,
+				TotalPieces = def?.TotalPieces ?? 0,
 			};
 
 			// Register with ConstructionDirector.
@@ -249,6 +287,7 @@ namespace Lute.Building
 				$" at {pos} as task {taskId}." );
 
 			_currentRequest = null;
+			_structureDef = null;
 			ResetToIdle();
 		}
 
@@ -315,10 +354,22 @@ namespace Lute.Building
 				return ( 0f, "site already dispatched this session" );
 			}
 
-			// 1. Is the site free (not overlapping existing structures)?
-			var footprint = new BBox(
-				pos - new Vector3( reqs.MinWidth / 2f, reqs.MinDepth / 2f, 0f ),
-				pos + new Vector3( reqs.MinWidth / 2f, reqs.MinDepth / 2f, 100f ) );
+			// 1. Is the site free? Use the EXACT bounds from the compiled
+			//    StructureDefinition, not the approximate MinWidth/MinDepth
+			//    from SiteRequirements. This is the professor's key fix:
+			//    the Surveyor validates the same footprint the executor builds.
+			BBox footprint;
+			if ( _structureDef != null )
+			{
+				footprint = _structureDef.WorldBoundsAt( pos );
+			}
+			else
+			{
+				// Fallback for tasks without a precompiled definition.
+				footprint = new BBox(
+					pos - new Vector3( reqs.MinWidth / 2f, reqs.MinDepth / 2f, 0f ),
+					pos + new Vector3( reqs.MinWidth / 2f, reqs.MinDepth / 2f, 100f ) );
+			}
 
 			if ( !SpatialRegistry.IsVolumeFree( footprint ).IsFree )
 			{
@@ -348,10 +399,17 @@ namespace Lute.Building
 				}
 			}
 
-			// 4. Terrain slope (raycast-based).
+			// 4. Terrain slope (raycast-based). Use exact bounds from
+			//    the compiled definition if available.
 			if ( reqs.MaxSlope > 0 )
 			{
-				float slope = EstimateSlope( pos, reqs.MinWidth, reqs.MinDepth );
+				float slopeW = _structureDef != null
+					? ( _structureDef.LocalBounds.Maxs.x - _structureDef.LocalBounds.Mins.x )
+					: reqs.MinWidth;
+				float slopeD = _structureDef != null
+					? ( _structureDef.LocalBounds.Maxs.y - _structureDef.LocalBounds.Mins.y )
+					: reqs.MinDepth;
+				float slope = EstimateSlope( pos, slopeW, slopeD );
 				if ( slope > reqs.MaxSlope )
 				{
 					return ( 0f, $"slope too steep ({slope:F1}°)" );

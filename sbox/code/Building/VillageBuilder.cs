@@ -1460,12 +1460,16 @@ namespace Lute.Building
 			task.TotalPieces = placed;
 		}
 
-		// ── Building: use StyleGrammar (if style set) or BuildingGrammar, place pieces ──
-		async Task BuildBuilding( VillageBuildTask task, CancellationToken token )
+		// ── Building: use precompiled StructureDefinition (if linked) or regenerate ──
+
+		/// <summary>
+		/// Regenerate a Blueprint from the task's parameters (fallback
+		/// when no precompiled StructureDefinition is linked). This is
+		/// the legacy path for grammar-generated fixed-village tasks.
+		/// </summary>
+		Blueprint RegenerateBlueprint( VillageBuildTask task )
 		{
 			var rng = task.LayoutSeed > 0 ? new Random( task.LayoutSeed ) : new Random();
-
-			// Generate the blueprint: StyleGrammar if a style is assigned, plain BuildingGrammar otherwise
 			Blueprint bp;
 			if ( task.Style is not null )
 			{
@@ -1483,7 +1487,42 @@ namespace Lute.Building
 					CellSize, WallHeight, FloorThickness,
 					BuildingWallMaterial, BuildingFloorMaterial );
 			}
+			return bp;
+		}
 
+		async Task BuildBuilding( VillageBuildTask task, CancellationToken token )
+		{
+			Blueprint bp;
+
+			// If the task has a precompiled StructureDefinition (from the
+			// Surveyor), use its authoritative Blueprint directly. This
+			// ensures the executor builds the exact same structure the
+			// Surveyor validated — same footprint, same piece count,
+			// same BOM. Per the professor: "One definition."
+			if ( !string.IsNullOrEmpty( task.StructureDefinitionId ) )
+			{
+				var def = StructureDefinition.Get( task.StructureDefinitionId );
+				if ( def != null )
+				{
+					bp = def.Blueprint;
+					// Re-anchor the Blueprint to the task's actual position.
+					bp.Origin = task.Position;
+					bp.Rotation = task.Rotation;
+					Log.Info( $"Lute: VillageBuilder using precompiled StructureDefinition {def.Id}" +
+						$" for '{task.Name}' — {bp.PieceCount} pieces (authoritative)." );
+				}
+				else
+				{
+					Log.Warning( $"Lute: VillageBuilder StructureDefinition '{task.StructureDefinitionId}' not found for '{task.Name}' — regenerating." );
+					bp = RegenerateBlueprint( task );
+				}
+			}
+			else
+			{
+				bp = RegenerateBlueprint( task );
+			}
+
+			// TotalPieces is authoritative from the compiled Blueprint.
 			task.TotalPieces = bp.Pieces.Count;
 
 			// Record the blueprint id/version on the directed task (if

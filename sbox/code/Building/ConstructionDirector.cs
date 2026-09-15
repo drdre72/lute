@@ -160,6 +160,7 @@ namespace Lute.Building
 			_nextTaskSeq = 0;
 			WorldFactProvider.Reset();
 			LogisticsBoard.Clear();
+			StructureDefinition.ClearRegistry();
 		}
 
 		/// <summary>
@@ -279,27 +280,35 @@ namespace Lute.Building
 			List<string> dependsOn = null, string blueprintId = null )
 		{
 			var id = $"task_{_nextTaskSeq++}";
+
+			// If the task has a precompiled StructureDefinition, use its
+			// authoritative piece count and BOM instead of estimates.
+			StructureDefinition def = null;
+			if ( buildTask != null && !string.IsNullOrEmpty( buildTask.StructureDefinitionId ) )
+			{
+				def = StructureDefinition.Get( buildTask.StructureDefinitionId );
+			}
+
 			var dt = new DirectedTask
 			{
 				Id = id,
 				BuildTask = buildTask,
-				EstimatedPieces = EstimatePieces( buildTask ),
-				BlueprintId = blueprintId,
+				EstimatedPieces = def?.TotalPieces ?? EstimatePieces( buildTask ),
+				BlueprintId = blueprintId ?? def?.Blueprint?.Id,
 				DependsOn = dependsOn ?? new(),
 				PiecesPlaced = buildTask?.PiecesPlaced ?? 0,
-				ReservationBounds = buildTask != null ? ReservationManager.EstimateTaskBounds( buildTask ) : null,
+				ReservationBounds = def != null && buildTask != null
+					? def.WorldBoundsAt( buildTask.Position )
+					: ( buildTask != null ? ReservationManager.EstimateTaskBounds( buildTask ) : null ),
 				Grid8 = buildTask != null ? DirectedTask.ComputeGrid8( buildTask.Position ) : "",
 				// Completed persistence entries stay complete. An old in-progress
 				// entry is made pending because runtime reservations do not survive reload.
 				Status = buildTask?.Status == 2 ? TaskStatus.Complete : TaskStatus.Pending,
 			};
 
-			// Assign default material requirements based on task type.
-			// This connects the construction pipeline to the resource
-			// loop — tasks need materials, LogisticsBoard creates haul
-			// jobs to supply them. Null = no requirements (backward
-			// compatibility for tasks without a known type).
-			dt.MaterialRequirements = ComputeMaterialRequirements( dt );
+			// Use the authoritative BOM from the StructureDefinition if
+			// available; fall back to computed requirements otherwise.
+			dt.MaterialRequirements = def?.BillOfMaterials ?? ComputeMaterialRequirements( dt );
 
 			_tasks[id] = dt;
 
