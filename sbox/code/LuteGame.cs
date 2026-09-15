@@ -93,6 +93,16 @@ public sealed class LuteGame : Component
 		effectsGo.SetParent( GameObject );
 		effectsGo.AddComponent<Lute.Building.CompletionEffectsManager>();
 
+		// Add the representation collapser — Move 9. Collapses completed
+		// wall segments from per-brick GameObjects into a single static
+		// GameObject (one ModelRenderer + one BoxCollider). Prevents
+		// brick-by-brick GameObject counts from becoming the scale
+		// ceiling for large settlements.
+		var collapserGo = Scene.CreateObject( true );
+		collapserGo.Name = "RepresentationCollapser";
+		collapserGo.SetParent( GameObject );
+		collapserGo.AddComponent<Lute.Building.RepresentationCollapser>();
+
 		// Initialize the profession/capability catalog so task eligibility
 		// is derived from capabilities, not role strings (PR #6 §3).
 		// Clear first so a fresh play session picks up any newly-added
