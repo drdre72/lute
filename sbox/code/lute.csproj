@@ -16,7 +16,7 @@
 		<DocumentationFile>../../../.vs/output/lute.xml</DocumentationFile>
 		<RootNamespace>Sandbox</RootNamespace>
 		<Nullable>disable</Nullable>
-		<DefaultItemExcludes>$(DefaultItemExcludes);**/editor/**;**/unittest/**</DefaultItemExcludes>
+		<DefaultItemExcludes>$(DefaultItemExcludes);**/editor/**;**/unittest/**;**/Lute.Core/**</DefaultItemExcludes>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -38,6 +38,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="../../base/code/Base Library.csproj" />
+		<ProjectReference Include="Lute.Core/Lute.Core.csproj" />
 	</ItemGroup>
 
 </Project>

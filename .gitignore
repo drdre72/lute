@@ -95,3 +95,7 @@ scrap/gpt_eyes_test.png
 # Test build output
 sbox/UnitTests/bin/
 sbox/UnitTests/obj/
+
+# Lute.Core build output
+sbox/code/Lute.Core/bin/
+sbox/code/Lute.Core/obj/

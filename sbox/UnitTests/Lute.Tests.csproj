@@ -47,6 +47,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\code\lute.csproj" />
+		<ProjectReference Include="..\code\Lute.Core\Lute.Core.csproj" />
 	</ItemGroup>
 
 </Project>

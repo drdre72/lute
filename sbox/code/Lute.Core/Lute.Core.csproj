@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!--
+		Lute.Core — engine-independent deterministic simulation core.
+
+		No references to S&Box (Sandbox.Engine, Sandbox.System, etc.).
+		Uses System.Numerics.Vector3 and a custom Aabb3 for spatial math.
+		The S&Box adapter layer (in lute.csproj) converts between
+		System.Numerics.Vector3 / Aabb3 and Sandbox.Vector3 / Sandbox.BBox
+		at the engine boundary.
+
+		This project must build and test on a vanilla .NET machine with
+		no S&Box installation, so it can run on hosted CI.
+	-->
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<LangVersion>14</LangVersion>
+		<AssemblyName>Lute.Core</AssemblyName>
+		<PackageId>Lute.Core</PackageId>
+		<RootNamespace>Lute.Core</RootNamespace>
+		<Nullable>enable</Nullable>
+		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+		<WarningsAsErrors></WarningsAsErrors>
+		<NoWarn>1701;1702;1591</NoWarn>
+		<IsPackable>true</IsPackable>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+		<OutputPath>../../../.vs/output/Lute.Core/</OutputPath>
+	</PropertyGroup>
+
+</Project>
