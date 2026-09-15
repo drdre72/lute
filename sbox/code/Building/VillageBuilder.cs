@@ -664,13 +664,20 @@ namespace Lute.Building
 
 		async Task BuildTask( VillageBuildTask task, CancellationToken token )
 		{
-			// Initialize TotalPieces with the estimate BEFORE building so
-			// a save mid-build has a valid total (not 0). The actual total
-			// is set at the end of each build method. This fixes the
-			// night-run anomaly where in-progress tasks had TotalPieces=0
-			// or PiecesPlaced > TotalPieces.
-			if ( task.TotalPieces <= 0 )
-				task.TotalPieces = EstimateTaskPieces( task );
+			// Do NOT initialize TotalPieces from the rough estimate here.
+			// The estimate (w*h for buildings) can be wildly off (e.g. 18 vs
+			// 2461 actual). Using it as TotalPieces would corrupt saves:
+			// either the clamp throws away legitimate progress, or the
+			// save contains an invalid total. Instead, leave TotalPieces=0
+			// until the build method sets the actual count at the end. On
+			// save/resume, if PiecesPlaced > 0 and TotalPieces is still 0
+			// (in-progress save before the build method finished), the
+			// load-path clamp grows TotalPieces to PiecesPlaced (preserving
+			// progress, not destroying it).
+			//
+			// The proper long-term fix is for TotalPieces to come from the
+			// compiled Blueprint/BuildPlan, making it authoritative. Until
+			// then, TotalPieces is "unknown until build completes" (0).
 
 			switch ( task.TaskType )
 			{

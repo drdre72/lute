@@ -30,6 +30,8 @@ namespace Lute.Building
 		static readonly List<StructureRequest> _requests = new();
 		static float _lastEvaluation;
 		static bool _initialized;
+		static int _nextNeedId;
+		static int _nextRequestId;
 
 		/// <summary> How often (seconds) to re-evaluate needs. </summary>
 		public static float EvaluationInterval { get; set; } = 10f;
@@ -72,6 +74,21 @@ namespace Lute.Building
 				return;
 			}
 
+			// Board owns ID allocation — assign a deterministic id if the
+			// need doesn't already have one.
+			if ( string.IsNullOrEmpty( need.Id ) || need.Id == "need_unassigned" )
+				need = new SettlementNeed( $"need_{_nextNeedId:D6}" )
+				{
+					Type = need.Type,
+					StructureType = need.StructureType,
+					Urgency = need.Urgency,
+					DesiredCount = need.DesiredCount,
+					ExistingCount = need.ExistingCount,
+					PlannedCount = need.PlannedCount,
+					Reason = need.Reason,
+				};
+			_nextNeedId++;
+
 			_needs.Add( need );
 			Log.Info( $"Lute: SettlementNeedBoard — registered need {need.Type}" +
 				( need.StructureType != null ? $" ({need.StructureType})" : "" ) +
@@ -89,6 +106,76 @@ namespace Lute.Building
 		public static void PruneFulfilled()
 		{
 			_needs.RemoveAll( n => n.IsFulfilled );
+		}
+
+		/// <summary>
+		/// Reconcile all needs' lifecycle counts from the authoritative
+		/// ConstructionDirector task catalog. This is the single source of
+		/// truth — the need board does NOT maintain its own independent
+		/// count of structures. Per the professor's review: "Don't
+		/// synchronize copies of truth when Lute already has an authority
+		/// that can derive the answer."
+		///
+		/// For each need with a StructureType, counts are derived by
+		/// scanning all ConstructionDirector tasks matching that type:
+		///   Complete  → ExistingCount
+		///   Pending/PendingExecution/Blocked → PlannedCount
+		///   InProgress → InProgressCount
+		///   Failed/Cancelled → FailedCount
+		///
+		/// This handles the case where pre-existing (grammar-generated)
+		/// cottages complete but have no StructureRequest/DirectedTaskId
+		/// linkage — the need still sees them as ExistingCount.
+		/// </summary>
+		public static void ReconcileFromDirector()
+		{
+			var allTasks = ConstructionDirector.AllTasks();
+			if ( allTasks.Count == 0 ) return;
+
+			foreach ( var need in _needs )
+			{
+				if ( string.IsNullOrEmpty( need.StructureType ) ) continue;
+				if ( need.Type == SettlementNeedType.ResourcePressure ) continue;
+
+				int existing = 0, planned = 0, inProgress = 0, failed = 0;
+				foreach ( var t in allTasks )
+				{
+					var taskType = t.BuildTask?.TaskType;
+					if ( taskType != need.StructureType ) continue;
+
+					switch ( t.Status )
+					{
+						case TaskStatus.Complete:
+							existing++;
+							break;
+						case TaskStatus.Pending:
+						case TaskStatus.PendingExecution:
+						case TaskStatus.Blocked:
+							planned++;
+							break;
+						case TaskStatus.InProgress:
+							inProgress++;
+							break;
+						case TaskStatus.Failed:
+						case TaskStatus.Cancelled:
+							failed++;
+							break;
+					}
+				}
+
+				// Only log if counts changed (avoid spamming every evaluate cycle).
+				if ( need.ExistingCount != existing || need.PlannedCount != planned ||
+					 need.InProgressCount != inProgress || need.FailedCount != failed )
+				{
+					need.ExistingCount = existing;
+					need.PlannedCount = planned;
+					need.InProgressCount = inProgress;
+					need.FailedCount = failed;
+					Log.Info( $"Lute: SettlementNeedBoard — reconciled need {need.Id} ({need.StructureType})" +
+						$" from Director: existing={existing} planned={planned} inProgress={inProgress} failed={failed}" +
+						$" desired={need.DesiredCount} fulfilled={need.IsFulfilled}" );
+				}
+			}
 		}
 
 		/// <summary>
@@ -123,7 +210,7 @@ namespace Lute.Building
 
 				if ( hasPending ) continue;
 
-				var req = new StructureRequest
+				var req = new StructureRequest( $"req_{_nextRequestId:D6}" )
 				{
 					StructureType = need.StructureType,
 					RequestedBy = "SettlementNeedBoard",
@@ -132,6 +219,7 @@ namespace Lute.Building
 					Reason = need.Reason,
 					Requirements = SiteRequirementsFor( need ),
 				};
+				_nextRequestId++;
 
 				_requests.Add( req );
 				Log.Info( $"Lute: SettlementNeedBoard — generated StructureRequest for '{need.StructureType}'" +
@@ -296,12 +384,11 @@ namespace Lute.Building
 
 		/// <summary>
 		/// Mark a request as dispatched (registered with ConstructionDirector).
-		/// Also records the resolved site as taken and increments the
-		/// originating need's PlannedCount (NOT ExistingCount) so the need
-		/// is NOT considered fulfilled until the structure actually completes.
-		/// Duplicate-suppression uses PipelineCount (existing + planned +
-		/// in-progress) so we don't generate redundant requests for work
-		/// already in the pipeline.
+		/// Records the resolved site as taken and links the request to the
+		/// ConstructionDirector task. Does NOT manually increment need
+		/// counts — those are derived from the authoritative task catalog
+		/// by <see cref="ReconcileFromDirector"/> during the next
+		/// <see cref="Evaluate"/> cycle.
 		/// </summary>
 		public static void DispatchRequest( string requestId, string directedTaskId = null )
 		{
@@ -315,22 +402,7 @@ namespace Lute.Building
 			if ( req.ResolvedPosition.HasValue )
 				_dispatchedSites.Add( SiteKey( req.ResolvedPosition.Value ) );
 
-			// Increment PlannedCount (NOT ExistingCount) on the originating
-			// need. The need is fulfilled only when the structure completes
-			// (OnTaskCompleted). This prevents a dispatched-but-unbuilt
-			// cottage from satisfying a housing need.
-			if ( !string.IsNullOrEmpty( req.NeedId ) )
-			{
-				var need = _needs.FirstOrDefault( n => n.Id == req.NeedId );
-				if ( need != null && need.PipelineCount < need.DesiredCount )
-				{
-					need.PlannedCount++;
-					Log.Info( $"Lute: SettlementNeedBoard — need {need.Id} ({need.StructureType})" +
-						$" planned {need.PlannedCount} (existing={need.ExistingCount}/{need.DesiredCount}) after dispatch." );
-				}
-			}
-
-			Log.Info( $"Lute: SettlementNeedBoard — request {req.Id} ({req.StructureType}) dispatched" );
+			Log.Info( $"Lute: SettlementNeedBoard — request {req.Id} ({req.StructureType}) dispatched as task {directedTaskId}" );
 		}
 
 		/// <summary>
@@ -366,77 +438,40 @@ namespace Lute.Building
 		}
 
 		/// <summary>
-		/// Reconcile a need when a dispatched structure's task completes.
-		/// Moves one unit from PlannedCount to ExistingCount on the
-		/// originating need. This is the ONLY path that increments
-		/// ExistingCount — a need is fulfilled only by completed structures.
+		/// Notify that a dispatched structure's task completed. Immediate
+		/// feedback only — the authoritative count reconciliation happens
+		/// in <see cref="ReconcileFromDirector"/> during the next
+		/// <see cref="Evaluate"/> cycle.
 		/// </summary>
 		public static void OnTaskCompleted( string directedTaskId )
 		{
 			var req = FindRequestByTaskId( directedTaskId );
 			if ( req == null ) return;
-
-			if ( !string.IsNullOrEmpty( req.NeedId ) )
-			{
-				var need = _needs.FirstOrDefault( n => n.Id == req.NeedId );
-				if ( need != null )
-				{
-					// Move one unit from planned → existing.
-					if ( need.PlannedCount > 0 ) need.PlannedCount--;
-					need.ExistingCount++;
-					Log.Info( $"Lute: SettlementNeedBoard — need {need.Id} ({need.StructureType})" +
-						$" completed structure: existing={need.ExistingCount}/{need.DesiredCount}" +
-						$" planned={need.PlannedCount} → {(need.IsFulfilled ? "FULFILLED" : "still pending")}." );
-				}
-			}
+			Log.Info( $"Lute: SettlementNeedBoard — task {directedTaskId} completed (request {req.Id}, type {req.StructureType}). Need counts will reconcile on next Evaluate." );
 		}
 
 		/// <summary>
-		/// Reconcile a need when a dispatched structure's task fails
-		/// permanently. Decrements PlannedCount and increments FailedCount,
-		/// reopening the need so the settlement can replan.
+		/// Notify that a dispatched structure's task failed permanently.
+		/// Immediate feedback only — the authoritative count
+		/// reconciliation happens in <see cref="ReconcileFromDirector"/>.
 		/// </summary>
 		public static void OnTaskFailed( string directedTaskId )
 		{
 			var req = FindRequestByTaskId( directedTaskId );
 			if ( req == null ) return;
-
-			if ( !string.IsNullOrEmpty( req.NeedId ) )
-			{
-				var need = _needs.FirstOrDefault( n => n.Id == req.NeedId );
-				if ( need != null )
-				{
-					if ( need.PlannedCount > 0 ) need.PlannedCount--;
-					need.FailedCount++;
-					Log.Warning( $"Lute: SettlementNeedBoard — need {need.Id} ({need.StructureType})" +
-						$" failed structure: existing={need.ExistingCount}/{need.DesiredCount}" +
-						$" failed={need.FailedCount} → need REOPENED for replanning." );
-				}
-			}
+			Log.Warning( $"Lute: SettlementNeedBoard — task {directedTaskId} failed (request {req.Id}, type {req.StructureType}). Need will reopen on next Evaluate." );
 		}
 
 		/// <summary>
-		/// Reconcile a need when a dispatched structure's task is cancelled.
-		/// Decrements PlannedCount (the work is no longer in the pipeline)
-		/// and increments FailedCount so the need reopens for replanning.
+		/// Notify that a dispatched structure's task was cancelled.
+		/// Immediate feedback only — the authoritative count
+		/// reconciliation happens in <see cref="ReconcileFromDirector"/>.
 		/// </summary>
 		public static void OnTaskCancelled( string directedTaskId )
 		{
 			var req = FindRequestByTaskId( directedTaskId );
 			if ( req == null ) return;
-
-			if ( !string.IsNullOrEmpty( req.NeedId ) )
-			{
-				var need = _needs.FirstOrDefault( n => n.Id == req.NeedId );
-				if ( need != null )
-				{
-					if ( need.PlannedCount > 0 ) need.PlannedCount--;
-					need.FailedCount++;
-					Log.Info( $"Lute: SettlementNeedBoard — need {need.Id} ({need.StructureType})" +
-						$" cancelled structure: existing={need.ExistingCount}/{need.DesiredCount}" +
-						$" → need REOPENED for replanning." );
-				}
-			}
+			Log.Info( $"Lute: SettlementNeedBoard — task {directedTaskId} cancelled (request {req.Id}, type {req.StructureType}). Need will reopen on next Evaluate." );
 		}
 
 		/// <summary>
@@ -447,6 +482,12 @@ namespace Lute.Building
 		{
 			if ( currentTime - _lastEvaluation < EvaluationInterval ) return;
 			_lastEvaluation = currentTime;
+
+			// Reconcile lifecycle counts from the authoritative
+			// ConstructionDirector task catalog BEFORE generating requests.
+			// This is the single source of truth — the need board does not
+			// maintain an independent structure count.
+			ReconcileFromDirector();
 
 			PruneFulfilled();
 			GenerateRequests();
@@ -466,6 +507,10 @@ namespace Lute.Building
 			_dispatchedSites.Clear();
 			_lastEvaluation = 0f;
 			_villageCenter = null;
+			// Reset ID counters so ids are deterministic relative to a
+			// fresh simulation, not just sequential across play sessions.
+			_nextNeedId = 0;
+			_nextRequestId = 0;
 		}
 
 		/// <summary> Diagnostic summary. </summary>

@@ -152,14 +152,20 @@ namespace Lute.Building
 					task.PiecesPlaced = saved.PiecesPlaced;
 					task.TotalPieces = saved.TotalPieces;
 
-					// Defensive clamp: PiecesPlaced must never exceed
-					// TotalPieces. Fixes corrupted saves from the night run
-					// (e.g. Chapel 5309/1383, cottage_5 2461/18) so they
-					// don't break reconstruction or completion checks.
-					if ( task.TotalPieces > 0 && task.PiecesPlaced > task.TotalPieces )
+					// If TotalPieces < PiecesPlaced (corrupt or stale save
+					// where the build method hadn't set the actual total
+					// yet, or the rough estimate was used), GROW TotalPieces
+					// to PiecesPlaced. NEVER shrink PiecesPlaced — that
+					// throws away legitimate construction progress. The
+					// professor's review identified the previous clamp
+					// (shrink to TotalPieces) as masking the bug.
+					// Long-term: TotalPieces should come from the compiled
+					// Blueprint/BuildPlan.
+					if ( task.TotalPieces < task.PiecesPlaced )
 					{
-						Log.Warning( $"Lute: VillagePersistence clamped PiecesPlaced {task.PiecesPlaced} -> {task.TotalPieces} for '{task.Name}' on load (was > TotalPieces)." );
-						task.PiecesPlaced = task.TotalPieces;
+						if ( task.TotalPieces > 0 )
+							Log.Warning( $"Lute: VillagePersistence grew TotalPieces {task.TotalPieces} -> {task.PiecesPlaced} for '{task.Name}' on load (was < PiecesPlaced)." );
+						task.TotalPieces = task.PiecesPlaced;
 					}
 				}
 			}

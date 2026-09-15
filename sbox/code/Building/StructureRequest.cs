@@ -32,10 +32,8 @@ namespace Lute.Building
 	/// </summary>
 	public sealed class StructureRequest
 	{
-		static int _nextId;
-
-		/// <summary> Unique id for this request (deterministic counter). </summary>
-		public string Id { get; init; } = $"req_{_nextId:D6}";
+		/// <summary> Unique id for this request (board-assigned, deterministic). </summary>
+		public string Id { get; init; }
 
 		/// <summary>
 		/// The structure type to build (e.g. "cottage", "sawmill",
@@ -102,9 +100,13 @@ namespace Lute.Building
 		/// </summary>
 		public StructureRequestStatus Status { get; set; } = StructureRequestStatus.Pending;
 
-		public StructureRequest()
+		/// <summary>
+		/// Create a request with a board-assigned deterministic id. The
+		/// board owns the id counter and resets it on Clear().
+		/// </summary>
+		public StructureRequest( string id = null )
 		{
-			_nextId++;
+			Id = id ?? "req_unassigned";
 		}
 	}
 

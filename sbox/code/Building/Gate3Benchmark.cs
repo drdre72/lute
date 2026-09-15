@@ -110,16 +110,13 @@ namespace Lute.Building
 			if ( !_needInjected && Time.Now > 30f )
 			{
 				_needInjected = true;
-				// Count COMPLETED cottages only — pending/planned cottages
-				// do NOT count toward existing housing capacity. This is
-				// the corrected need lifecycle: only completed structures
-				// satisfy a need.
+				// Count COMPLETED cottages only for the existing baseline.
+				// PlannedCount/InProgressCount/FailedCount are derived by
+				// SettlementNeedBoard.ReconcileFromDirector() from the
+				// authoritative ConstructionDirector task catalog — the
+				// benchmark does NOT maintain its own count.
 				int existingCottages = ConstructionDirector.AllTasks()
 					.Count( t => t.BuildTask?.TaskType == "cottage" && t.Status == TaskStatus.Complete );
-				int plannedCottages = ConstructionDirector.AllTasks()
-					.Count( t => t.BuildTask?.TaskType == "cottage" &&
-						( t.Status == TaskStatus.Pending || t.Status == TaskStatus.PendingExecution ||
-						  t.Status == TaskStatus.InProgress || t.Status == TaskStatus.Blocked ) );
 				SettlementNeedBoard.RegisterNeed( new SettlementNeed
 				{
 					Type = SettlementNeedType.Shelter,
@@ -127,10 +124,9 @@ namespace Lute.Building
 					Urgency = 0.8f,
 					DesiredCount = existingCottages + 2,
 					ExistingCount = existingCottages,
-					PlannedCount = plannedCottages,
 					Reason = "Test: inject shelter need for adaptive planning",
 				} );
-				Log.Info( $"Lute: Gate3Benchmark — injected test Shelter need (existing={existingCottages}, planned={plannedCottages}, desired={existingCottages + 2})." );
+				Log.Info( $"Lute: Gate3Benchmark — injected test Shelter need (existing={existingCottages}, desired={existingCottages + 2}). Planned/in-progress counts will be derived by ReconcileFromDirector." );
 			}
 
 			// Night-run save: at ~47 minutes, snapshot village progress to

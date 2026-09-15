@@ -41,8 +41,6 @@ namespace Lute.Building
 	/// </summary>
 	public sealed class SettlementNeed
 	{
-		static int _nextId;
-
 		/// <summary> Unique id for this need instance. </summary>
 		public string Id { get; init; }
 
@@ -75,9 +73,10 @@ namespace Lute.Building
 		public int PlannedCount { get; set; }
 
 		/// <summary>
-		/// How many structures are actively being built right now. Subset
-		/// of <see cref="PlannedCount"/>. Used for capacity planning and
-		/// diagnostics; does NOT satisfy the need.
+		/// How many structures are actively being built right now. This is
+		/// MUTUALLY EXCLUSIVE with <see cref="PlannedCount"/> (a structure
+		/// is either planned OR in-progress, never both). Does NOT satisfy
+		/// the need.
 		/// </summary>
 		public int InProgressCount { get; set; }
 
@@ -90,9 +89,11 @@ namespace Lute.Building
 
 		/// <summary>
 		/// Effective existing count used for duplicate-suppression: the
-		/// total of completed, planned, and in-progress structures. This
-		/// prevents generating a new request for work already in the
-		/// pipeline, WITHOUT counting that work as fulfilling the need.
+		/// total of completed, planned, and in-progress structures. These
+		/// are MUTUALLY EXCLUSIVE lifecycle buckets (a structure is in
+		/// exactly one: planned, in-progress, or existing). This prevents
+		/// generating a new request for work already in the pipeline,
+		/// WITHOUT counting that work as fulfilling the need.
 		/// </summary>
 		public int PipelineCount => ExistingCount + PlannedCount + InProgressCount;
 
@@ -130,10 +131,15 @@ namespace Lute.Building
 				? (ResourcePressure == null || ResourcePressure.Count == 0)
 				: ExistingCount >= DesiredCount;
 
-		public SettlementNeed()
+		/// <summary>
+		/// Create a need with a board-assigned deterministic id. The board
+		/// owns the id counter and resets it on Clear() so ids are
+		/// deterministic relative to a fresh simulation, not just
+		/// sequential across play sessions.
+		/// </summary>
+		public SettlementNeed( string id = null )
 		{
-			Id = $"need_{_nextId:D6}";
-			_nextId++;
+			Id = id ?? "need_unassigned";
 			CreatedAt = 0f;
 		}
 	}

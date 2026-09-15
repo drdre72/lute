@@ -811,16 +811,21 @@ namespace Lute.Building
 			if ( t.BuildTask != null )
 			{
 				t.PiecesPlaced = Math.Max( t.PiecesPlaced, t.BuildTask.PiecesPlaced );
-				// Defensive clamp: PiecesPlaced must never exceed TotalPieces.
-				// This prevents the night-run anomaly (e.g. 5309/1383) from
-				// corrupting save/resume. The root cause is fixed upstream
-				// (TotalPieces is now initialized before building), but this
-				// clamp catches any remaining edge cases.
-				if ( t.BuildTask.TotalPieces > 0 && t.PiecesPlaced > t.BuildTask.TotalPieces )
+				// If TotalPieces was never set (build method didn't finish
+				// setting it, or estimate was wrong), grow it to the actual
+				// PiecesPlaced. NEVER shrink PiecesPlaced to match a stale
+				// or estimated TotalPieces — that throws away legitimate
+				// construction progress. The professor's review correctly
+				// identified that the previous clamp (shrink PiecesPlaced
+				// to TotalPieces) was masking the bug, not fixing it.
+				// Long-term: TotalPieces should come from the compiled
+				// Blueprint/BuildPlan, making it authoritative.
+				if ( t.BuildTask.TotalPieces < t.PiecesPlaced )
 				{
-					Log.Warning( $"Lute: ConstructionDirector clamped PiecesPlaced {t.PiecesPlaced} -> {t.BuildTask.TotalPieces} for '{t.BuildTask.Name}' (was > TotalPieces)." );
-					t.PiecesPlaced = t.BuildTask.TotalPieces;
-					t.BuildTask.PiecesPlaced = t.BuildTask.TotalPieces;
+					if ( t.BuildTask.TotalPieces > 0 )
+						Log.Warning( $"Lute: ConstructionDirector grew TotalPieces {t.BuildTask.TotalPieces} -> {t.PiecesPlaced} for '{t.BuildTask.Name}' (was < PiecesPlaced on completion)." );
+					t.BuildTask.TotalPieces = t.PiecesPlaced;
+					t.PiecesPlaced = t.PiecesPlaced;
 				}
 			}
 			if ( t.AssignedBuilder >= 0 && _builders.TryGetValue( t.AssignedBuilder, out var b ) )
