@@ -628,6 +628,12 @@ namespace Lute.Building
 				await BuildTask( task, token );
 
 				task.Status = 2; // complete
+				var directed = ConstructionDirector.FindTaskForBuildTask( task );
+				if ( directed != null )
+				{
+					ConstructionDirector.CompleteTask( directed.Id );
+					Log.Info( "Lute: VillageBuilder (legacy) notified director: CompleteTask(" + directed.Id + ")." );
+				}
 				int done = Tasks.Count( t => t.Status == 2 );
 				Log.Info( $"Lute: VillageBuilder completed '{task.Name}' — {done}/{Tasks.Count} tasks done ({done * 100 / Tasks.Count}%)." );
 

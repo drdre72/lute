@@ -819,11 +819,15 @@ namespace Lute.Building
 		public static void CompleteTask( string taskId )
 		{
 			if ( !_tasks.TryGetValue( taskId, out var t ) )
+			{
+				Log.Warning( $"Lute: CompleteTask — task '{taskId}' NOT FOUND in _tasks (count={_tasks.Count})." );
 				return;
+			}
 			if ( t.Status == TaskStatus.Complete )
 				return;
 
 			t.Status = TaskStatus.Complete;
+			Log.Info( $"Lute: CompleteTask — '{taskId}' set to Complete. Total complete: {AllTasks().Count( x => x.Status == TaskStatus.Complete )}/{_tasks.Count}." );
 			if ( t.BuildTask != null )
 			{
 				t.PiecesPlaced = Math.Max( t.PiecesPlaced, t.BuildTask.PiecesPlaced );
