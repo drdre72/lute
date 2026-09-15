@@ -10,12 +10,25 @@
 
 ## Active TODOs
 
-- [x] Move 1: Unify task authority + fix piece accounting (commit ac74b49)
-- [x] Move 2: One global simulation clock — LuteSimulationTicker (commit ac74b49)
-- [x] Move 3: Correct SettlementNeed lifecycle — planned/existing/failed
-      separation + deterministic IDs (commit ac74b49)
+- [~] Move 1: Unify task authority + fix piece accounting — PARTIAL
+      ConstructionDirector authority substantially unified. Exact piece
+      accounting still requires authoritative BuildPlan/Blueprint-derived
+      totals. Current band-aid: TotalPieces=0 until build method sets
+      actual, clamp grows TotalPieces to PiecesPlaced. Proper fix is
+      Move 4. (commits ac74b49, 3323628)
+- [x] Move 2: One global simulation clock — COMPLETE
+      LuteSimulationTicker advances all global clocks once per frame.
+      Per-builder clock advancement removed. (commit ac74b49)
+- [~] Move 3: Correct SettlementNeed lifecycle — PARTIAL
+      Planned/completed semantics corrected conceptually. Need counts
+      now derived from ConstructionDirector via ReconcileFromDirector().
+      But need board still stores its own count fields (not pure derived
+      view). OnTaskCompleted/Failed/Cancelled are logging-only. The
+      existing=0 planned=70 runtime result is a DIAGNOSTIC OBSERVATION,
+      not proof of correctness. (commits ac74b49, 3323628)
 - [ ] Move 4: Make Surveyor consume authoritative structure definitions
-      (exact footprint, bounds, BOM, work estimate) — IN PROGRESS
+      (exact footprint, bounds, BOM, work estimate) — ALSO solves exact
+      TotalPieces via Blueprint/BuildPlan compilation. NEXT.
 - [ ] Move 5: Move benchmark orchestration into production services
 - [ ] Move 6: Run Gate 3.4 failure injection (after hardening)
 - [ ] Move 7: Demand-driven production
@@ -23,20 +36,18 @@
 - [ ] Move 9: Representation collapse (bricks → static mesh when done)
 - [ ] Move 10: Extract StructureExecutor from VillageBuilder
 
-## Architecture (current state — post ac74b49)
+## Architecture (current state — post 3323628)
 
-Professor's three prerequisites are DONE:
-1. `ConstructionDirector` is the sole task catalog. `VillageBuilder.Tasks`
-   is the executor view. Piece accounting fixed (TotalPieces initialized
-   before build, defensive clamp on complete/load).
-2. `LuteSimulationTicker` (scene component) advances all global clocks
-   once per frame. Per-builder clock advancement removed from
-   `VillageBuilderController`.
-3. `SettlementNeed` has ExistingCount (completed only), PlannedCount,
-   InProgressCount, FailedCount. Dispatch increments Planned, completion
-   moves Planned→Existing, failure/cancel reopens. Guid IDs replaced with
-   deterministic counters. `StructureRequest` has DirectedTaskId for
-   lifecycle reconciliation.
+Professor's three prerequisites — STATUS:
+- Move 1 (task authority + piece accounting): PARTIAL. Director is the
+  task catalog. But TotalPieces is still a band-aid (0 until build sets
+  actual, clamp grows to PiecesPlaced). Proper fix is Move 4: Blueprint
+  compiles exact piece plan → TotalPieces = BuildPlan.Count (authoritative).
+- Move 2 (global clock): COMPLETE. LuteSimulationTicker works.
+- Move 3 (need lifecycle): PARTIAL. ReconcileFromDirector derives counts
+  from the authoritative task catalog. But need board still stores its
+  own count fields (not a pure derived view). The existing=0 planned=70
+  result is a diagnostic, NOT proof of correctness.
 
 Key authority chain (stable):
 ```
@@ -45,13 +56,24 @@ World → SpatialRegistry/ResourceRegistry → SettlementNeedBoard
   → physical NPC execution → world mutation
 ```
 
+Professor's guiding principle (applied):
+> Don't synchronize copies of truth when Lute already has an authority
+> that can derive the answer.
+- Construction progress → authority is Blueprint/BuildPlan (future, Move 4)
+- Task lifecycle → authority is ConstructionDirector (implemented)
+- Physical existence → authority is world/spatial state (future)
+
 ## Night run #1 results (baseline — pre-hardening)
 
 - 100 minutes, 148 tasks, 51 completed (34%), 93 pending
 - Anomalies found: Chapel 5309/1383, cottage_5 2461/18, gates TotalPieces=0
 - 2 adaptive Surveyor cottages stuck pending (material starvation)
-- Root causes: piece accounting, task authority split, clock scaling,
-  need lifecycle — ALL FIXED in ac74b49
+- Root causes identified: piece accounting (PARTIAL fix — needs Move 4
+  for proper authoritative totals), task authority split (fixed),
+  clock scaling (fixed), need lifecycle (PARTIAL fix — needs derived
+  view, not stored counts). The zero-total problem improved; exact
+  piece accounting was NOT solved. Do NOT treat existing=0 planned=70
+  as proof of correctness — it's a diagnostic observation.
 
 ## Recent session activity (newest last; prune when >~15 entries)
 

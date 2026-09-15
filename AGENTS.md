@@ -977,16 +977,42 @@ errors before the editor recompiles.
   a differently-named file (e.g. `VillagePersistence` is inside
   `VillageSaveData.cs`). Use `grep` with `class ClassName` to locate it.
 
-### Principle: TotalPieces must be set before building, not after
+### Principle: Estimated and authoritative values must remain separate
 
-The night-run anomaly (`PiecesPlaced > TotalPieces`) had a first-principle
-root cause: **a value set at the end of a process is unknown during the
-process**. If a save can happen mid-process, the value is stale or zero.
+If a final total participates in persistence, completion, replay, or
+recovery, it must come from an authoritative precomputed plan. If the
+exact total is not yet knowable, persist an estimate separately and
+**never use it as completion truth**.
 
-**Generalization**: Any field that represents a "final total" must be
-initialized with an estimate BEFORE the process begins, then updated with
-the actual value at the end. This applies to piece counts, work estimates,
-and any accumulator that can be observed mid-execution.
+For Lute's piece accounting specifically:
+
+```text
+Blueprint
+   ↓ compile
+BuildPlan / PieceOperations[]
+   ↓
+TotalPieces = BuildPlan.Count     ← authoritative
+   ↓
+StructureExecutor
+   ↓
+PiecesPlaced = execution cursor
+```
+
+`EstimatedPieces` is allowed to be rough because it's only used for
+scheduling/load balancing. But `TotalPieces` must be exact.
+
+**What NOT to do**: initialize `TotalPieces` from a rough estimate
+(e.g. `w*h` for buildings) before building starts, then clamp
+`PiecesPlaced` to match. The estimate can be wildly off (18 vs 2461
+actual), and the clamp throws away legitimate construction progress.
+This was the night-run bug — the estimate was promoted to authoritative
+truth, which is the conceptual error.
+
+**Current state** (commit 3323628): `TotalPieces` stays 0 until the
+build method sets the actual count. The clamp GROWS `TotalPieces` to
+`PiecesPlaced` (preserving progress, not destroying it). This is a
+band-aid — the proper fix is Move 4 (authoritative Blueprint/BuildPlan
+that precomputes the exact piece count before execution begins).
 
 ### Principle: Global clocks must have one driver
 
@@ -998,13 +1024,28 @@ have exactly one driver. Per-entity updates to shared state should be
 publish-only (position, status) — never advance the clock. Use a single
 scene-level component as the authoritative ticker.
 
-### Principle: Planned is not completed
+### Principle: Don't synchronize copies of truth when an authority can derive the answer
 
-Counting dispatched/planned work as satisfying a need creates a broken
-feedback loop: the need disappears before the work is done, and if the
-work fails, the need never reopens.
+For construction progress, the authority should ultimately be the
+**Blueprint/BuildPlan** (authoritative piece count). For task lifecycle,
+the authority is the **ConstructionDirector** (task catalog). For
+physical existence, the authority is the **world/spatial state**.
 
-**Generalization**: Separate "pipeline" state (planned/in-progress) from
-"realized" state (completed). Needs are satisfied by realized state only.
-Failure/cancellation must reopen the need by decrementing pipeline counts
-and incrementing failure counts.
+**Current state** (commit 3323628): `SettlementNeedBoard.ReconcileFromDirector()`
+now derives need counts from the ConstructionDirector task catalog during
+each `Evaluate()` cycle. This is the correct direction. However, the
+`OnTaskCompleted`/`OnTaskFailed`/`OnTaskCancelled` callbacks still exist
+as immediate-feedback logging — they do NOT mutate counts (the
+reconciliation does). The system is moving toward derivation, but the
+need board still has its own count fields that could drift if
+reconciliation stops being called.
+
+**What NOT to do**: maintain a completely independent count ledger in
+the need board (e.g. manually incrementing `PlannedCount` in
+`DispatchRequest`) that can drift from the authoritative task catalog.
+This was the stale-need bug — 70 planned cottages with no
+`StructureRequest` linkage meant `OnTaskCompleted` never fired for
+them, so `ExistingCount` stayed 0 forever.
+
+**Long-term**: need counts should be a derived view (computed on query),
+not stored state. Until then, `ReconcileFromDirector()` is the bridge.
