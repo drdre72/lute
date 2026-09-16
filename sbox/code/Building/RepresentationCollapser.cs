@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using HalfEdgeMesh;
+using Sandbox;
 
 namespace Lute.Building
 {
@@ -161,7 +163,10 @@ namespace Lute.Building
 				float localYaw = p.Yaw - task.BuildTask.Rotation;
 				var localRot = Rotation.FromYaw( localYaw );
 
-				AppendBrickCuboid( mesh, localCenter, p.Size, localRot );
+				var faceHandles = AppendBrickCuboid( mesh, localCenter, p.Size, localRot );
+				// Assign material to all faces of this brick
+				if ( brickMaterial is not null )
+					mesh.AssignMaterialToFaces( faceHandles, brickMaterial );
 				brickCount++;
 			}
 
@@ -171,6 +176,9 @@ namespace Lute.Building
 				CollapseToBoxFallback( task );
 				return;
 			}
+
+			// Auto-generate UVs from face positions + material texture size
+			mesh.ComputeFaceTextureParametersFromCoordinates();
 
 			// ── 3. Validate baked height matches task ──
 			float wallH = task.BuildTask.WallHeight > 0f
@@ -192,15 +200,6 @@ namespace Lute.Building
 				var meshComponent = bakedGo.AddComponent<MeshComponent>();
 				meshComponent.Mesh = mesh;
 				meshComponent.Collision = MeshComponent.CollisionType.None; // separate box collider
-				if ( brickMaterial is not null )
-				{
-					// Set material on all faces
-					int faceCount = mesh.FaceHandles.Count();
-					for ( int i = 0; i < faceCount; i++ )
-					{
-						meshComponent.SetMaterial( brickMaterial, i * 2 ); // 2 triangles per quad
-					}
-				}
 
 				// Simple box collider matching wall dimensions
 				var collider = bakedGo.AddComponent<BoxCollider>();
@@ -241,8 +240,9 @@ namespace Lute.Building
 		/// The cuboid is axis-aligned in the brick's local frame, then
 		/// rotated by localRot and translated to localCenter.
 		/// </summary>
-		static void AppendBrickCuboid( PolygonMesh mesh, Vector3 localCenter, Vector3 size, Rotation localRot )
+		static List<FaceHandle> AppendBrickCuboid( PolygonMesh mesh, Vector3 localCenter, Vector3 size, Rotation localRot )
 		{
+			var faces = new List<FaceHandle>();
 			float hx = size.x * 0.5f;
 			float hy = size.y * 0.5f;
 			float hz = size.z * 0.5f;
@@ -264,41 +264,43 @@ namespace Lute.Building
 
 			// 6 faces (quads), outward-facing
 			// Bottom (z-)
-			mesh.AddFace(
+			faces.Add( mesh.AddFace(
 				mesh.AddVertex( corners[0] ),
 				mesh.AddVertex( corners[1] ),
 				mesh.AddVertex( corners[2] ),
-				mesh.AddVertex( corners[3] ) );
+				mesh.AddVertex( corners[3] ) ) );
 			// Top (z+)
-			mesh.AddFace(
+			faces.Add( mesh.AddFace(
 				mesh.AddVertex( corners[4] ),
 				mesh.AddVertex( corners[5] ),
 				mesh.AddVertex( corners[6] ),
-				mesh.AddVertex( corners[7] ) );
+				mesh.AddVertex( corners[7] ) ) );
 			// Front (y-)
-			mesh.AddFace(
+			faces.Add( mesh.AddFace(
 				mesh.AddVertex( corners[0] ),
 				mesh.AddVertex( corners[1] ),
 				mesh.AddVertex( corners[5] ),
-				mesh.AddVertex( corners[4] ) );
+				mesh.AddVertex( corners[4] ) ) );
 			// Back (y+)
-			mesh.AddFace(
+			faces.Add( mesh.AddFace(
 				mesh.AddVertex( corners[2] ),
 				mesh.AddVertex( corners[3] ),
 				mesh.AddVertex( corners[7] ),
-				mesh.AddVertex( corners[6] ) );
+				mesh.AddVertex( corners[6] ) ) );
 			// Left (x-)
-			mesh.AddFace(
+			faces.Add( mesh.AddFace(
 				mesh.AddVertex( corners[0] ),
 				mesh.AddVertex( corners[3] ),
 				mesh.AddVertex( corners[7] ),
-				mesh.AddVertex( corners[4] ) );
+				mesh.AddVertex( corners[4] ) ) );
 			// Right (x+)
-			mesh.AddFace(
+			faces.Add( mesh.AddFace(
 				mesh.AddVertex( corners[1] ),
 				mesh.AddVertex( corners[2] ),
 				mesh.AddVertex( corners[6] ),
-				mesh.AddVertex( corners[5] ) );
+				mesh.AddVertex( corners[5] ) ) );
+
+			return faces;
 		}
 
 		/// <summary>
