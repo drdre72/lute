@@ -32,6 +32,10 @@ namespace Lute.Building
 	/// <c>wallPos + Rotation.FromYaw(wallRotation) * envelope.Center</c>
 	/// without double-translation. The BoxCollider uses envelope.Size with
 	/// both mesh and collider centered on local origin.
+	///
+	/// WINDING: All face windings match the canonical outward winding from
+	/// <see cref="BrickMeshBuilder.BuildSingleBrick"/> (CCW when viewed
+	/// from outside). This ensures correct backface culling.
 	/// </summary>
 	public static class CollapsedWallMeshBuilder
 	{
@@ -118,17 +122,17 @@ namespace Lute.Building
 
 			envelope = new BBox( new Vector3( minX, minY, minZ ), new Vector3( maxX, maxY, maxZ ) );
 			var envCenter = envelope.Center;
-			var envSize = envelope.Size;
 
 			// ── 2. Determine front/back wythes from GridSlot.GridY ──
 			frontGridY = localPlacements.Min( p => p.gridY );
 			backGridY = localPlacements.Max( p => p.gridY );
 
 			// ── 3. Solid recessed core (centered on local origin) ──
-			float coreMinX = (minX - envCenter.x), coreMaxX = (maxX - envCenter.x);
-			float coreMinY = (minY + CoreInset - envCenter.y), coreMaxY = (maxY - CoreInset - envCenter.y);
-			float coreMinZ = (minZ - envCenter.z), coreMaxZ = (maxZ - envCenter.z);
-			AddSolidBox( mesh, coreMinX, coreMinY, coreMinZ, coreMaxX, coreMaxY, coreMaxZ, coreMaterial );
+			// Winding matches canonical BuildSingleBrick outward winding.
+			float cx0 = minX - envCenter.x, cx1 = maxX - envCenter.x;
+			float cy0 = minY + CoreInset - envCenter.y, cy1 = maxY - CoreInset - envCenter.y;
+			float cz0 = minZ - envCenter.z, cz1 = maxZ - envCenter.z;
+			AddSolidBox( mesh, cx0, cy0, cz0, cx1, cy1, cz1, coreMaterial );
 
 			// ── 4. Front brick skin (GridY == frontGridY, y- face) ──
 			// Emit per-brick face quads preserving actual placement X/Z,
@@ -138,7 +142,6 @@ namespace Lute.Building
 				if ( gy != frontGridY )
 					continue;
 				var localRot = Rotation.FromYaw( yaw );
-				// Center the vertex around envelope center
 				var centeredCenter = center - envCenter;
 				AddBrickFaceQuad( mesh, centeredCenter, size, localRot, faceIndex: 2, brickMaterial );
 				frontSkinFaces++;
@@ -155,18 +158,18 @@ namespace Lute.Building
 				backSkinFaces++;
 			}
 
-			// ── 6. End caps (centered on local origin) ──
-			float cMinX = minX - envCenter.x, cMaxX = maxX - envCenter.x;
-			float cMinY = minY - envCenter.y, cMaxY = maxY - envCenter.y;
-			float cMinZ = minZ - envCenter.z, cMaxZ = maxZ - envCenter.z;
-			// Left end (x-)
-			AddCapFace( mesh, cMinX, cMinY, cMinZ, cMinX, cMinY, cMaxZ, cMinX, cMaxY, cMaxZ, cMinX, cMaxY, cMinZ, brickMaterial );
-			// Right end (x+)
-			AddCapFace( mesh, cMaxX, cMinY, cMinZ, cMaxX, cMaxY, cMinZ, cMaxX, cMaxY, cMaxZ, cMaxX, cMinY, cMaxZ, brickMaterial );
-			// Top (z+)
-			AddCapFace( mesh, cMinX, cMinY, cMaxZ, cMaxX, cMinY, cMaxZ, cMaxX, cMaxY, cMaxZ, cMinX, cMaxY, cMaxZ, brickMaterial );
-			// Bottom (z-)
-			AddCapFace( mesh, cMinX, cMinY, cMinZ, cMinX, cMaxY, cMinZ, cMaxX, cMaxY, cMinZ, cMaxX, cMinY, cMinZ, brickMaterial );
+			// ── 6. End caps (centered on local origin, canonical winding) ──
+			float ex0 = minX - envCenter.x, ex1 = maxX - envCenter.x;
+			float ey0 = minY - envCenter.y, ey1 = maxY - envCenter.y;
+			float ez0 = minZ - envCenter.z, ez1 = maxZ - envCenter.z;
+			// Left end (x-) — canonical: v3,v0,v4,v7
+			AddCapFace( mesh, ex0, ey1, ez0, ex0, ey0, ez0, ex0, ey0, ez1, ex0, ey1, ez1, brickMaterial );
+			// Right end (x+) — canonical: v1,v2,v6,v5
+			AddCapFace( mesh, ex1, ey0, ez0, ex1, ey1, ez0, ex1, ey1, ez1, ex1, ey0, ez1, brickMaterial );
+			// Top (z+) — canonical: v4,v5,v6,v7
+			AddCapFace( mesh, ex0, ey0, ez1, ex1, ey0, ez1, ex1, ey1, ez1, ex0, ey1, ez1, brickMaterial );
+			// Bottom (z-) — canonical: v0,v3,v2,v1
+			AddCapFace( mesh, ex0, ey0, ez0, ex0, ey1, ez0, ex1, ey1, ez0, ex1, ey0, ez0, brickMaterial );
 
 			// ── 7. Generate UVs after all geometry ──
 			mesh.ComputeFaceTextureParametersFromCoordinates();
@@ -175,50 +178,60 @@ namespace Lute.Building
 		}
 
 		/// <summary>
-		/// Add a solid box (6 faces) to the mesh with the given material.
-		/// All coordinates should already be centered on local origin.
+		/// Add a solid box (6 faces) with canonical outward winding matching
+		/// BrickMeshBuilder.BuildSingleBrick. All coordinates should already
+		/// be centered on local origin.
+		///
+		/// Canonical vertex mapping (x0=x-, x1=x+, y0=y-, y1=y+, z0=z-, z1=z+):
+		///   v0=(x0,y0,z0) v1=(x1,y0,z0) v2=(x1,y1,z0) v3=(x0,y1,z0)
+		///   v4=(x0,y0,z1) v5=(x1,y0,z1) v6=(x1,y1,z1) v7=(x0,y1,z1)
+		///
+		/// Canonical face winding (CCW from outside):
+		///   bottom: v0,v3,v2,v1   top: v4,v5,v6,v7
+		///   front:  v0,v1,v5,v4    back:  v2,v3,v7,v6
+		///   left:   v3,v0,v4,v7    right: v1,v2,v6,v5
 		/// </summary>
 		static void AddSolidBox( PolygonMesh mesh,
 			float x0, float y0, float z0, float x1, float y1, float z1,
 			Material material )
 		{
 			var faces = new List<FaceHandle>();
-			// Bottom (z-) - CCW from below
+			// bottom (z-): v0,v3,v2,v1
 			faces.Add( mesh.AddFace(
 				mesh.AddVertex( new Vector3( x0, y0, z0 ) ),
 				mesh.AddVertex( new Vector3( x0, y1, z0 ) ),
 				mesh.AddVertex( new Vector3( x1, y1, z0 ) ),
 				mesh.AddVertex( new Vector3( x1, y0, z0 ) ) ) );
-			// Top (z+) - CCW from above
+			// top (z+): v4,v5,v6,v7
 			faces.Add( mesh.AddFace(
 				mesh.AddVertex( new Vector3( x0, y0, z1 ) ),
 				mesh.AddVertex( new Vector3( x1, y0, z1 ) ),
 				mesh.AddVertex( new Vector3( x1, y1, z1 ) ),
 				mesh.AddVertex( new Vector3( x0, y1, z1 ) ) ) );
-			// Front (y-) - CCW from front
+			// front (y-): v0,v1,v5,v4
 			faces.Add( mesh.AddFace(
 				mesh.AddVertex( new Vector3( x0, y0, z0 ) ),
-				mesh.AddVertex( new Vector3( x0, y0, z1 ) ),
-				mesh.AddVertex( new Vector3( x1, y0, z1 ) ),
-				mesh.AddVertex( new Vector3( x1, y0, z0 ) ) ) );
-			// Back (y+) - CCW from back
-			faces.Add( mesh.AddFace(
-				mesh.AddVertex( new Vector3( x0, y1, z0 ) ),
-				mesh.AddVertex( new Vector3( x1, y1, z0 ) ),
-				mesh.AddVertex( new Vector3( x1, y1, z1 ) ),
-				mesh.AddVertex( new Vector3( x0, y1, z1 ) ) ) );
-			// Left (x-) - CCW from left
-			faces.Add( mesh.AddFace(
-				mesh.AddVertex( new Vector3( x0, y0, z0 ) ),
-				mesh.AddVertex( new Vector3( x0, y1, z0 ) ),
-				mesh.AddVertex( new Vector3( x0, y1, z1 ) ),
-				mesh.AddVertex( new Vector3( x0, y0, z1 ) ) ) );
-			// Right (x+) - CCW from right
-			faces.Add( mesh.AddFace(
 				mesh.AddVertex( new Vector3( x1, y0, z0 ) ),
 				mesh.AddVertex( new Vector3( x1, y0, z1 ) ),
+				mesh.AddVertex( new Vector3( x0, y0, z1 ) ) ) );
+			// back (y+): v2,v3,v7,v6
+			faces.Add( mesh.AddFace(
+				mesh.AddVertex( new Vector3( x1, y1, z0 ) ),
+				mesh.AddVertex( new Vector3( x0, y1, z0 ) ),
+				mesh.AddVertex( new Vector3( x0, y1, z1 ) ),
+				mesh.AddVertex( new Vector3( x1, y1, z1 ) ) ) );
+			// left (x-): v3,v0,v4,v7
+			faces.Add( mesh.AddFace(
+				mesh.AddVertex( new Vector3( x0, y1, z0 ) ),
+				mesh.AddVertex( new Vector3( x0, y0, z0 ) ),
+				mesh.AddVertex( new Vector3( x0, y0, z1 ) ),
+				mesh.AddVertex( new Vector3( x0, y1, z1 ) ) ) );
+			// right (x+): v1,v2,v6,v5
+			faces.Add( mesh.AddFace(
+				mesh.AddVertex( new Vector3( x1, y0, z0 ) ),
+				mesh.AddVertex( new Vector3( x1, y1, z0 ) ),
 				mesh.AddVertex( new Vector3( x1, y1, z1 ) ),
-				mesh.AddVertex( new Vector3( x1, y1, z0 ) ) ) );
+				mesh.AddVertex( new Vector3( x1, y0, z1 ) ) ) );
 
 			if ( material is not null )
 				mesh.AssignMaterialToFaces( faces, material );
@@ -227,7 +240,7 @@ namespace Lute.Building
 		/// <summary>
 		/// Add a single face quad of a brick (not the full cuboid).
 		/// faceIndex: 0=bottom, 1=top, 2=front(y-), 3=back(y+), 4=left(x-), 5=right(x+)
-		/// The face is in the brick's local frame, then rotated + translated.
+		/// Winding matches canonical BuildSingleBrick outward winding.
 		/// </summary>
 		static void AddBrickFaceQuad( PolygonMesh mesh, Vector3 center, Vector3 size, Rotation localRot, int faceIndex, Material material )
 		{
@@ -238,37 +251,37 @@ namespace Lute.Building
 			Vector3[] localCorners = new Vector3[4];
 			switch ( faceIndex )
 			{
-				case 0: // bottom (z-)
+				case 0: // bottom (z-): v0,v3,v2,v1
 					localCorners[0] = new Vector3( -hx, -hy, -hz );
-					localCorners[1] = new Vector3(  hx, -hy, -hz );
+					localCorners[1] = new Vector3( -hx,  hy, -hz );
 					localCorners[2] = new Vector3(  hx,  hy, -hz );
-					localCorners[3] = new Vector3( -hx,  hy, -hz );
+					localCorners[3] = new Vector3(  hx, -hy, -hz );
 					break;
-				case 1: // top (z+)
+				case 1: // top (z+): v4,v5,v6,v7
 					localCorners[0] = new Vector3( -hx, -hy,  hz );
 					localCorners[1] = new Vector3(  hx, -hy,  hz );
 					localCorners[2] = new Vector3(  hx,  hy,  hz );
 					localCorners[3] = new Vector3( -hx,  hy,  hz );
 					break;
-				case 2: // front (y-) - CCW from outside (looking toward y+)
+				case 2: // front (y-): v0,v1,v5,v4
 					localCorners[0] = new Vector3( -hx, -hy, -hz );
-					localCorners[1] = new Vector3( -hx, -hy,  hz );
+					localCorners[1] = new Vector3(  hx, -hy, -hz );
 					localCorners[2] = new Vector3(  hx, -hy,  hz );
-					localCorners[3] = new Vector3(  hx, -hy, -hz );
-					break;
-				case 3: // back (y+) - CCW from outside (looking toward y-)
-					localCorners[0] = new Vector3( -hx,  hy, -hz );
-					localCorners[1] = new Vector3(  hx,  hy, -hz );
-					localCorners[2] = new Vector3(  hx,  hy,  hz );
-					localCorners[3] = new Vector3( -hx,  hy,  hz );
-					break;
-				case 4: // left (x-)
-					localCorners[0] = new Vector3( -hx, -hy, -hz );
-					localCorners[1] = new Vector3( -hx,  hy, -hz );
-					localCorners[2] = new Vector3( -hx,  hy,  hz );
 					localCorners[3] = new Vector3( -hx, -hy,  hz );
 					break;
-				case 5: // right (x+)
+				case 3: // back (y+): v2,v3,v7,v6
+					localCorners[0] = new Vector3(  hx,  hy, -hz );
+					localCorners[1] = new Vector3( -hx,  hy, -hz );
+					localCorners[2] = new Vector3( -hx,  hy,  hz );
+					localCorners[3] = new Vector3(  hx,  hy,  hz );
+					break;
+				case 4: // left (x-): v3,v0,v4,v7
+					localCorners[0] = new Vector3( -hx,  hy, -hz );
+					localCorners[1] = new Vector3( -hx, -hy, -hz );
+					localCorners[2] = new Vector3( -hx, -hy,  hz );
+					localCorners[3] = new Vector3( -hx,  hy,  hz );
+					break;
+				case 5: // right (x+): v1,v2,v6,v5
 					localCorners[0] = new Vector3(  hx, -hy, -hz );
 					localCorners[1] = new Vector3(  hx,  hy, -hz );
 					localCorners[2] = new Vector3(  hx,  hy,  hz );
@@ -293,7 +306,7 @@ namespace Lute.Building
 		}
 
 		/// <summary>
-		/// Add a flat cap face with 4 explicit corners (CCW from outside).
+		/// Add a flat cap face with 4 explicit corners (canonical outward winding).
 		/// </summary>
 		static void AddCapFace( PolygonMesh mesh,
 			float x0, float y0, float z0,
