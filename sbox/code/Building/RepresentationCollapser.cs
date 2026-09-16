@@ -147,28 +147,15 @@ namespace Lute.Building
 				return;
 			}
 
-			// ── 2. Build the PolygonMesh in wall-local space ──
+			// ── 2. Build the collapsed mesh via CollapsedWallMeshBuilder ──
 			var wallPos = task.BuildTask.Position;
-			var wallRot = Rotation.FromYaw( task.BuildTask.Rotation );
+			float wallRotation = task.BuildTask.Rotation;
+			var brickMaterial = Material.Load( "materials/medieval/brick_wall.vmat" );
+			var coreMaterial = Material.Load( "materials/medieval/archway_stone.vmat" );
 
-			var mesh = new PolygonMesh();
-			var brickMaterial = Material.Load( "materials/medieval/castle_wall.vmat" );
-
-			int brickCount = 0;
-			foreach ( var p in placements )
-			{
-				// Transform world position to wall-local space
-				var localCenter = wallRot.Inverse * (p.Position - wallPos);
-				// Local yaw relative to wall
-				float localYaw = p.Yaw - task.BuildTask.Rotation;
-				var localRot = Rotation.FromYaw( localYaw );
-
-				var faceHandles = AppendBrickCuboid( mesh, localCenter, p.Size, localRot );
-				// Assign material to all faces of this brick
-				if ( brickMaterial is not null )
-					mesh.AssignMaterialToFaces( faceHandles, brickMaterial );
-				brickCount++;
-			}
+			var mesh = CollapsedWallMeshBuilder.Build(
+				placements, wallPos, wallRotation, brickMaterial, coreMaterial,
+				out var envelope );
 
 			if ( !mesh.VertexHandles.Any() )
 			{
@@ -177,35 +164,29 @@ namespace Lute.Building
 				return;
 			}
 
-			// Auto-generate UVs from face positions + material texture size
-			mesh.ComputeFaceTextureParametersFromCoordinates();
-
-			// ── 3. Validate baked height matches task ──
-			float wallH = task.BuildTask.WallHeight > 0f
-				? task.BuildTask.WallHeight
-				: 4f * 39.37f;
-			float segLen = 2f * 39.37f;
-			float wallDepth = 0.5f * 39.37f;
+			// ── 3. Report face/vertex counts for verification ──
+			int vertexCount = mesh.VertexHandles.Count();
+			int faceCount = mesh.FaceHandles.Count();
+			int brickCount = placements.Count;
 
 			// ── 4. Create the baked GameObject (before destroying bricks) ──
+			Vector3 envSize = envelope.Size;
 			GameObject bakedGo = null;
 			try
 			{
 				bakedGo = Scene.CreateObject( false );
 				bakedGo.Name = $"Village_{task.BuildTask.Name}_baked";
-				bakedGo.WorldPosition = wallPos; // mesh vertices already include full Z range (0..wallH)
-				bakedGo.WorldRotation = wallRot;
-				bakedGo.WorldScale = Vector3.One; // mesh is authored at correct world dimensions
+				bakedGo.WorldPosition = wallPos + envelope.Center;
+				bakedGo.WorldRotation = Rotation.FromYaw( wallRotation );
+				bakedGo.WorldScale = Vector3.One;
 
 				var meshComponent = bakedGo.AddComponent<MeshComponent>();
 				meshComponent.Mesh = mesh;
-				meshComponent.Collision = MeshComponent.CollisionType.None; // separate box collider
+				meshComponent.Collision = MeshComponent.CollisionType.None;
 
-				// Simple box collider matching wall dimensions
+				// Box collider derived from the computed envelope (not hardcoded)
 				var collider = bakedGo.AddComponent<BoxCollider>();
-				collider.Scale = new Vector3( segLen, wallDepth, wallH );
-
-				bakedGo.Enabled = true;
+				collider.Scale = envSize;
 			}
 			catch ( Exception ex )
 			{
@@ -231,76 +212,7 @@ namespace Lute.Building
 			_collapsed.Add( task.Id );
 			CollapsedBrickCount += destroyed;
 			CollapsedSegments++;
-			Log.Info( $"Lute: RepresentationCollapser — baked wall '{task.BuildTask.Name}': {brickCount} bricks → 1 MeshComponent, destroyed {destroyed} GameObjects. Total: {CollapsedSegments} segments, {CollapsedBrickCount} bricks." );
-		}
-
-		/// <summary>
-		/// Append a brick cuboid (6 faces) to the polygon mesh at the
-		/// given local center with the given local size and rotation.
-		/// The cuboid is axis-aligned in the brick's local frame, then
-		/// rotated by localRot and translated to localCenter.
-		/// </summary>
-		static List<FaceHandle> AppendBrickCuboid( PolygonMesh mesh, Vector3 localCenter, Vector3 size, Rotation localRot )
-		{
-			var faces = new List<FaceHandle>();
-			float hx = size.x * 0.5f;
-			float hy = size.y * 0.5f;
-			float hz = size.z * 0.5f;
-
-			// 8 corners in brick-local space (before rotation/translation)
-			Vector3[] corners = new Vector3[8];
-			corners[0] = new Vector3( -hx, -hy, -hz );
-			corners[1] = new Vector3(  hx, -hy, -hz );
-			corners[2] = new Vector3(  hx,  hy, -hz );
-			corners[3] = new Vector3( -hx,  hy, -hz );
-			corners[4] = new Vector3( -hx, -hy,  hz );
-			corners[5] = new Vector3(  hx, -hy,  hz );
-			corners[6] = new Vector3(  hx,  hy,  hz );
-			corners[7] = new Vector3( -hx,  hy,  hz );
-
-			// Transform to wall-local space
-			for ( int i = 0; i < 8; i++ )
-				corners[i] = localRot * corners[i] + localCenter;
-
-			// 6 faces (quads), outward-facing
-			// Bottom (z-)
-			faces.Add( mesh.AddFace(
-				mesh.AddVertex( corners[0] ),
-				mesh.AddVertex( corners[1] ),
-				mesh.AddVertex( corners[2] ),
-				mesh.AddVertex( corners[3] ) ) );
-			// Top (z+)
-			faces.Add( mesh.AddFace(
-				mesh.AddVertex( corners[4] ),
-				mesh.AddVertex( corners[5] ),
-				mesh.AddVertex( corners[6] ),
-				mesh.AddVertex( corners[7] ) ) );
-			// Front (y-)
-			faces.Add( mesh.AddFace(
-				mesh.AddVertex( corners[0] ),
-				mesh.AddVertex( corners[1] ),
-				mesh.AddVertex( corners[5] ),
-				mesh.AddVertex( corners[4] ) ) );
-			// Back (y+)
-			faces.Add( mesh.AddFace(
-				mesh.AddVertex( corners[2] ),
-				mesh.AddVertex( corners[3] ),
-				mesh.AddVertex( corners[7] ),
-				mesh.AddVertex( corners[6] ) ) );
-			// Left (x-)
-			faces.Add( mesh.AddFace(
-				mesh.AddVertex( corners[0] ),
-				mesh.AddVertex( corners[3] ),
-				mesh.AddVertex( corners[7] ),
-				mesh.AddVertex( corners[4] ) ) );
-			// Right (x+)
-			faces.Add( mesh.AddFace(
-				mesh.AddVertex( corners[1] ),
-				mesh.AddVertex( corners[2] ),
-				mesh.AddVertex( corners[6] ),
-				mesh.AddVertex( corners[5] ) ) );
-
-			return faces;
+			Log.Info( $"Lute: RepresentationCollapser — baked wall '{task.BuildTask.Name}': {brickCount} bricks → {faceCount} faces / {vertexCount} verts (1 MeshComponent), destroyed {destroyed} GameObjects. Envelope={envSize}. Total: {CollapsedSegments} segments, {CollapsedBrickCount} bricks." );
 		}
 
 		/// <summary>

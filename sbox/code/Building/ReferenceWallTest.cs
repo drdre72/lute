@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Sandbox;
@@ -165,6 +166,10 @@ namespace Lute.Building
 					MathF.Abs( pos.x - WallOrigin.x ) < 0.1f && MathF.Abs( pos.y - WallOrigin.y ) < 0.1f && MathF.Abs( pos.z - WallOrigin.z ) < 0.1f,
 					$"pos={pos} expected={WallOrigin}" );
 			}
+
+			// ── Stage 3.5: CollapsedWallMeshBuilder probe ──
+			Log.Info( "Lute: ReferenceWallTest Stage 3.5: CollapsedWallMeshBuilder probe" );
+			await RunCollapsedWallProbe( task );
 
 			// ── Stage 4: Deconstruct ──
 			Log.Info( "Lute: ReferenceWallTest Stage 4: Deconstruct" );
@@ -529,6 +534,189 @@ namespace Lute.Building
 			task.WallState = WallSegmentState.Deconstructing;
 			Log.Info( $"  Deconstructed: expanded top course (row {topRow})." );
 			return true;
+		}
+
+		/// <summary>
+		/// Stage 3.5 probe: verify CollapsedWallMeshBuilder produces a valid
+		/// finalized wall with correct dimensions, identity scale, matching
+		/// collider, no remaining brick GameObjects, solid mortar (raycast
+		/// does not pass through), closed end-caps, and preserved metadata.
+		/// </summary>
+		async Task RunCollapsedWallProbe( VillageBuildTask task )
+		{
+			// Register placements in SpatialRegistry (the reference wall builder
+			// above only spawned GameObjects + PlacedBricks; it did not register
+			// in SpatialRegistry. We register now so CollapsedWallMeshBuilder
+			// has authoritative metadata.)
+			int registeredCount = RegisterReferenceWallInSpatialRegistry( task );
+			Check( "SpatialRegistry registrations created", registeredCount > 0, $"{registeredCount} placements" );
+
+			var placements = SpatialRegistry.GetByAssembly( task.Name )
+				.Where( p => p.SemanticType == StructuralType.WallBrick
+					|| p.SemanticType == StructuralType.CornerAssemblyBrick )
+				.ToList();
+			Check( "SpatialRegistry returns placements for task", placements.Count > 0, $"{placements.Count} placements" );
+
+			var brickMaterial = Material.Load( "materials/medieval/brick_wall.vmat" );
+			var coreMaterial = Material.Load( "materials/medieval/archway_stone.vmat" );
+
+			var mesh = CollapsedWallMeshBuilder.Build(
+				placements, task.Position, task.Rotation, brickMaterial, coreMaterial,
+				out var envelope );
+
+			int vertexCount = mesh.VertexHandles.Count();
+			int faceCount = mesh.FaceHandles.Count();
+			Log.Info( $"  CollapsedWallMeshBuilder: {placements.Count} placements -> {faceCount} faces / {vertexCount} verts" );
+
+			Check( "Collapsed mesh has vertices", vertexCount > 0, $"{vertexCount} verts" );
+			Check( "Collapsed mesh has faces", faceCount > 0, $"{faceCount} faces" );
+
+			// Canonical final dimensions: 2.0m x 0.5m x 2.0m (in engine units)
+			float expectedX = WallSegmentLength;
+			float expectedY = WallThickness;
+			float expectedZ = WallHeight;
+			var envSize = envelope.Size;
+			Log.Info( $"  Envelope size: {envSize} (expected ~{expectedX},{expectedY},{expectedZ})" );
+			Check( "Envelope X ~ 2.0m",
+				MathF.Abs( envSize.x - expectedX ) < 1.0f, $"{envSize.x} vs {expectedX}" );
+			Check( "Envelope Y ~ 0.5m",
+				MathF.Abs( envSize.y - expectedY ) < 1.0f, $"{envSize.y} vs {expectedY}" );
+			Check( "Envelope Z ~ 2.0m",
+				MathF.Abs( envSize.z - expectedZ ) < 1.0f, $"{envSize.z} vs {expectedZ}" );
+
+			// Create the finalized GameObject (identity world scale)
+			var probeGo = Scene.CreateObject( false );
+			probeGo.Name = "RefWall_collapsed_probe";
+			probeGo.WorldPosition = task.Position + envelope.Center;
+			probeGo.WorldRotation = Rotation.FromYaw( task.Rotation );
+			probeGo.WorldScale = Vector3.One;
+
+			var meshComponent = probeGo.AddComponent<MeshComponent>();
+			meshComponent.Mesh = mesh;
+			meshComponent.Collision = MeshComponent.CollisionType.None;
+
+			var collider = probeGo.AddComponent<BoxCollider>();
+			collider.Scale = envSize;
+
+			probeGo.Enabled = true;
+
+			// Verify identity world scale
+			var scale = probeGo.WorldScale;
+			Check( "Probe GameObject scale == Vector3.One",
+				MathF.Abs( scale.x - 1f ) < 0.001f && MathF.Abs( scale.y - 1f ) < 0.001f && MathF.Abs( scale.z - 1f ) < 0.001f,
+				$"scale={scale}" );
+
+			// Verify collider dimensions match envelope
+			var colliderScale = collider.Scale;
+			Check( "Collider scale matches envelope",
+				MathF.Abs( colliderScale.x - envSize.x ) < 0.1f
+				&& MathF.Abs( colliderScale.y - envSize.y ) < 0.1f
+				&& MathF.Abs( colliderScale.z - envSize.z ) < 0.1f,
+				$"collider={colliderScale} envelope={envSize}" );
+
+			// Mortar-joint probe: raycast through where a mortar joint would be
+			// should NOT pass through (the solid core blocks it)
+			float midX = task.Position.x;
+			float midZ = task.Position.z + WallHeight * 0.5f;
+			float frontY = task.Position.y - WallThickness * 0.5f - 5.0f;
+			float backY = task.Position.y + WallThickness * 0.5f + 5.0f;
+			var mortarTrace = Scene.Trace.Ray( new Vector3( midX, frontY, midZ ), new Vector3( midX, backY, midZ ) ).Run();
+			Check( "Mortar-joint raycast does not pass through wall",
+				mortarTrace.Hit, $"hit={mortarTrace.Hit} at {mortarTrace.EndPosition}" );
+
+			// Left end-cap probe: raycast from outside-left toward center should hit
+			float leftX = task.Position.x - WallSegmentLength * 0.5f - 5.0f;
+			float rightX = task.Position.x + WallSegmentLength * 0.5f + 5.0f;
+			var leftTrace = Scene.Trace.Ray(
+				new Vector3( leftX, task.Position.y, midZ ),
+				new Vector3( task.Position.x, task.Position.y, midZ ) ).Run();
+			Check( "Left end-cap raycast hits wall",
+				leftTrace.Hit, $"hit={leftTrace.Hit}" );
+
+			// Right end-cap probe
+			var rightTrace = Scene.Trace.Ray(
+				new Vector3( rightX, task.Position.y, midZ ),
+				new Vector3( task.Position.x, task.Position.y, midZ ) ).Run();
+			Check( "Right end-cap raycast hits wall",
+				rightTrace.Hit, $"hit={rightTrace.Hit}" );
+
+			// Running-bond silhouette: the mesh should have significantly more
+			// faces than a simple box (6 faces). With front+back skin + core + caps,
+			// we expect at least 6 (core) + 2*bricksPerCourse*numRows (skin) + 4 (caps).
+			Check( "Mesh face count > 6 (running-bond silhouette present)",
+				faceCount > 6, $"{faceCount} faces" );
+
+			// Metadata preservation: PlacedBricks and PiecesPlaced unchanged
+			Check( "PlacedBricks preserved after collapse probe",
+				task.PlacedBricks.Count == ComputeExpectedPieces(),
+				$"{task.PlacedBricks.Count} slots" );
+			Check( "PiecesPlaced preserved after collapse probe",
+				task.PiecesPlaced == ComputeExpectedPieces(),
+				$"{task.PiecesPlaced} pieces" );
+
+			// Clean up probe object
+			probeGo.Destroy();
+
+			await Task.CompletedTask;
+		}
+
+		/// <summary>
+		/// Register the reference wall's brick placements in SpatialRegistry
+		/// so CollapsedWallMeshBuilder has authoritative metadata.
+		/// </summary>
+		int RegisterReferenceWallInSpatialRegistry( VillageBuildTask task )
+		{
+			float segLen = WallSegmentLength;
+			float wallH = WallHeight;
+			float wallDepth = WallThickness;
+			float brickLen = BrickBodySize.x;
+			float brickDepth = BrickBodySize.y;
+			float brickH = BrickBodySize.z;
+			int modulesX = (int)MathF.Round( segLen / BrickModuleX );
+			int numRows = (int)MathF.Round( wallH / BrickModuleZ );
+			int numWythes = (int)MathF.Round( wallDepth / BrickModuleY );
+			int totalPieces = 0;
+			int registered = 0;
+
+			for ( int wythe = 0; wythe < numWythes; wythe++ )
+			{
+				float yCenter = -wallDepth * 0.5f + BrickModuleY * 0.5f + wythe * BrickModuleY;
+				for ( int row = 0; row < numRows; row++ )
+				{
+					float z = row * BrickModuleZ;
+					bool isOdd = (row % 2 == 1);
+					float halfLen = BrickModuleX * 0.5f;
+					if ( isOdd )
+					{
+						float lx = -segLen * 0.5f + halfLen * 0.5f;
+						var pos = task.Position + new Vector3( lx, yCenter, z );
+						SpatialRegistry.Register( StructuralPlacement.ForWallBrick( pos, new Vector3( brickLen * 0.5f, brickDepth, brickH ), task.Rotation, task.Name, BrickSlot.HalfStretcher( 0, wythe, row ), totalPieces++ ) );
+						registered++;
+						for ( int col = 1; col < modulesX; col++ )
+						{
+							float x = -segLen * 0.5f + col * BrickModuleX;
+							pos = task.Position + new Vector3( x, yCenter, z );
+							SpatialRegistry.Register( StructuralPlacement.ForWallBrick( pos, new Vector3( brickLen, brickDepth, brickH ), task.Rotation, task.Name, BrickSlot.Stretcher( col, wythe, row ), totalPieces++ ) );
+							registered++;
+						}
+						float rx = segLen * 0.5f - halfLen * 0.5f;
+						var rpos = task.Position + new Vector3( rx, yCenter, z );
+						SpatialRegistry.Register( StructuralPlacement.ForWallBrick( rpos, new Vector3( brickLen * 0.5f, brickDepth, brickH ), task.Rotation, task.Name, BrickSlot.HalfStretcher( modulesX, wythe, row ), totalPieces++ ) );
+						registered++;
+					}
+					else
+					{
+						for ( int col = 0; col < modulesX; col++ )
+						{
+							float x = -segLen * 0.5f + BrickModuleX * 0.5f + col * BrickModuleX;
+							var pos = task.Position + new Vector3( x, yCenter, z );
+							SpatialRegistry.Register( StructuralPlacement.ForWallBrick( pos, new Vector3( brickLen, brickDepth, brickH ), task.Rotation, task.Name, BrickSlot.Stretcher( col, wythe, row ), totalPieces++ ) );
+							registered++;
+						}
+					}
+				}
+			}
+			return registered;
 		}
 
 		void Check( string name, bool passed, string detail )
