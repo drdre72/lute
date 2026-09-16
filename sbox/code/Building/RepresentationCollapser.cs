@@ -120,10 +120,23 @@ namespace Lute.Building
 			}
 		}
 
+		// Masonry module dimensions (must match VillageBuilder)
+		const float M = 39.37f;
+		const float BrickModuleX = 0.25f * M;
+		const float BrickModuleY = 0.125f * M;
+		const float BrickModuleZ = 0.0625f * M;
+		const float WallSegmentLength = 2f * M;
+		const float WallThickness = 0.5f * M;
+
 		/// <summary>
 		/// Bake a wall mesh from SpatialRegistry metadata and atomically
 		/// swap it in place of the per-brick GameObjects. If any step
 		/// fails, the original bricks remain as a fallback.
+		///
+		/// Only WallBrick placements are used for the mesh. CornerAssemblyBrick
+		/// placements are excluded — they are shared junction objects with
+		/// their own ownership path and may be rotated relative to the wall.
+		/// Corner GameObjects are NOT destroyed by straight-wall collapse.
 		/// </summary>
 		void BakeAndSwap( DirectedTask task )
 		{
@@ -134,15 +147,17 @@ namespace Lute.Building
 			if ( _collapsed.Contains( task.Id ) )
 				return;
 
-			// ── 1. Collect authoritative brick placements from registry ──
-			var placements = SpatialRegistry.GetByAssembly( task.BuildTask.Name )
-				.Where( p => p.SemanticType == StructuralType.WallBrick
-					|| p.SemanticType == StructuralType.CornerAssemblyBrick )
+			// ── 1. Collect authoritative placements from registry ──
+			var allPlacements = SpatialRegistry.GetByAssembly( task.BuildTask.Name );
+			int cornerCount = allPlacements.Count( p => p.SemanticType == StructuralType.CornerAssemblyBrick );
+			// WallBrick only — exclude CornerAssemblyBrick
+			var wallBrickPlacements = allPlacements
+				.Where( p => p.SemanticType == StructuralType.WallBrick )
 				.ToList();
 
-			if ( placements.Count == 0 )
+			if ( wallBrickPlacements.Count == 0 )
 			{
-				Log.Warning( $"Lute: RepresentationCollapser — no SpatialRegistry placements for '{task.BuildTask.Name}'. Falling back to box." );
+				Log.Warning( $"Lute: RepresentationCollapser — no WallBrick placements for '{task.BuildTask.Name}'. Falling back to box." );
 				CollapseToBoxFallback( task );
 				return;
 			}
@@ -154,8 +169,12 @@ namespace Lute.Building
 			var coreMaterial = Material.Load( "materials/medieval/archway_stone.vmat" );
 
 			var mesh = CollapsedWallMeshBuilder.Build(
-				placements, wallPos, wallRotation, brickMaterial, coreMaterial,
-				out var envelope );
+				wallBrickPlacements, wallPos, wallRotation, brickMaterial, coreMaterial,
+				out var envelope,
+				out int frontGridY,
+				out int backGridY,
+				out int frontSkinFaces,
+				out int backSkinFaces );
 
 			if ( !mesh.VertexHandles.Any() )
 			{
@@ -164,19 +183,41 @@ namespace Lute.Building
 				return;
 			}
 
+			Vector3 envSize = envelope.Size;
+			Vector3 envCenter = envelope.Center;
+
+			// ── 2a. Pre-bake diagnostic logging ──
+			Log.Info( $"Lute: RepresentationCollapser — pre-bake '{task.BuildTask.Name}': WallBrick={wallBrickPlacements.Count}, CornerAssemblyBrick={cornerCount}, frontGridY={frontGridY}, backGridY={backGridY}, envelope mins=({envelope.Mins}), maxs=({envelope.Maxs}), center=({envCenter}), size=({envSize}), frontSkinFaces={frontSkinFaces}, backSkinFaces={backSkinFaces}" );
+
+			// ── 2b. Envelope safeguard — refuse impossible dimensions ──
+			float expectedLength = WallSegmentLength;
+			float expectedThickness = WallThickness;
+			float expectedHeight = task.BuildTask.WallHeight > 0f
+				? task.BuildTask.WallHeight
+				: 4f * M;
+
+			if ( envSize.x > expectedLength + BrickModuleX ||
+			     envSize.y > expectedThickness + BrickModuleX ||
+			     envSize.z > expectedHeight + BrickModuleZ )
+			{
+				Log.Warning( $"Lute: Refusing collapsed wall bake: impossible envelope {envSize} for '{task.BuildTask.Name}' (expected ~{expectedLength},{expectedThickness},{expectedHeight}). Leaving bricks intact." );
+				return;
+			}
+
 			// ── 3. Report face/vertex counts for verification ──
 			int vertexCount = mesh.VertexHandles.Count();
 			int faceCount = mesh.FaceHandles.Count();
-			int brickCount = placements.Count;
+			int brickCount = wallBrickPlacements.Count;
 
 			// ── 4. Create the baked GameObject (before destroying bricks) ──
-			Vector3 envSize = envelope.Size;
+			// DEFECT 2 FIX: vertices are centered on local origin, so place
+			// the GameObject at wallPos + rotated envelope.Center.
 			GameObject bakedGo = null;
 			try
 			{
 				bakedGo = Scene.CreateObject( false );
 				bakedGo.Name = $"Village_{task.BuildTask.Name}_baked";
-				bakedGo.WorldPosition = wallPos + envelope.Center;
+				bakedGo.WorldPosition = wallPos + Rotation.FromYaw( wallRotation ) * envCenter;
 				bakedGo.WorldRotation = Rotation.FromYaw( wallRotation );
 				bakedGo.WorldScale = Vector3.One;
 
@@ -184,7 +225,7 @@ namespace Lute.Building
 				meshComponent.Mesh = mesh;
 				meshComponent.Collision = MeshComponent.CollisionType.None;
 
-				// Box collider derived from the computed envelope (not hardcoded)
+				// Box collider from envelope size, centered on local origin
 				var collider = bakedGo.AddComponent<BoxCollider>();
 				collider.Scale = envSize;
 
@@ -198,8 +239,9 @@ namespace Lute.Building
 				return;
 			}
 
-			// ── 5. Atomic swap: destroy original bricks + stale collider ──
-			int destroyed = DestroyBrickGameObjects( task.BuildTask.Name );
+			// ── 5. Atomic swap: destroy original WallBrick GameObjects only ──
+			// Do NOT destroy CornerAssemblyBrick GameObjects — they are shared.
+			int destroyed = DestroyWallBrickGameObjects( task.BuildTask.Name );
 			DestroyStaleCollider( task.BuildTask.Name );
 
 			// Destroy old FinalizedMeshGo if present
@@ -214,7 +256,36 @@ namespace Lute.Building
 			_collapsed.Add( task.Id );
 			CollapsedBrickCount += destroyed;
 			CollapsedSegments++;
-			Log.Info( $"Lute: RepresentationCollapser — baked wall '{task.BuildTask.Name}': {brickCount} bricks → {faceCount} faces / {vertexCount} verts (1 MeshComponent), destroyed {destroyed} GameObjects. Envelope={envSize}. Total: {CollapsedSegments} segments, {CollapsedBrickCount} bricks." );
+			Log.Info( $"Lute: RepresentationCollapser — baked wall '{task.BuildTask.Name}': {brickCount} WallBricks → {faceCount} faces / {vertexCount} verts (1 MeshComponent), destroyed {destroyed} brick GameObjects (corners preserved). Envelope={envSize}. Total: {CollapsedSegments} segments, {CollapsedBrickCount} bricks." );
+		}
+
+		/// <summary>
+		/// Destroy only WallBrick GameObjects for the given task name.
+		/// CornerAssemblyBrick GameObjects are preserved (shared junctions).
+		/// </summary>
+		int DestroyWallBrickGameObjects( string taskName )
+		{
+			string brickPrefix = $"Village_{taskName}_";
+			int destroyed = 0;
+			foreach ( var go in Scene.GetAllObjects( false ) )
+			{
+				if ( go.Name == null ) continue;
+				if ( !go.Name.StartsWith( brickPrefix, StringComparison.Ordinal ) )
+					continue;
+				if ( go.Components.Get<ModelRenderer>() == null )
+					continue;
+				if ( go.Name.EndsWith( "_collider", StringComparison.Ordinal ) )
+					continue;
+				if ( go.Name.EndsWith( "_baked", StringComparison.Ordinal ) )
+					continue;
+				if ( go.Name.EndsWith( "_corner", StringComparison.Ordinal ) )
+					continue;
+				if ( go.Name.Contains( "_corner_", StringComparison.Ordinal ) )
+					continue;
+				go.Destroy();
+				destroyed++;
+			}
+			return destroyed;
 		}
 
 		/// <summary>

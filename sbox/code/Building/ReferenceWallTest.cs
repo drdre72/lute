@@ -562,7 +562,9 @@ namespace Lute.Building
 
 			var mesh = CollapsedWallMeshBuilder.Build(
 				placements, task.Position, task.Rotation, brickMaterial, coreMaterial,
-				out var envelope );
+				out var envelope,
+			out int frontGridY, out int backGridY,
+			out int frontSkinFaces, out int backSkinFaces );
 
 			int vertexCount = mesh.VertexHandles.Count();
 			int faceCount = mesh.FaceHandles.Count();

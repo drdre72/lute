@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using HalfEdgeMesh;
@@ -8,33 +9,44 @@ namespace Lute.Building
 	/// <summary>
 	/// Builds the finalized (collapsed) wall mesh from authoritative
 	/// SpatialRegistry placements. Produces a solid recessed core +
-	/// front/back visible brick skin + closed ends/caps — NOT a pile
-	/// of full cuboids. This eliminates open mortar joints, interior
-	/// wythe geometry, and see-through gaps while preserving the
-	/// running-bond silhouette from actual placements.
+	/// front/back visible brick skin + closed ends/caps.
 	///
-	/// The bond pattern is derived from actual SpatialRegistry
-	/// placements (each brick's world position, size, yaw), not
-	/// regenerated from wall dimensions. The core fills the complete
-	/// structural envelope so mortar joints appear as recessed
-	/// masonry, not open air.
+	/// DEFECT 1 FIX: Only <see cref="StructuralType.WallBrick"/> placements
+	/// are used for the wall body envelope and exterior skin classification.
+	/// <see cref="StructuralType.CornerAssemblyBrick"/> placements are
+	/// excluded entirely — they may be rotated relative to the wall and
+	/// would corrupt geometric minY/maxY extrema, leaving the core exposed.
 	///
-	/// Only exterior visible faces are emitted:
-	///   - Front skin: front face (y-) of front-wythe bricks
-	///   - Back skin: back face (y+) of back-wythe bricks
-	///   - End caps: left/right/top/bottom of the envelope
-	/// Interior wythe faces are NOT emitted.
+	/// Exterior wythes are determined from authoritative
+	/// <see cref="BrickSlot.GridY"/> (wythe index), NOT from geometric
+	/// position extrema. Front wythe = minimum GridY among WallBrick
+	/// placements; back wythe = maximum GridY. This is robust to brick
+	/// rotation and placement tolerance.
+	///
+	/// Per-brick face quads preserve actual X/Z placement, half-bricks,
+	/// and running-bond offsets from SpatialRegistry. The core fills the
+	/// envelope so mortar joints appear as recessed masonry.
+	///
+	/// DEFECT 2 FIX: All vertices are centered around the envelope center
+	/// so the GameObject can be placed at
+	/// <c>wallPos + Rotation.FromYaw(wallRotation) * envelope.Center</c>
+	/// without double-translation. The BoxCollider uses envelope.Size with
+	/// both mesh and collider centered on local origin.
 	/// </summary>
 	public static class CollapsedWallMeshBuilder
 	{
 		const float M = 39.37f;
 
 		/// <summary> How far the recessed core is inset from the brick skin surface. </summary>
-		const float CoreInset = 0.005f * M; // ~5mm, just enough to create a visible recess
+		const float CoreInset = 0.005f * M; // ~5mm
 
 		/// <summary>
-		/// Build the collapsed wall mesh from SpatialRegistry placements.
-		/// Returns the mesh and the computed wall-local envelope (for collider).
+		/// Build the collapsed wall mesh from WallBrick placements only.
+		/// Returns the mesh (centered on local origin) and the computed
+		/// wall-local envelope (for collider + GameObject placement).
+		///
+		/// CornerAssemblyBrick placements are excluded — they are shared
+		/// junction objects with their own ownership path.
 		/// </summary>
 		public static PolygonMesh Build(
 			List<StructuralPlacement> placements,
@@ -42,33 +54,47 @@ namespace Lute.Building
 			float wallRotation,
 			Material brickMaterial,
 			Material coreMaterial,
-			out BBox envelope )
+			out BBox envelope,
+			out int frontGridY,
+			out int backGridY,
+			out int frontSkinFaces,
+			out int backSkinFaces )
 		{
 			var mesh = new PolygonMesh();
 			envelope = new BBox();
+			frontGridY = -1;
+			backGridY = -1;
+			frontSkinFaces = 0;
+			backSkinFaces = 0;
 
-			if ( placements == null || placements.Count == 0 )
+			// ── Filter: WallBrick only, exclude CornerAssemblyBrick ──
+			var wallBricks = placements
+				.Where( p => p.SemanticType == StructuralType.WallBrick )
+				.ToList();
+
+			if ( wallBricks.Count == 0 )
 				return mesh;
 
 			var wallRot = Rotation.FromYaw( wallRotation );
 			var wallRotInv = wallRot.Inverse;
 
-			// ── 1. Transform all placements to wall-local space ──
-			var localPlacements = new List<(Vector3 center, Vector3 size, float yaw)>();
+			// ── 1. Transform WallBrick placements to wall-local space ──
+			var localPlacements = new List<(Vector3 center, Vector3 size, float yaw, int gridY)>();
 			float minX = float.MaxValue, maxX = float.MinValue;
 			float minY = float.MaxValue, maxY = float.MinValue;
 			float minZ = float.MaxValue, maxZ = float.MinValue;
 
-			foreach ( var p in placements )
+			foreach ( var p in wallBricks )
 			{
 				var localCenter = wallRotInv * (p.Position - wallPos);
 				float localYaw = p.Yaw - wallRotation;
-				localPlacements.Add( (localCenter, p.Size, localYaw) );
+				int gy = p.GridSlot?.GridY ?? 0;
+				localPlacements.Add( (localCenter, p.Size, localYaw, gy) );
 
+				// Use AABB of the (possibly rotated) OBB for envelope
 				float hx = p.Size.x * 0.5f;
 				float hy = p.Size.y * 0.5f;
 				float hz = p.Size.z * 0.5f;
-				// For rotated bricks, use AABB of the rotated OBB
 				var localRot = Rotation.FromYaw( localYaw );
 				var corners = new Vector3[8];
 				corners[0] = localRot * new Vector3( -hx, -hy, -hz ) + localCenter;
@@ -91,39 +117,58 @@ namespace Lute.Building
 			}
 
 			envelope = new BBox( new Vector3( minX, minY, minZ ), new Vector3( maxX, maxY, maxZ ) );
+			var envCenter = envelope.Center;
+			var envSize = envelope.Size;
 
-			// ── 2. Solid recessed core ──
-			// Fills the complete structural envelope, inset slightly from
-			// the front and back brick skin surfaces so mortar joints appear
-			// as recessed masonry, not open air.
-			float coreMinX = minX, coreMaxX = maxX;
-			float coreMinY = minY + CoreInset, coreMaxY = maxY - CoreInset;
-			float coreMinZ = minZ, coreMaxZ = maxZ;
+			// ── 2. Determine front/back wythes from GridSlot.GridY ──
+			frontGridY = localPlacements.Min( p => p.gridY );
+			backGridY = localPlacements.Max( p => p.gridY );
+
+			// ── 3. Solid recessed core (centered on local origin) ──
+			float coreMinX = (minX - envCenter.x), coreMaxX = (maxX - envCenter.x);
+			float coreMinY = (minY + CoreInset - envCenter.y), coreMaxY = (maxY - CoreInset - envCenter.y);
+			float coreMinZ = (minZ - envCenter.z), coreMaxZ = (maxZ - envCenter.z);
 			AddSolidBox( mesh, coreMinX, coreMinY, coreMinZ, coreMaxX, coreMaxY, coreMaxZ, coreMaterial );
 
-		// ── 3. Front brick skin (one continuous quad at y = minY) ──
-		// A single large quad lets the brick texture tile across the full
-		// wall face, so the bond pattern in the material actually shows.
-		// Per-brick quads break UV tiling (each tiny quad samples one texel
-		// = flat color, no brick pattern). The running-bond silhouette is
-		// carried by the brick_wall.vmat texture itself.
-		AddSkinQuadFront( mesh, minX, minY, minZ, maxX, maxZ, brickMaterial );
+			// ── 4. Front brick skin (GridY == frontGridY, y- face) ──
+			// Emit per-brick face quads preserving actual placement X/Z,
+			// half-bricks, and running-bond offsets from SpatialRegistry.
+			foreach ( var (center, size, yaw, gy) in localPlacements )
+			{
+				if ( gy != frontGridY )
+					continue;
+				var localRot = Rotation.FromYaw( yaw );
+				// Center the vertex around envelope center
+				var centeredCenter = center - envCenter;
+				AddBrickFaceQuad( mesh, centeredCenter, size, localRot, faceIndex: 2, brickMaterial );
+				frontSkinFaces++;
+			}
 
-		// ── 4. Back brick skin (one continuous quad at y = maxY) ──
-		AddSkinQuadBack( mesh, minX, maxY, minZ, maxX, maxZ, brickMaterial );
+			// ── 5. Back brick skin (GridY == backGridY, y+ face) ──
+			foreach ( var (center, size, yaw, gy) in localPlacements )
+			{
+				if ( gy != backGridY )
+					continue;
+				var localRot = Rotation.FromYaw( yaw );
+				var centeredCenter = center - envCenter;
+				AddBrickFaceQuad( mesh, centeredCenter, size, localRot, faceIndex: 3, brickMaterial );
+				backSkinFaces++;
+			}
 
-			// ── 5. End caps (left, right, top, bottom) ──
-			// Close the wall envelope so there are no open ends.
-			// Left end (x-) - viewed from left (looking toward x+), CCW
-			AddCapFace( mesh, minX, minY, minZ, minX, minY, maxZ, minX, maxY, maxZ, minX, maxY, minZ, brickMaterial );
-			// Right end (x+) - viewed from right (looking toward x-), CCW
-			AddCapFace( mesh, maxX, minY, minZ, maxX, maxY, minZ, maxX, maxY, maxZ, maxX, minY, maxZ, brickMaterial );
-			// Top (z+) - viewed from above (looking down), CCW
-			AddCapFace( mesh, minX, minY, maxZ, maxX, minY, maxZ, maxX, maxY, maxZ, minX, maxY, maxZ, brickMaterial );
-			// Bottom (z-) - viewed from below (looking up), CCW
-			AddCapFace( mesh, minX, minY, minZ, minX, maxY, minZ, maxX, maxY, minZ, maxX, minY, minZ, brickMaterial );
+			// ── 6. End caps (centered on local origin) ──
+			float cMinX = minX - envCenter.x, cMaxX = maxX - envCenter.x;
+			float cMinY = minY - envCenter.y, cMaxY = maxY - envCenter.y;
+			float cMinZ = minZ - envCenter.z, cMaxZ = maxZ - envCenter.z;
+			// Left end (x-)
+			AddCapFace( mesh, cMinX, cMinY, cMinZ, cMinX, cMinY, cMaxZ, cMinX, cMaxY, cMaxZ, cMinX, cMaxY, cMinZ, brickMaterial );
+			// Right end (x+)
+			AddCapFace( mesh, cMaxX, cMinY, cMinZ, cMaxX, cMaxY, cMinZ, cMaxX, cMaxY, cMaxZ, cMaxX, cMinY, cMaxZ, brickMaterial );
+			// Top (z+)
+			AddCapFace( mesh, cMinX, cMinY, cMaxZ, cMaxX, cMinY, cMaxZ, cMaxX, cMaxY, cMaxZ, cMinX, cMaxY, cMaxZ, brickMaterial );
+			// Bottom (z-)
+			AddCapFace( mesh, cMinX, cMinY, cMinZ, cMinX, cMaxY, cMinZ, cMaxX, cMaxY, cMinZ, cMaxX, cMinY, cMinZ, brickMaterial );
 
-			// ── 6. Generate UVs after all geometry ──
+			// ── 7. Generate UVs after all geometry ──
 			mesh.ComputeFaceTextureParametersFromCoordinates();
 
 			return mesh;
@@ -131,43 +176,44 @@ namespace Lute.Building
 
 		/// <summary>
 		/// Add a solid box (6 faces) to the mesh with the given material.
+		/// All coordinates should already be centered on local origin.
 		/// </summary>
 		static void AddSolidBox( PolygonMesh mesh,
 			float x0, float y0, float z0, float x1, float y1, float z1,
 			Material material )
 		{
 			var faces = new List<FaceHandle>();
-			// Bottom (z-) - viewed from below (looking up), CCW
+			// Bottom (z-) - CCW from below
 			faces.Add( mesh.AddFace(
 				mesh.AddVertex( new Vector3( x0, y0, z0 ) ),
 				mesh.AddVertex( new Vector3( x0, y1, z0 ) ),
 				mesh.AddVertex( new Vector3( x1, y1, z0 ) ),
 				mesh.AddVertex( new Vector3( x1, y0, z0 ) ) ) );
-			// Top (z+) - viewed from above (looking down), CCW
+			// Top (z+) - CCW from above
 			faces.Add( mesh.AddFace(
 				mesh.AddVertex( new Vector3( x0, y0, z1 ) ),
 				mesh.AddVertex( new Vector3( x1, y0, z1 ) ),
 				mesh.AddVertex( new Vector3( x1, y1, z1 ) ),
 				mesh.AddVertex( new Vector3( x0, y1, z1 ) ) ) );
-			// Front (y-) - viewed from front (looking toward y+), CCW
+			// Front (y-) - CCW from front
 			faces.Add( mesh.AddFace(
 				mesh.AddVertex( new Vector3( x0, y0, z0 ) ),
 				mesh.AddVertex( new Vector3( x0, y0, z1 ) ),
 				mesh.AddVertex( new Vector3( x1, y0, z1 ) ),
 				mesh.AddVertex( new Vector3( x1, y0, z0 ) ) ) );
-			// Back (y+) - viewed from back (looking toward y-), CCW
+			// Back (y+) - CCW from back
 			faces.Add( mesh.AddFace(
 				mesh.AddVertex( new Vector3( x0, y1, z0 ) ),
 				mesh.AddVertex( new Vector3( x1, y1, z0 ) ),
 				mesh.AddVertex( new Vector3( x1, y1, z1 ) ),
 				mesh.AddVertex( new Vector3( x0, y1, z1 ) ) ) );
-			// Left (x-) - viewed from left (looking toward x+), CCW
+			// Left (x-) - CCW from left
 			faces.Add( mesh.AddFace(
 				mesh.AddVertex( new Vector3( x0, y0, z0 ) ),
 				mesh.AddVertex( new Vector3( x0, y1, z0 ) ),
 				mesh.AddVertex( new Vector3( x0, y1, z1 ) ),
 				mesh.AddVertex( new Vector3( x0, y0, z1 ) ) ) );
-			// Right (x+) - viewed from right (looking toward x-), CCW
+			// Right (x+) - CCW from right
 			faces.Add( mesh.AddFace(
 				mesh.AddVertex( new Vector3( x1, y0, z0 ) ),
 				mesh.AddVertex( new Vector3( x1, y0, z1 ) ),
@@ -210,7 +256,7 @@ namespace Lute.Building
 					localCorners[2] = new Vector3(  hx, -hy,  hz );
 					localCorners[3] = new Vector3(  hx, -hy, -hz );
 					break;
-				case 3: // back (y+)
+				case 3: // back (y+) - CCW from outside (looking toward y-)
 					localCorners[0] = new Vector3( -hx,  hy, -hz );
 					localCorners[1] = new Vector3(  hx,  hy, -hz );
 					localCorners[2] = new Vector3(  hx,  hy,  hz );
@@ -232,7 +278,7 @@ namespace Lute.Building
 					return;
 			}
 
-			// Transform to wall-local space
+			// Transform to wall-local space (centered)
 			for ( int i = 0; i < 4; i++ )
 				localCorners[i] = localRot * localCorners[i] + center;
 
@@ -245,38 +291,6 @@ namespace Lute.Building
 			if ( material is not null )
 				mesh.AssignMaterialToFaces( new List<FaceHandle> { face }, material );
 		}
-
-	/// <summary>
-	/// One large front (y-) quad spanning the full wall face so the brick
-	/// material tiles correctly. CCW when viewed from y- (outside front).
-	/// </summary>
-	static void AddSkinQuadFront( PolygonMesh mesh,
-		float minX, float y, float minZ, float maxX, float maxZ, Material material )
-	{
-		var face = mesh.AddFace(
-			mesh.AddVertex( new Vector3( minX, y, minZ ) ),
-			mesh.AddVertex( new Vector3( minX, y, maxZ ) ),
-			mesh.AddVertex( new Vector3( maxX, y, maxZ ) ),
-			mesh.AddVertex( new Vector3( maxX, y, minZ ) ) );
-		if ( material is not null )
-			mesh.AssignMaterialToFaces( new List<FaceHandle> { face }, material );
-	}
-
-	/// <summary>
-	/// One large back (y+) quad spanning the full wall face. CCW when
-	/// viewed from y+ (outside back).
-	/// </summary>
-	static void AddSkinQuadBack( PolygonMesh mesh,
-		float minX, float y, float minZ, float maxX, float maxZ, Material material )
-	{
-		var face = mesh.AddFace(
-			mesh.AddVertex( new Vector3( minX, y, minZ ) ),
-			mesh.AddVertex( new Vector3( maxX, y, minZ ) ),
-			mesh.AddVertex( new Vector3( maxX, y, maxZ ) ),
-			mesh.AddVertex( new Vector3( minX, y, maxZ ) ) );
-		if ( material is not null )
-			mesh.AssignMaterialToFaces( new List<FaceHandle> { face }, material );
-	}
 
 		/// <summary>
 		/// Add a flat cap face with 4 explicit corners (CCW from outside).
