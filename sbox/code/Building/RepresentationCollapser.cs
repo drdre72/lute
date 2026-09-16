@@ -187,6 +187,8 @@ namespace Lute.Building
 				// Box collider derived from the computed envelope (not hardcoded)
 				var collider = bakedGo.AddComponent<BoxCollider>();
 				collider.Scale = envSize;
+
+				bakedGo.Enabled = true;
 			}
 			catch ( Exception ex )
 			{
