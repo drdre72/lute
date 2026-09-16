@@ -185,7 +185,7 @@ namespace Lute.Building
 			{
 				bakedGo = Scene.CreateObject( false );
 				bakedGo.Name = $"Village_{task.BuildTask.Name}_baked";
-				bakedGo.WorldPosition = wallPos + new Vector3( 0, 0, wallH * 0.5f );
+				bakedGo.WorldPosition = wallPos; // mesh vertices already include full Z range (0..wallH)
 				bakedGo.WorldRotation = wallRot;
 				bakedGo.WorldScale = Vector3.One; // mesh is authored at correct world dimensions
 

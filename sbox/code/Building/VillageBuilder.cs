@@ -1016,6 +1016,7 @@ namespace Lute.Building
 							var pos = RotateLocal( new Vector3( lx, yCenter, z ) );
 							SpawnBox( pos, new Vector3( brickLen * 0.5f, brickDepth, brickH ),
 								WallMaterial, true, _villageRoot, task.Rotation, PieceAnchor.Base );
+							SpatialRegistry.Register( StructuralPlacement.ForWallBrick( pos, new Vector3( brickLen * 0.5f, brickDepth, brickH ), task.Rotation, task.Name, BrickSlot.HalfStretcher( 0, wythe, row ), _totalPiecesPlaced ) );
 							task.PiecesPlaced = brickIdx + 1;
 							_totalPiecesPlaced++;
 							task.PlacedBricks.Add( BrickSlot.HalfStretcher( 0, wythe, row ) );
