@@ -16,6 +16,8 @@ consuming only the text result.
 Usage:
     python agent/gpt_eyes.py                         # editor viewport, default prompt
     python agent/gpt_eyes.py "Is the terrain visible?"  # custom question
+    python agent/gpt_eyes.py --file screenshot.png   # send a local image file
+    python agent/gpt_eyes.py --file shot.png "Describe the walls"  # file + custom prompt
     python agent/gpt_eyes.py --camera <id>          # use a specific camera
     python agent/gpt_eyes.py --play                  # game camera (play mode)
     python agent/gpt_eyes.py --save scrap/shot.png  # also save the raw PNG
@@ -250,6 +252,13 @@ def main() -> int:
         "Overrides --camera/--play.",
     )
     parser.add_argument(
+        "--file",
+        metavar="PATH",
+        default="",
+        help="Send a local image file (PNG/JPG) to GPT vision instead of "
+        "capturing from the editor viewport. Skips MCP capture entirely.",
+    )
+    parser.add_argument(
         "--prompt-only",
         action="store_true",
         help="Print the prompt that would be sent and exit (no API call).",
@@ -263,23 +272,34 @@ def main() -> int:
         return 0
 
     try:
-        # Move editor camera to village walls if requested.
-        if args.village:
-            mcp_call("tools/call", {"name": "set_editor_camera", "arguments": {
-                "position": "-10000,-15800,400",
-                "angles": "10,270,0",
-            }})
-            print("Editor camera moved to village walls.", file=sys.stderr)
+        if args.file:
+            # ── Local file mode: read PNG/JPG from disk ──
+            if not os.path.exists(args.file):
+                print(f"Error: file not found: {args.file}", file=sys.stderr)
+                return 1
+            with open(args.file, "rb") as f:
+                raw = f.read()
+            b64 = base64.b64encode(raw).decode("utf-8")
+            print(f"Loaded {len(raw)} bytes from {args.file}", file=sys.stderr)
+        else:
+            # ── Editor capture mode (original behavior) ──
+            # Move editor camera to village walls if requested.
+            if args.village:
+                mcp_call("tools/call", {"name": "set_editor_camera", "arguments": {
+                    "position": "-10000,-15800,400",
+                    "angles": "10,270,0",
+                }})
+                print("Editor camera moved to village walls.", file=sys.stderr)
 
-        # 1. Capture
-        print(f"Capturing screenshot ({args.width}x{args.height})...", file=sys.stderr)
-        b64, raw = capture_screenshot(
-            camera_id=args.camera if not args.village else "",
-            width=args.width,
-            height=args.height,
-            play_mode=args.play if not args.village else False,
-        )
-        print(f"  got {len(raw)} bytes PNG", file=sys.stderr)
+            # 1. Capture
+            print(f"Capturing screenshot ({args.width}x{args.height})...", file=sys.stderr)
+            b64, raw = capture_screenshot(
+                camera_id=args.camera if not args.village else "",
+                width=args.width,
+                height=args.height,
+                play_mode=args.play if not args.village else False,
+            )
+            print(f"  got {len(raw)} bytes PNG", file=sys.stderr)
 
         if args.save:
             with open(args.save, "wb") as f:
