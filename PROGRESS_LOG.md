@@ -88,3 +88,38 @@
 - [2026-09-09] Added first-person Eyes camera to Merlyn. "Eyes" child GameObject with CameraComponent (IsMainCamera=false, FOV=90, ZNear=1, ZFar=50000). AgentLookAngles property on LuteBuilderNpc controls camera direction. Initial WorldPosition bug put camera 800 units off — fixed to LocalPosition. Head mesh blocked view ("player's hair" hallucinations) — repositioned to over-the-shoulder: 1.5ft (18 units) behind head at 35° angle = LocalPosition(0, +15, 74). Vision verified: Moondream correctly sees "tables, wall, towers, wood materials" with no body-in-frame hallucinations. Architecture: Devin (text-only) → sbox_vision.py → teleport Merlyn → MCP camera_screenshot from Eyes → JPEG → POST localhost:1234 → Moondream2 → text → back to Devin.
 
 - [2026-09-10] MARKET VISUAL PASS. Replaced all flat dev materials with custom PBR materials generated procedurally via agent/generate_textures.py (PIL, 512x512 tileable). 7 new .vmat files using complex.shader: stone_wall (block-pattern stone, high UV tiling for walls/towers/corners), stone_detail (low tiling for merlons/well rim), wood (plank grain for stalls/benches/posts), wood_house (higher tiling for housing), metal (dark iron, metalness=0.8, for portcullis), roof (terracotta tiles for awnings/well roof), plaza (flagstone for floors/bridges). Moat upgraded from black_cheap to water_dark (real water shader). Each material has color + normal + roughness maps. Lighting improved: plaza lanterns now cast shadows (radius 800), 4 gate torch lights added (warm, shadowed), central well light added. Visual details (61 new objects): 8 colored banners on poles atop watchtowers (red N / blue E / green S / gold W), 32 market goods boxes on stall counters (amber/leather/grain/produce tints), 8 dark door openings on houses facing plaza. Total monument children: 616 to 677. Vision verified via Moondream2: correctly identified stone walls ("brick or concrete"), wooden stalls ("brown wooden structures with red roofs"), metal portcullis ("black metal bars"), and tower banners ("colorful banners hanging from their tops"). Known Moondream limitation: light plaza stone triggers "snow" hallucination; some high-overview images return empty responses.
+
+- [2026-09-15] FINALIZED WALL REPRESENTATION MILESTONE. Completed the collapsed-wall mesh pipeline that replaces per-brick GameObjects with a single static MeshComponent + BoxCollider per wall segment after construction completes. This is Phase 1b of the Brick-Laying Polish plan.
+
+  Commits: 6795a57, 08aea2b, 6316385, 99b4327, 9593d08, fe26983, e80ad42 (all pushed to main).
+
+  Architecture:
+  - CollapsedWallMeshBuilder.cs (NEW) — builds the finalized wall mesh from authoritative SpatialRegistry placements. Produces: solid recessed core (archway_stone.vmat) + front/back brick skin (brick_wall.vmat) + closed end caps.
+  - RepresentationCollapser.cs — subscribes to ConstructionEventBus.TaskCompleted, queues bakes, creates MeshComponent + BoxCollider, atomically swaps (bake first, destroy bricks only on success).
+
+  Defects fixed:
+  - DEFECT 1 (exterior skin classification): Now uses WallBrick placements only (CornerAssemblyBrick excluded), front/back wythes determined from GridSlot.GridY (not geometric minY/maxY which was corrupted by rotated corner bricks).
+  - DEFECT 2 (mesh coordinate frame): All vertices centered around envelope.Center, GameObject placed at wallPos + rotated envelope.Center, BoxCollider uses envelope.Size with mesh+collider on local origin. No double-translation.
+  - WINDING: All face windings now match canonical BrickMeshBuilder.BuildSingleBrick outward winding (CCW from outside). Previous inward winding caused backface culling ("cash register tray" appearance).
+  - Safeguard: Bake refused if envelope exceeds expected dimensions by more than one masonry module (prevents giant gray sheets).
+  - Corner exclusion: CornerAssemblyBrick GameObjects not destroyed by straight-wall collapse (shared junction ownership preserved).
+  - Pre-bake logging: task name, WallBrick count, CornerAssemblyBrick count, front/back GridY, envelope mins/maxs/center/size, skin face counts.
+
+  Runtime verification:
+  - 4 walls collapsed: 2208 WallBricks each, frontGridY=0 backGridY=3, frontSkinFaces=552 backSkinFaces=552
+  - Envelope: 78.54 x 19.29 x 159.65 (within expected bounds)
+  - 1114 faces / 4456 verts per wall (down from 13,248 faces = 91.6% reduction)
+  - Wall enabled, identity scale, MeshComponent + BoxCollider, solid (raycast hits, no pass-through)
+  - Visual: solid wall, brick on both faces, gray mortar, correct height/thickness/position
+
+  gpt_eyes.py --file option added for sending local screenshot files to GPT vision (commit e80ad42).
+
+  Deferred (texture quality, not structural): flat brick appearance (no normal/height depth), gray end caps, underscaled brick texture, moire at glancing angles. Acceptable milestone — functional and not absurd.
+
+- [2026-09-15] PHASE 1 STATUS CHECK. All Phase 1 (Brick Visual Invariance) items complete:
+  - 1a (half-brick scaling): FIXED — SpawnBox scales by BrickForm (Half=BrickModuleX*0.5f, Full=BrickModuleX), uses cloud model bounds not dev/box.
+  - 1b (finalization visual): DONE — CollapsedWallMeshBuilder milestone (functional, texture quality deferred).
+  - 1c (reference wall scaling): FIXED — ReferenceWallTest.SpawnBrick uses Cloud.Model + renderSize/modelSize matching production.
+  - 1d (ground anchor float): FIXED — anchorHeight=BrickModuleZ for wall bricks, base anchor correct, no 1-inch float.
+
+- [2026-09-15] PHASE 2 STATUS: NOT STARTED. MasonryWorkPatch.cs does not exist. No patch-related state in VillageBuilderController.cs. Phase 2 needs to be built from scratch. Next session should begin Phase 2 implementation.

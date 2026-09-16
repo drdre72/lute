@@ -383,6 +383,8 @@ raycasts, `gpt_eyes.py` gives you "what does it actually look like."
 ```powershell
 python agent\gpt_eyes.py                          # editor viewport, default prompt
 python agent\gpt_eyes.py "Is the terrain visible?" # custom question
+python agent\gpt_eyes.py --file screenshot.png    # send a local image file (skips MCP capture)
+python agent\gpt_eyes.py --file shot.png "Describe the walls"  # file + custom prompt
 python agent\gpt_eyes.py --play                   # game camera (play mode)
 python agent\gpt_eyes.py --camera <id>            # specific camera component
 python agent\gpt_eyes.py --save scrap\shot.png    # also save the raw PNG
@@ -1049,3 +1051,59 @@ them, so `ExistingCount` stayed 0 forever.
 
 **Long-term**: need counts should be a derived view (computed on query),
 not stored state. Until then, `ReconcileFromDirector()` is the bridge.
+
+## Finalized Wall Representation (collapsed mesh)
+
+When a wall segment completes construction, `RepresentationCollapser`
+replaces the per-brick GameObjects with a single static `MeshComponent`
++ `BoxCollider`. This is the "representation collapse" — the brick-by-brick
+construction is the visible presentation, the collapsed mesh is the
+finalized static representation.
+
+**Pipeline:**
+```
+ConstructionEventBus.TaskCompleted
+  → RepresentationCollapser (queued, processed in OnUpdate)
+  → SpatialRegistry.GetByAssembly (WallBrick only, CornerAssemblyBrick excluded)
+  → CollapsedWallMeshBuilder.Build
+  → MeshComponent + BoxCollider (atomic swap: bake first, destroy bricks on success)
+```
+
+**Key files:**
+- `sbox/code/Building/CollapsedWallMeshBuilder.cs` — builds the mesh
+- `sbox/code/Building/RepresentationCollapser.cs` — orchestrates the swap
+
+**Critical rules (learned the hard way):**
+- Exterior skin classification uses `GridSlot.GridY` (wythe index), NOT
+  geometric `minY/maxY`. Rotated corner bricks corrupt geometric extrema.
+- Only `StructuralType.WallBrick` placements are used for the wall body.
+  `CornerAssemblyBrick` placements are excluded (shared junction ownership).
+- All face windings match canonical `BrickMeshBuilder.BuildSingleBrick`
+  outward winding (CCW from outside). Inward winding = backface culling.
+- Vertices are centered around `envelope.Center` so the GameObject can be
+  placed at `wallPos + Rotation.FromYaw(wallRotation) * envelope.Center`
+  without double-translation.
+- Bake is refused if envelope exceeds expected dimensions by more than one
+  masonry module (prevents giant gray sheets from impossible envelopes).
+- CornerAssemblyBrick GameObjects are NOT destroyed by straight-wall collapse.
+
+**Verification:**
+- Pre-bake log: task name, WallBrick count, CornerAssemblyBrick count,
+  front/back GridY, envelope mins/maxs/center/size, skin face counts.
+- 2208 WallBricks → 1114 faces / 4456 verts (91.6% reduction vs 13,248 cuboid faces).
+- Spatial probes (raycast through depth, end caps) confirm solidity.
+
+## Brick-Laying Polish Roadmap
+
+Phase 1 (Brick Visual Invariance) — COMPLETE:
+- 1a: Half-brick scaling fixed (BrickForm-based, cloud model bounds)
+- 1b: Finalization visual done (CollapsedWallMeshBuilder milestone)
+- 1c: Reference wall scaling fixed (matches production)
+- 1d: Ground anchor float fixed (BrickModuleZ anchor height)
+
+Phase 2 (MasonryWorkPatch) — NOT STARTED:
+- Group BrickSlots into work patches (work organization, not geometry)
+- New MasonryWorkPatch.cs, patch-aware VillageBuilder, patch state in controller
+- Foundation for Phase 3 (placement events), Phase 5 (mortar), Phase 7 (NPC reasoning)
+
+Phases 3-7 — NOT STARTED (placement events, audio, mortar, debug overlays, NPC patch reasoning).
