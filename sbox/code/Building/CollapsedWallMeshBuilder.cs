@@ -131,14 +131,14 @@ namespace Lute.Building
 
 			// ── 5. End caps (left, right, top, bottom) ──
 			// Close the wall envelope so there are no open ends.
-			// Left end (x-)
-			AddCapQuad( mesh, minX, minY, minZ, minX, maxY, maxZ, brickMaterial );
-			// Right end (x+)
-			AddCapQuad( mesh, maxX, minY, minZ, maxX, maxY, maxZ, brickMaterial );
-			// Top (z+)
-			AddCapQuad( mesh, minX, minY, maxZ, maxX, maxY, maxZ, brickMaterial );
-			// Bottom (z-)
-			AddCapQuad( mesh, minX, minY, minZ, maxX, maxY, minZ, brickMaterial );
+			// Left end (x-) - viewed from left (looking toward x+), CCW
+			AddCapFace( mesh, minX, minY, minZ, minX, minY, maxZ, minX, maxY, maxZ, minX, maxY, minZ, brickMaterial );
+			// Right end (x+) - viewed from right (looking toward x-), CCW
+			AddCapFace( mesh, maxX, minY, minZ, maxX, maxY, minZ, maxX, maxY, maxZ, maxX, minY, maxZ, brickMaterial );
+			// Top (z+) - viewed from above (looking down), CCW
+			AddCapFace( mesh, minX, minY, maxZ, maxX, minY, maxZ, maxX, maxY, maxZ, minX, maxY, maxZ, brickMaterial );
+			// Bottom (z-) - viewed from below (looking up), CCW
+			AddCapFace( mesh, minX, minY, minZ, minX, maxY, minZ, maxX, maxY, minZ, maxX, minY, minZ, brickMaterial );
 
 			// ── 6. Generate UVs after all geometry ──
 			mesh.ComputeFaceTextureParametersFromCoordinates();
@@ -154,42 +154,42 @@ namespace Lute.Building
 			Material material )
 		{
 			var faces = new List<FaceHandle>();
-			// Bottom (z-)
+			// Bottom (z-) - viewed from below (looking up), CCW
 			faces.Add( mesh.AddFace(
 				mesh.AddVertex( new Vector3( x0, y0, z0 ) ),
-				mesh.AddVertex( new Vector3( x1, y0, z0 ) ),
+				mesh.AddVertex( new Vector3( x0, y1, z0 ) ),
 				mesh.AddVertex( new Vector3( x1, y1, z0 ) ),
-				mesh.AddVertex( new Vector3( x0, y1, z0 ) ) ) );
-			// Top (z+)
+				mesh.AddVertex( new Vector3( x1, y0, z0 ) ) ) );
+			// Top (z+) - viewed from above (looking down), CCW
 			faces.Add( mesh.AddFace(
 				mesh.AddVertex( new Vector3( x0, y0, z1 ) ),
 				mesh.AddVertex( new Vector3( x1, y0, z1 ) ),
 				mesh.AddVertex( new Vector3( x1, y1, z1 ) ),
 				mesh.AddVertex( new Vector3( x0, y1, z1 ) ) ) );
-			// Front (y-)
+			// Front (y-) - viewed from front (looking toward y+), CCW
 			faces.Add( mesh.AddFace(
 				mesh.AddVertex( new Vector3( x0, y0, z0 ) ),
-				mesh.AddVertex( new Vector3( x1, y0, z0 ) ),
+				mesh.AddVertex( new Vector3( x0, y0, z1 ) ),
 				mesh.AddVertex( new Vector3( x1, y0, z1 ) ),
-				mesh.AddVertex( new Vector3( x0, y0, z1 ) ) ) );
-			// Back (y+)
+				mesh.AddVertex( new Vector3( x1, y0, z0 ) ) ) );
+			// Back (y+) - viewed from back (looking toward y-), CCW
 			faces.Add( mesh.AddFace(
 				mesh.AddVertex( new Vector3( x0, y1, z0 ) ),
 				mesh.AddVertex( new Vector3( x1, y1, z0 ) ),
 				mesh.AddVertex( new Vector3( x1, y1, z1 ) ),
 				mesh.AddVertex( new Vector3( x0, y1, z1 ) ) ) );
-			// Left (x-)
+			// Left (x-) - viewed from left (looking toward x+), CCW
 			faces.Add( mesh.AddFace(
 				mesh.AddVertex( new Vector3( x0, y0, z0 ) ),
 				mesh.AddVertex( new Vector3( x0, y1, z0 ) ),
 				mesh.AddVertex( new Vector3( x0, y1, z1 ) ),
 				mesh.AddVertex( new Vector3( x0, y0, z1 ) ) ) );
-			// Right (x+)
+			// Right (x+) - viewed from right (looking toward x-), CCW
 			faces.Add( mesh.AddFace(
 				mesh.AddVertex( new Vector3( x1, y0, z0 ) ),
-				mesh.AddVertex( new Vector3( x1, y1, z0 ) ),
+				mesh.AddVertex( new Vector3( x1, y0, z1 ) ),
 				mesh.AddVertex( new Vector3( x1, y1, z1 ) ),
-				mesh.AddVertex( new Vector3( x1, y0, z1 ) ) ) );
+				mesh.AddVertex( new Vector3( x1, y1, z0 ) ) ) );
 
 			if ( material is not null )
 				mesh.AssignMaterialToFaces( faces, material );
@@ -221,11 +221,11 @@ namespace Lute.Building
 					localCorners[2] = new Vector3(  hx,  hy,  hz );
 					localCorners[3] = new Vector3( -hx,  hy,  hz );
 					break;
-				case 2: // front (y-)
+				case 2: // front (y-) - CCW from outside (looking toward y+)
 					localCorners[0] = new Vector3( -hx, -hy, -hz );
-					localCorners[1] = new Vector3(  hx, -hy, -hz );
+					localCorners[1] = new Vector3( -hx, -hy,  hz );
 					localCorners[2] = new Vector3(  hx, -hy,  hz );
-					localCorners[3] = new Vector3( -hx, -hy,  hz );
+					localCorners[3] = new Vector3(  hx, -hy, -hz );
 					break;
 				case 3: // back (y+)
 					localCorners[0] = new Vector3( -hx,  hy, -hz );
@@ -264,18 +264,20 @@ namespace Lute.Building
 		}
 
 		/// <summary>
-		/// Add a flat cap quad for wall ends/top/bottom.
+		/// Add a flat cap face with 4 explicit corners (CCW from outside).
 		/// </summary>
-		static void AddCapQuad( PolygonMesh mesh,
+		static void AddCapFace( PolygonMesh mesh,
 			float x0, float y0, float z0,
 			float x1, float y1, float z1,
+			float x2, float y2, float z2,
+			float x3, float y3, float z3,
 			Material material )
 		{
 			var face = mesh.AddFace(
 				mesh.AddVertex( new Vector3( x0, y0, z0 ) ),
-				mesh.AddVertex( new Vector3( x1, y0, z0 ) ),
 				mesh.AddVertex( new Vector3( x1, y1, z1 ) ),
-				mesh.AddVertex( new Vector3( x0, y1, z1 ) ) );
+				mesh.AddVertex( new Vector3( x2, y2, z2 ) ),
+				mesh.AddVertex( new Vector3( x3, y3, z3 ) ) );
 
 			if ( material is not null )
 				mesh.AssignMaterialToFaces( new List<FaceHandle> { face }, material );
