@@ -101,33 +101,16 @@ namespace Lute.Building
 			float coreMinZ = minZ, coreMaxZ = maxZ;
 			AddSolidBox( mesh, coreMinX, coreMinY, coreMinZ, coreMaxX, coreMaxY, coreMaxZ, coreMaterial );
 
-			// ── 3. Front brick skin (y- face of front-wythe bricks) ──
-			// The front wythe is the one with the smallest Y (most negative).
-			// We emit only the front-facing quad (y-) of each brick in that wythe.
-			float frontY = minY;
-			float frontSkinY = frontY; // the surface where front bricks sit
-			foreach ( var (center, size, yaw) in localPlacements )
-			{
-				// Only emit front skin for bricks in the front wythe
-				float brickFrontY = center.y - size.y * 0.5f;
-				if ( System.MathF.Abs( brickFrontY - frontY ) > 0.01f * M )
-					continue;
+		// ── 3. Front brick skin (one continuous quad at y = minY) ──
+		// A single large quad lets the brick texture tile across the full
+		// wall face, so the bond pattern in the material actually shows.
+		// Per-brick quads break UV tiling (each tiny quad samples one texel
+		// = flat color, no brick pattern). The running-bond silhouette is
+		// carried by the brick_wall.vmat texture itself.
+		AddSkinQuadFront( mesh, minX, minY, minZ, maxX, maxZ, brickMaterial );
 
-				var localRot = Rotation.FromYaw( yaw );
-				AddBrickFaceQuad( mesh, center, size, localRot, faceIndex: 2, brickMaterial ); // faceIndex 2 = front (y-)
-			}
-
-			// ── 4. Back brick skin (y+ face of back-wythe bricks) ──
-			float backY = maxY;
-			foreach ( var (center, size, yaw) in localPlacements )
-			{
-				float brickBackY = center.y + size.y * 0.5f;
-				if ( System.MathF.Abs( brickBackY - backY ) > 0.01f * M )
-					continue;
-
-				var localRot = Rotation.FromYaw( yaw );
-				AddBrickFaceQuad( mesh, center, size, localRot, faceIndex: 3, brickMaterial ); // faceIndex 3 = back (y+)
-			}
+		// ── 4. Back brick skin (one continuous quad at y = maxY) ──
+		AddSkinQuadBack( mesh, minX, maxY, minZ, maxX, maxZ, brickMaterial );
 
 			// ── 5. End caps (left, right, top, bottom) ──
 			// Close the wall envelope so there are no open ends.
@@ -262,6 +245,38 @@ namespace Lute.Building
 			if ( material is not null )
 				mesh.AssignMaterialToFaces( new List<FaceHandle> { face }, material );
 		}
+
+	/// <summary>
+	/// One large front (y-) quad spanning the full wall face so the brick
+	/// material tiles correctly. CCW when viewed from y- (outside front).
+	/// </summary>
+	static void AddSkinQuadFront( PolygonMesh mesh,
+		float minX, float y, float minZ, float maxX, float maxZ, Material material )
+	{
+		var face = mesh.AddFace(
+			mesh.AddVertex( new Vector3( minX, y, minZ ) ),
+			mesh.AddVertex( new Vector3( minX, y, maxZ ) ),
+			mesh.AddVertex( new Vector3( maxX, y, maxZ ) ),
+			mesh.AddVertex( new Vector3( maxX, y, minZ ) ) );
+		if ( material is not null )
+			mesh.AssignMaterialToFaces( new List<FaceHandle> { face }, material );
+	}
+
+	/// <summary>
+	/// One large back (y+) quad spanning the full wall face. CCW when
+	/// viewed from y+ (outside back).
+	/// </summary>
+	static void AddSkinQuadBack( PolygonMesh mesh,
+		float minX, float y, float minZ, float maxX, float maxZ, Material material )
+	{
+		var face = mesh.AddFace(
+			mesh.AddVertex( new Vector3( minX, y, minZ ) ),
+			mesh.AddVertex( new Vector3( maxX, y, minZ ) ),
+			mesh.AddVertex( new Vector3( maxX, y, maxZ ) ),
+			mesh.AddVertex( new Vector3( minX, y, maxZ ) ) );
+		if ( material is not null )
+			mesh.AssignMaterialToFaces( new List<FaceHandle> { face }, material );
+	}
 
 		/// <summary>
 		/// Add a flat cap face with 4 explicit corners (CCW from outside).
