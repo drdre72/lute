@@ -42,7 +42,16 @@ namespace Lute.Building
 		const float M = 39.37f;
 
 		/// <summary> How far the recessed core is inset from the brick skin surface. </summary>
-		const float CoreInset = 0.005f * M; // ~5mm
+		const float CoreInset = 0.020f * M; // ~20mm — deep enough for joints to read as grooves
+
+		/// <summary> How far each skin brick's bevel strips recede inward from the face plane. </summary>
+		const float SkinDepth = CoreInset;
+
+		/// <summary> Chamfer inset per edge on a skin brick's proud face. </summary>
+		const float SkinBevel = 0.012f * M; // ~12mm
+
+		/// <summary> Pixel size of the single_brick_* texture set (one tile per brick face). </summary>
+		const float SkinTexSize = 256f;
 
 		/// <summary>
 		/// Build the collapsed wall mesh from WallBrick placements only.
@@ -134,16 +143,22 @@ namespace Lute.Building
 			float cz0 = minZ - envCenter.z, cz1 = maxZ - envCenter.z;
 			AddSolidBox( mesh, cx0, cy0, cz0, cx1, cy1, cz1, coreMaterial );
 
+			// Skin faces are collected here so their explicit texture
+			// parameters can be applied after the global UV pass at the end.
+			var skinFaces = new List<(FaceHandle face, Vector4 axisU, Vector4 axisV, Vector2 scale)>();
+			int uvSeed = 0;
+
 			// ── 4. Front brick skin (GridY == frontGridY, y- face) ──
-			// Emit per-brick face quads preserving actual placement X/Z,
-			// half-bricks, and running-bond offsets from SpatialRegistry.
+			// Emit per-brick beveled skin boxes preserving actual placement
+			// X/Z, half-bricks, and running-bond offsets from SpatialRegistry.
 			foreach ( var (center, size, yaw, gy) in localPlacements )
 			{
 				if ( gy != frontGridY )
 					continue;
 				var localRot = Rotation.FromYaw( yaw );
 				var centeredCenter = center - envCenter;
-				AddBrickFaceQuad( mesh, centeredCenter, size, localRot, faceIndex: 2, brickMaterial );
+				var faces = AddBeveledSkinBrick( mesh, centeredCenter, size, localRot, sign: -1f, brickMaterial );
+				AddSkinTexParams( skinFaces, faces, size, localRot, mirror: false, uvSeed++ );
 				frontSkinFaces++;
 			}
 
@@ -154,7 +169,8 @@ namespace Lute.Building
 					continue;
 				var localRot = Rotation.FromYaw( yaw );
 				var centeredCenter = center - envCenter;
-				AddBrickFaceQuad( mesh, centeredCenter, size, localRot, faceIndex: 3, brickMaterial );
+				var backFaces = AddBeveledSkinBrick( mesh, centeredCenter, size, localRot, sign: +1f, brickMaterial );
+				AddSkinTexParams( skinFaces, backFaces, size, localRot, mirror: true, uvSeed++ );
 				backSkinFaces++;
 			}
 
@@ -173,6 +189,13 @@ namespace Lute.Building
 
 			// ── 7. Generate UVs after all geometry ──
 			mesh.ComputeFaceTextureParametersFromCoordinates();
+
+			// Re-apply explicit face-aligned mapping on skin bricks — the
+			// global call above falls back to a fixed XY projection for any
+			// face whose UVs it cannot reconstruct, which smears the texture.
+			// One single_brick tile is mapped per brick face.
+			foreach ( var (face, axisU, axisV, scale) in skinFaces )
+				mesh.SetFaceTextureParameters( face, axisU, axisV, scale );
 
 			return mesh;
 		}
@@ -238,71 +261,104 @@ namespace Lute.Building
 		}
 
 		/// <summary>
-		/// Add a single face quad of a brick (not the full cuboid).
-		/// faceIndex: 0=bottom, 1=top, 2=front(y-), 3=back(y+), 4=left(x-), 5=right(x+)
-		/// Winding matches canonical BuildSingleBrick outward winding.
+		/// Add a beveled skin brick: a proud inset face at the wall plane plus
+		/// 4 bevel strips receding inward to the base ring at SkinDepth.
+		/// sign: -1 = front (y- face), +1 = back (y+ face).
+		/// Returns the 5 face handles (index 0 = proud face, 1..4 = bevel
+		/// strips in ring-edge order (0,1),(1,2),(2,3),(3,0)).
+		///
+		/// The uniform inset makes adjacent bevel strips share the corner
+		/// diagonal exactly — 4 quads, no corner gaps. Joints read as V-groove
+		/// channels with the recessed core showing through as mortar.
 		/// </summary>
-		static void AddBrickFaceQuad( PolygonMesh mesh, Vector3 center, Vector3 size, Rotation localRot, int faceIndex, Material material )
+		static List<FaceHandle> AddBeveledSkinBrick( PolygonMesh mesh, Vector3 center, Vector3 size, Rotation localRot, float sign, Material material )
 		{
 			float hx = size.x * 0.5f;
 			float hy = size.y * 0.5f;
 			float hz = size.z * 0.5f;
 
-			Vector3[] localCorners = new Vector3[4];
-			switch ( faceIndex )
+			float bevel = Math.Min( SkinBevel, 0.4f * Math.Min( hx, hz ) );
+			float depth = Math.Min( SkinDepth, hy ); // never recede past the brick's own back
+			float yf = sign * hy;
+			float yb = sign * ( hy - depth );
+			float sx = hx - bevel, sz = hz - bevel;
+
+			// Proud ring (inset rect at the wall plane) + base ring (full rect, recessed).
+			var p = new Vector3[4]
 			{
-				case 0: // bottom (z-): v0,v3,v2,v1
-					localCorners[0] = new Vector3( -hx, -hy, -hz );
-					localCorners[1] = new Vector3( -hx,  hy, -hz );
-					localCorners[2] = new Vector3(  hx,  hy, -hz );
-					localCorners[3] = new Vector3(  hx, -hy, -hz );
-					break;
-				case 1: // top (z+): v4,v5,v6,v7
-					localCorners[0] = new Vector3( -hx, -hy,  hz );
-					localCorners[1] = new Vector3(  hx, -hy,  hz );
-					localCorners[2] = new Vector3(  hx,  hy,  hz );
-					localCorners[3] = new Vector3( -hx,  hy,  hz );
-					break;
-				case 2: // front (y-): v0,v1,v5,v4
-					localCorners[0] = new Vector3( -hx, -hy, -hz );
-					localCorners[1] = new Vector3(  hx, -hy, -hz );
-					localCorners[2] = new Vector3(  hx, -hy,  hz );
-					localCorners[3] = new Vector3( -hx, -hy,  hz );
-					break;
-				case 3: // back (y+): v2,v3,v7,v6
-					localCorners[0] = new Vector3(  hx,  hy, -hz );
-					localCorners[1] = new Vector3( -hx,  hy, -hz );
-					localCorners[2] = new Vector3( -hx,  hy,  hz );
-					localCorners[3] = new Vector3(  hx,  hy,  hz );
-					break;
-				case 4: // left (x-): v3,v0,v4,v7
-					localCorners[0] = new Vector3( -hx,  hy, -hz );
-					localCorners[1] = new Vector3( -hx, -hy, -hz );
-					localCorners[2] = new Vector3( -hx, -hy,  hz );
-					localCorners[3] = new Vector3( -hx,  hy,  hz );
-					break;
-				case 5: // right (x+): v1,v2,v6,v5
-					localCorners[0] = new Vector3(  hx, -hy, -hz );
-					localCorners[1] = new Vector3(  hx,  hy, -hz );
-					localCorners[2] = new Vector3(  hx,  hy,  hz );
-					localCorners[3] = new Vector3(  hx, -hy,  hz );
-					break;
-				default:
-					return;
+				new Vector3( -sx, yf, -sz ),
+				new Vector3(  sx, yf, -sz ),
+				new Vector3(  sx, yf,  sz ),
+				new Vector3( -sx, yf,  sz ),
+			};
+			var b = new Vector3[4]
+			{
+				new Vector3( -hx, yb, -hz ),
+				new Vector3(  hx, yb, -hz ),
+				new Vector3(  hx, yb,  hz ),
+				new Vector3( -hx, yb,  hz ),
+			};
+			for ( int i = 0; i < 4; i++ )
+			{
+				p[i] = localRot * p[i] + center;
+				b[i] = localRot * b[i] + center;
 			}
 
-			// Transform to wall-local space (centered)
-			for ( int i = 0; i < 4; i++ )
-				localCorners[i] = localRot * localCorners[i] + center;
-
-			var face = mesh.AddFace(
-				mesh.AddVertex( localCorners[0] ),
-				mesh.AddVertex( localCorners[1] ),
-				mesh.AddVertex( localCorners[2] ),
-				mesh.AddVertex( localCorners[3] ) );
+			var faces = new List<FaceHandle>( 5 );
+			if ( sign < 0f )
+			{
+				// Front (y-): canonical v0,v1,v5,v4 winding — CCW viewed from -y.
+				faces.Add( AddQuad( mesh, p[0], p[1], p[2], p[3] ) );
+				// Strip for ring edge (a->b): (P_b, P_a, B_a, B_b).
+				faces.Add( AddQuad( mesh, p[1], p[0], b[0], b[1] ) );
+				faces.Add( AddQuad( mesh, p[2], p[1], b[1], b[2] ) );
+				faces.Add( AddQuad( mesh, p[3], p[2], b[2], b[3] ) );
+				faces.Add( AddQuad( mesh, p[0], p[3], b[3], b[0] ) );
+			}
+			else
+			{
+				// Back (y+): mirrored — reverse every winding.
+				faces.Add( AddQuad( mesh, p[1], p[0], p[3], p[2] ) );
+				faces.Add( AddQuad( mesh, b[1], b[0], p[0], p[1] ) );
+				faces.Add( AddQuad( mesh, b[2], b[1], p[1], p[2] ) );
+				faces.Add( AddQuad( mesh, b[3], b[2], p[2], p[3] ) );
+				faces.Add( AddQuad( mesh, b[0], b[3], p[3], p[0] ) );
+			}
 
 			if ( material is not null )
-				mesh.AssignMaterialToFaces( new List<FaceHandle> { face }, material );
+				mesh.AssignMaterialToFaces( faces, material );
+
+			return faces;
+		}
+
+		static FaceHandle AddQuad( PolygonMesh mesh, Vector3 v0, Vector3 v1, Vector3 v2, Vector3 v3 )
+		{
+			return mesh.AddFace(
+				mesh.AddVertex( v0 ),
+				mesh.AddVertex( v1 ),
+				mesh.AddVertex( v2 ),
+				mesh.AddVertex( v3 ) );
+		}
+
+		/// <summary>
+		/// Compute face-aligned texture parameters for one skin brick's faces:
+		/// U along the brick's length, V up, one single_brick tile per face,
+		/// plus a deterministic per-brick offset so identical bricks don't
+		/// sample identical crops. mirror flips U for back faces so the
+		/// texture isn't mirrored when viewed from outside.
+		/// </summary>
+		static void AddSkinTexParams(
+			List<(FaceHandle face, Vector4 axisU, Vector4 axisV, Vector2 scale)> skinFaces,
+			List<FaceHandle> faces, Vector3 size, Rotation localRot, bool mirror, int uvSeed )
+		{
+			var axisU = localRot * new Vector3( mirror ? -1f : 1f, 0f, 0f );
+			float offU = (uvSeed * 73) % SkinTexSize;
+			float offV = (uvSeed * 151) % SkinTexSize;
+			var u4 = new Vector4( axisU, offU );
+			var v4 = new Vector4( new Vector3( 0f, 0f, 1f ), offV );
+			var scale = new Vector2( size.x / SkinTexSize, size.z / SkinTexSize );
+			foreach ( var f in faces )
+				skinFaces.Add( (f, u4, v4, scale) );
 		}
 
 		/// <summary>

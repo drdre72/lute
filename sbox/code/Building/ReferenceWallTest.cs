@@ -56,6 +56,13 @@ namespace Lute.Building
 		/// <summary> If true, place all bricks instantly (no delays). </summary>
 		[Property] public bool InstantBuild { get; set; } = true;
 
+		/// <summary>
+		/// If true, leave the Stage 3.5 collapsed-mesh probe object in the
+		/// scene instead of destroying it — for visual inspection of the
+		/// baked wall geometry.
+		/// </summary>
+		[Property] public bool KeepProbe { get; set; } = false;
+
 		private GameObject _root;
 		private int _passed;
 		private int _failed;
@@ -557,7 +564,7 @@ namespace Lute.Building
 				.ToList();
 			Check( "SpatialRegistry returns placements for task", placements.Count > 0, $"{placements.Count} placements" );
 
-			var brickMaterial = Material.Load( "materials/medieval/brick_wall.vmat" );
+			var brickMaterial = Material.Load( "materials/medieval/single_brick.vmat" );
 			var coreMaterial = Material.Load( "materials/medieval/archway_stone.vmat" );
 
 			var mesh = CollapsedWallMeshBuilder.Build(
@@ -656,8 +663,9 @@ namespace Lute.Building
 				task.PiecesPlaced == ComputeExpectedPieces(),
 				$"{task.PiecesPlaced} pieces" );
 
-			// Clean up probe object
-			probeGo.Destroy();
+			// Clean up probe object (unless kept for visual inspection)
+			if ( !KeepProbe )
+				probeGo.Destroy();
 
 			await Task.CompletedTask;
 		}

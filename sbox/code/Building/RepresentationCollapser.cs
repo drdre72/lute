@@ -165,7 +165,7 @@ namespace Lute.Building
 			// ── 2. Build the collapsed mesh via CollapsedWallMeshBuilder ──
 			var wallPos = task.BuildTask.Position;
 			float wallRotation = task.BuildTask.Rotation;
-			var brickMaterial = Material.Load( "materials/medieval/brick_wall.vmat" );
+			var brickMaterial = Material.Load( "materials/medieval/single_brick.vmat" );
 			var coreMaterial = Material.Load( "materials/medieval/archway_stone.vmat" );
 
 			var mesh = CollapsedWallMeshBuilder.Build(
