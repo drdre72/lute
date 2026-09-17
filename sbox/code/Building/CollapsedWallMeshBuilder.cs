@@ -97,11 +97,25 @@ namespace Lute.Building
 			float minY = float.MaxValue, maxY = float.MinValue;
 			float minZ = float.MaxValue, maxZ = float.MinValue;
 
+			int missingSlots = 0;
 			foreach ( var p in wallBricks )
 			{
 				var localCenter = wallRotInv * (p.Position - wallPos);
 				float localYaw = p.Yaw - wallRotation;
-				int gy = p.GridSlot?.GridY ?? 0;
+				// -1 sentinel = no grid metadata. A silent default of 0 can
+				// leave an exterior brick with no skin face, baked permanently
+				// into the static mesh — fail loud and resolve by geometry.
+				int gy;
+				if ( p.GridSlot is { } slot )
+				{
+					gy = slot.GridY;
+				}
+				else
+				{
+					gy = -1;
+					if ( missingSlots++ < 8 )
+						Log.Warning( $"Lute: CollapsedWallMeshBuilder — WallBrick '{p.EntityId}' in '{p.ParentAssembly}' has no GridSlot; wythe will be inferred from geometry." );
+				}
 				localPlacements.Add( (localCenter, p.Size, localYaw, gy) );
 
 				// Use AABB of the (possibly rotated) OBB for envelope
@@ -132,9 +146,24 @@ namespace Lute.Building
 			envelope = new BBox( new Vector3( minX, minY, minZ ), new Vector3( maxX, maxY, maxZ ) );
 			var envCenter = envelope.Center;
 
+			if ( missingSlots > 8 )
+				Log.Warning( $"Lute: CollapsedWallMeshBuilder — {missingSlots} WallBrick placements lacked GridSlot in this bake." );
+
 			// ── 2. Determine front/back wythes from GridSlot.GridY ──
-			frontGridY = localPlacements.Min( p => p.gridY );
-			backGridY = localPlacements.Max( p => p.gridY );
+			// Bricks with unknown wythe (-1) can't participate in extrema
+			// detection — a bogus value would corrupt min/max.
+			var knownGy = localPlacements.Where( p => p.gridY >= 0 ).ToList();
+			if ( knownGy.Count > 0 )
+			{
+				frontGridY = knownGy.Min( p => p.gridY );
+				backGridY = knownGy.Max( p => p.gridY );
+			}
+			else
+			{
+				// No grid metadata at all: resolve every brick by geometry.
+				frontGridY = 0;
+				backGridY = 1;
+			}
 
 			// ── 3. Solid recessed core (centered on local origin) ──
 			// Winding matches canonical BuildSingleBrick outward winding.
@@ -146,14 +175,16 @@ namespace Lute.Building
 			// Skin faces are collected here so their explicit texture
 			// parameters can be applied after the global UV pass at the end.
 			var skinFaces = new List<(FaceHandle face, Vector4 axisU, Vector4 axisV, Vector2 scale)>();
-			int uvSeed = 0;
+			// Seed from wall position+rotation so two identical walls don't
+			// repeat the same per-brick texture-offset sequence.
+			int uvSeed = Math.Abs( (int)wallPos.x * 7 + (int)wallPos.y * 13 + (int)wallPos.z * 3 + (int)wallRotation );
 
 			// ── 4. Front brick skin (GridY == frontGridY, y- face) ──
 			// Emit per-brick beveled skin boxes preserving actual placement
 			// X/Z, half-bricks, and running-bond offsets from SpatialRegistry.
 			foreach ( var (center, size, yaw, gy) in localPlacements )
 			{
-				if ( gy != frontGridY )
+				if ( EffectiveGridY( gy, center.y, minY, maxY, frontGridY, backGridY ) != frontGridY )
 					continue;
 				var localRot = Rotation.FromYaw( yaw );
 				var centeredCenter = center - envCenter;
@@ -165,7 +196,7 @@ namespace Lute.Building
 			// ── 5. Back brick skin (GridY == backGridY, y+ face) ──
 			foreach ( var (center, size, yaw, gy) in localPlacements )
 			{
-				if ( gy != backGridY )
+				if ( EffectiveGridY( gy, center.y, minY, maxY, frontGridY, backGridY ) != backGridY )
 					continue;
 				var localRot = Rotation.FromYaw( yaw );
 				var centeredCenter = center - envCenter;
@@ -199,6 +230,16 @@ namespace Lute.Building
 
 			return mesh;
 		}
+
+		/// <summary>
+		/// Resolve a brick's wythe index. A real gridY always wins; a brick
+		/// with no grid metadata (-1) is assigned to the geometrically
+		/// nearest exterior wythe. Erring toward skinning is safe: an
+		/// interior brick that gets a spurious skin face is hidden inside
+		/// the wall, while an exterior brick missing its face is a hole.
+		/// </summary>
+		static int EffectiveGridY( int gy, float centerY, float minY, float maxY, int frontGridY, int backGridY )
+			=> gy >= 0 ? gy : (centerY - minY <= maxY - centerY ? frontGridY : backGridY);
 
 		/// <summary>
 		/// Add a solid box (6 faces) with canonical outward winding matching
