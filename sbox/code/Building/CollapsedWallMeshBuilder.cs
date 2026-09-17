@@ -71,7 +71,9 @@ namespace Lute.Building
 			out int frontGridY,
 			out int backGridY,
 			out int frontSkinFaces,
-			out int backSkinFaces )
+			out int backSkinFaces,
+			Material edgeMaterial = null,
+			Material wornMaterial = null )
 		{
 			var mesh = new PolygonMesh();
 			envelope = new BBox();
@@ -188,7 +190,8 @@ namespace Lute.Building
 					continue;
 				var localRot = Rotation.FromYaw( yaw );
 				var centeredCenter = center - envCenter;
-				var faces = AddBeveledSkinBrick( mesh, centeredCenter, size, localRot, sign: -1f, brickMaterial );
+				var frontMat = PickSkinMaterial( uvSeed, brickMaterial, wornMaterial );
+				var faces = AddBeveledSkinBrick( mesh, centeredCenter, size, localRot, sign: -1f, frontMat, edgeMaterial ?? brickMaterial );
 				AddSkinTexParams( skinFaces, faces, size, localRot, mirror: false, uvSeed++ );
 				frontSkinFaces++;
 			}
@@ -200,7 +203,8 @@ namespace Lute.Building
 					continue;
 				var localRot = Rotation.FromYaw( yaw );
 				var centeredCenter = center - envCenter;
-				var backFaces = AddBeveledSkinBrick( mesh, centeredCenter, size, localRot, sign: +1f, brickMaterial );
+				var backMat = PickSkinMaterial( uvSeed, brickMaterial, wornMaterial );
+				var backFaces = AddBeveledSkinBrick( mesh, centeredCenter, size, localRot, sign: +1f, backMat, edgeMaterial ?? brickMaterial );
 				AddSkinTexParams( skinFaces, backFaces, size, localRot, mirror: true, uvSeed++ );
 				backSkinFaces++;
 			}
@@ -240,6 +244,19 @@ namespace Lute.Building
 		/// </summary>
 		static int EffectiveGridY( int gy, float centerY, float minY, float maxY, int frontGridY, int backGridY )
 			=> gy >= 0 ? gy : (centerY - minY <= maxY - centerY ? frontGridY : backGridY);
+
+		/// <summary>
+		/// Deterministic per-brick weathering pick — the analogue of Rust's
+		/// ModelConditionTest_Variant (Wanghash(entity id + seed) % count).
+		/// ~1 in 8 skin bricks gets the worn material; the rest stay clean.
+		/// </summary>
+		static Material PickSkinMaterial( int seed, Material brickMaterial, Material wornMaterial )
+		{
+			if ( wornMaterial is null )
+				return brickMaterial;
+			uint h = (uint)seed * 2654435761u;
+			return (h >> 28) < 2 ? wornMaterial : brickMaterial;
+		}
 
 		/// <summary>
 		/// Add a solid box (6 faces) with canonical outward winding matching
@@ -312,7 +329,7 @@ namespace Lute.Building
 		/// diagonal exactly — 4 quads, no corner gaps. Joints read as V-groove
 		/// channels with the recessed core showing through as mortar.
 		/// </summary>
-		static List<FaceHandle> AddBeveledSkinBrick( PolygonMesh mesh, Vector3 center, Vector3 size, Rotation localRot, float sign, Material material )
+		static List<FaceHandle> AddBeveledSkinBrick( PolygonMesh mesh, Vector3 center, Vector3 size, Rotation localRot, float sign, Material faceMaterial, Material edgeMaterial )
 		{
 			float hx = size.x * 0.5f;
 			float hy = size.y * 0.5f;
@@ -366,8 +383,10 @@ namespace Lute.Building
 				faces.Add( AddQuad( mesh, b[0], b[3], p[3], p[0] ) );
 			}
 
-			if ( material is not null )
-				mesh.AssignMaterialToFaces( faces, material );
+			if ( faceMaterial is not null )
+				mesh.AssignMaterialToFaces( new List<FaceHandle> { faces[0] }, faceMaterial );
+			if ( edgeMaterial is not null )
+				mesh.AssignMaterialToFaces( faces.Skip( 1 ), edgeMaterial );
 
 			return faces;
 		}
@@ -393,8 +412,12 @@ namespace Lute.Building
 			List<FaceHandle> faces, Vector3 size, Rotation localRot, bool mirror, int uvSeed )
 		{
 			var axisU = localRot * new Vector3( mirror ? -1f : 1f, 0f, 0f );
-			float offU = (uvSeed * 73) % SkinTexSize;
-			float offV = (uvSeed * 151) % SkinTexSize;
+			// Hash the seed — a plain multiply marches the crop by a constant
+			// step per brick, which reads as drifting vertical bands. Scrambled
+			// offsets decorrelate neighbouring bricks (Rust: Wanghash variant).
+			uint h1 = (uint)uvSeed * 2654435761u, h2 = (uint)uvSeed * 2246822519u;
+			float offU = h1 >> 24;
+			float offV = h2 >> 24;
 			var u4 = new Vector4( axisU, offU );
 			var v4 = new Vector4( new Vector3( 0f, 0f, 1f ), offV );
 			var scale = new Vector2( size.x / SkinTexSize, size.z / SkinTexSize );

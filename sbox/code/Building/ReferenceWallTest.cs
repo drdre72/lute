@@ -566,12 +566,15 @@ namespace Lute.Building
 
 			var brickMaterial = Material.Load( "materials/medieval/single_brick.vmat" );
 			var coreMaterial = Material.Load( "materials/medieval/archway_stone.vmat" );
+			var edgeMaterial = Material.Load( "materials/medieval/single_brick_edge.vmat" );
+			var wornMaterial = Material.Load( "materials/medieval/single_brick_worn.vmat" );
 
 			var mesh = CollapsedWallMeshBuilder.Build(
 				placements, task.Position, task.Rotation, brickMaterial, coreMaterial,
 				out var envelope,
 			out int frontGridY, out int backGridY,
-			out int frontSkinFaces, out int backSkinFaces );
+			out int frontSkinFaces, out int backSkinFaces,
+			edgeMaterial, wornMaterial );
 
 			int vertexCount = mesh.VertexHandles.Count();
 			int faceCount = mesh.FaceHandles.Count();
