@@ -83,6 +83,11 @@ namespace Lute.Building
 		float _logTimer;
 		bool _usingNavMesh;
 		bool _navMeshDiagLogged;
+		float _stuckTimer;
+		Vector3 _progressPos;
+		float _progressTimer;
+		Vector3 _steerTarget;
+		bool _steerTargetSet;
 
 		/// <summary>
 		/// Profession id for each bench type.
@@ -509,6 +514,49 @@ namespace Lute.Building
 
 		void SteerToward( Vector3 target )
 		{
+			// Stuck recovery shared by all walk legs (bench, input pile,
+			// output pile): progress is measured by real ground covered,
+			// never by wish velocity — a blocked agent pushes against
+			// the obstacle forever otherwise. Retargeting (>50 units)
+			// resets the baselines so a new pile doesn't trip the warp.
+			if ( !_steerTargetSet || (target - _steerTarget).LengthSquared > 2500f )
+			{
+				_steerTargetSet = true;
+				_steerTarget = target;
+				_stuckTimer = 0f;
+				_progressPos = WorldPosition;
+				_progressTimer = 0f;
+			}
+
+			_stuckTimer += Time.Delta;
+			if ( _stuckTimer > 15f )
+			{
+				// Land just inside the arrival radius — warping to the
+				// exact point can drop the agent inside a large baked
+				// collider (collapsed wall segments span ~400 units),
+				// and a fixed small offset can still land inside it.
+				// StopRadius * 0.9 guarantees WithinStopRadius fires so
+				// the state machine progresses whatever the geometry.
+				var away = (WorldPosition - target).WithZ( 0 );
+				var warpPos = target + ( away.LengthSquared > 1f
+					? away.Normal * Math.Max( 40f, StopRadius * 0.9f )
+					: new Vector3( 40f, 0f, 0f ) );
+				Log.Info( $"Lute: Crafter '{NpcName}' stuck for {_stuckTimer:F1}s → warping near {target}." );
+				WorldPosition = warpPos;
+				_stuckTimer = 0f;
+				return;
+			}
+
+			_progressTimer += Time.Delta;
+			if ( _progressTimer >= 2f )
+			{
+				// ≥40 units per 2s (~10% of WalkSpeed) counts as moving.
+				if ( WorldPosition.Distance( _progressPos ) >= 40f * ( _progressTimer / 2f ) )
+					_stuckTimer = 0f;
+				_progressPos = WorldPosition;
+				_progressTimer = 0f;
+			}
+
 			var toTarget = (target - WorldPosition).WithZ( 0 );
 			var dist = toTarget.Length;
 			if ( dist < 1f ) return;

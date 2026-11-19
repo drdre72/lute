@@ -76,6 +76,9 @@ namespace Lute.Building
 		float _logTimer;
 		bool _usingNavMesh;
 		bool _navMeshDiagLogged;
+		float _stuckTimer;
+		Vector3 _progressPos;
+		float _progressTimer;
 
 		protected override void OnStart()
 		{
@@ -187,6 +190,9 @@ namespace Lute.Building
 
 			State = HaulerState.WalkingToSource;
 			_stateTimer = 0f;
+			_stuckTimer = 0f;
+			_progressPos = WorldPosition;
+			_progressTimer = 0f;
 		}
 
 		void DoPickup()
@@ -268,6 +274,9 @@ namespace Lute.Building
 
 			State = HaulerState.WalkingToDestination;
 			_stateTimer = 0f;
+			_stuckTimer = 0f;
+			_progressPos = WorldPosition;
+			_progressTimer = 0f;
 		}
 
 		void DoDrop()
@@ -428,6 +437,40 @@ namespace Lute.Building
 
 		void SteerToward( Vector3 target )
 		{
+			// Warp to target if stuck for too long (matches the
+			// gatherer fix): WishVelocity steering — navmesh or direct —
+			// can push a blocked agent against an obstacle forever
+			// while logging "walking". Progress is measured by real
+			// ground covered, never by wish velocity.
+			_stuckTimer += Time.Delta;
+			if ( _stuckTimer > 15f )
+			{
+				// Land just inside the arrival radius — warping to the
+				// exact point can drop the agent inside a large baked
+				// collider (collapsed wall segments span ~400 units),
+				// and a fixed small offset can still land inside it.
+				// StopRadius * 0.9 guarantees WithinStopRadius fires so
+				// the state machine progresses whatever the geometry.
+				var away = (WorldPosition - target).WithZ( 0 );
+				var warpPos = target + ( away.LengthSquared > 1f
+					? away.Normal * Math.Max( 40f, StopRadius * 0.9f )
+					: new Vector3( 40f, 0f, 0f ) );
+				Log.Info( $"Lute: Hauler '{NpcName}' stuck for {_stuckTimer:F1}s → warping near {target}." );
+				WorldPosition = warpPos;
+				_stuckTimer = 0f;
+				return;
+			}
+
+			_progressTimer += Time.Delta;
+			if ( _progressTimer >= 2f )
+			{
+				// ≥40 units per 2s (~10% of WalkSpeed) counts as moving.
+				if ( WorldPosition.Distance( _progressPos ) >= 40f * ( _progressTimer / 2f ) )
+					_stuckTimer = 0f;
+				_progressPos = WorldPosition;
+				_progressTimer = 0f;
+			}
+
 			var toTarget = (target - WorldPosition).WithZ( 0 );
 			var dist = toTarget.Length;
 			if ( dist < 1f ) return;

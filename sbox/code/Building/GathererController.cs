@@ -369,8 +369,18 @@ namespace Lute.Building
 			float warpThreshold = 15f;
 			if ( _stuckTimer > warpThreshold )
 			{
-				Log.Info( $"Lute: Gatherer '{NpcName}' stuck for {_stuckTimer:F1}s → warping to {target}." );
-				WorldPosition = target;
+				// Land just inside the arrival radius — warping to the
+				// exact point can drop the agent inside a large baked
+				// collider (collapsed wall segments span ~400 units),
+				// and a fixed small offset can still land inside it.
+				// StopRadius * 0.9 guarantees WithinStopRadius fires so
+				// the state machine progresses whatever the geometry.
+				var away = (WorldPosition - target).WithZ( 0 );
+				var warpPos = target + ( away.LengthSquared > 1f
+					? away.Normal * Math.Max( 40f, StopRadius * 0.9f )
+					: new Vector3( 40f, 0f, 0f ) );
+				Log.Info( $"Lute: Gatherer '{NpcName}' stuck for {_stuckTimer:F1}s → warping near {target}." );
+				WorldPosition = warpPos;
 				_stuckTimer = 0f;
 				return;
 			}
