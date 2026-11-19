@@ -242,36 +242,46 @@ namespace Lute.Building
 						continue; // Only raw materials come from sources.
 
 					var src = ResourceRegistry.NearestSource( input.Key, stationPile.Position );
-					var otherPile = ResourceRegistry.NearestStockpileWithResource( input.Key, stationPile.Position, toSupply );
 
-					string fromId;
-					Vector3 fromPos;
-					if ( otherPile != null && otherPile.Count( input.Key ) >= toSupply )
+					// Walk every stockpile holding the input, nearest-first,
+					// and take whatever each can promise — a pile need not
+					// hold the full request to contribute. CreateJob holds a
+					// job-keyed outgoing reservation, so the jobs can't
+					// double-promise the same stock.
+					int remainingInput = toSupply;
+					foreach ( var otherPile in ResourceRegistry.StockpilesWithResource( input.Key, stationPile.Position ) )
 					{
-						fromId = $"stockpile:{otherPile.Id}";
-						fromPos = otherPile.Position;
-					}
-					else if ( src != null )
-					{
-						fromId = $"source:{src.Id}";
-						fromPos = src.Position;
-					}
-					else
-					{
-						// No source for this raw input — skip.
-						continue;
+						if ( remainingInput <= 0 ) break;
+						if ( otherPile.Id == stationPile.Id ) continue;
+						int take = Math.Min( remainingInput, otherPile.AvailableOutgoing( input.Key, "" ) );
+						if ( take <= 0 ) continue;
+						var jobId = LogisticsBoard.CreateJob(
+							input.Key, take,
+							$"stockpile:{otherPile.Id}", otherPile.Position,
+							$"stockpile:{stationPile.Id}", stationPile.Position,
+							forTaskId: "" );
+						if ( jobId != null )
+						{
+							_pendingSupply.Add( supplyKey );
+							created++;
+							remainingInput -= take;
+							Log.Info( $"Lute: ProductionPlanner — supply order: haul {take} {input.Key} → {stationPile.Id} (near {stationId} {benchType}) for {outputMaterial} production." );
+						}
 					}
 
-					var jobId = LogisticsBoard.CreateJob(
-						input.Key, toSupply,
-						fromId, fromPos,
-						$"stockpile:{stationPile.Id}", stationPile.Position,
-						forTaskId: "" );
-					if ( jobId != null )
+					if ( remainingInput > 0 && src != null )
 					{
-						_pendingSupply.Add( supplyKey );
-						created++;
-						Log.Info( $"Lute: ProductionPlanner — supply order: haul {toSupply} {input.Key} → {stationPile.Id} (near {stationId} {benchType}) for {outputMaterial} production." );
+						var jobId = LogisticsBoard.CreateJob(
+							input.Key, remainingInput,
+							$"source:{src.Id}", src.Position,
+							$"stockpile:{stationPile.Id}", stationPile.Position,
+							forTaskId: "" );
+						if ( jobId != null )
+						{
+							_pendingSupply.Add( supplyKey );
+							created++;
+							Log.Info( $"Lute: ProductionPlanner — supply order: haul {remainingInput} {input.Key} → {stationPile.Id} (near {stationId} {benchType}) for {outputMaterial} production." );
+						}
 					}
 				}
 			}

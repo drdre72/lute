@@ -6,13 +6,41 @@
 
 ## Project
 
-- Engine: S&Box / Source 2
+- Engine: S&Box / Source 2 (engine `26.11.10a`)
 - Language: C# / .NET 10
 - Primary gameplay namespace: `Sandbox`
 - Runtime NPC intelligence: deterministic only
 - Runtime NPC LLM calls: prohibited
 - Current development phase: cooperative construction
 - Deception during construction: disabled
+
+## Environment (as of this session)
+
+- Repo: `D:\Documents\lute-main\lute-main` — the editor loads
+  `sbox/.sbproj` **in place**; there is no addon mirror to sync.
+- Steam S&Box install: `D:\SteamLibrary\steamapps\common\sbox`
+- Engine source (API ref): `D:\Programs\sbox-public-master`
+- Junction `D:\Documents\lute-main\bin` → Steam `sbox\bin` lets
+  `dotnet build sbox/code/lute.csproj` resolve `bin/managed` refs.
+- Build: `lute.csproj` 0 errors; `Lute.Core.csproj` 0 errors.
+- **MCP transport changed**: HTTP `127.0.0.1:7269` is gone. The editor
+  exposes a named pipe `sbox-mcp-<pid>-<ticks>` (newline JSON-RPC). All
+  agent scripts go through `agent/mcp_client.py` (`mcp_call`,
+  `call_tool`, `rpc_envelope`, `rpc_call_tool`). Enable via
+  Project Settings > AI > Enable MCP Communication.
+- Asset formats verified against engine 26.11.x:
+  `.vmdl` must be kv3 modeldoc29 text (header comment required),
+  `.vtex` must be DMX `keyvalues2_noids` `CDmeVtex`,
+  `.vmat` is KV2 `Layer0{...}` and references **source images**
+  (`.png`/`.tga`) — `.vtex` paths are NOT accepted as vmat inputs.
+- Content build: 0 failed after castle-kit re-import (76 FBX from a
+  fresh `kenney_castle-kit` download → `sbox/Assets/models/castle_kit/`).
+- Stand-ins in place (originals lost in machine move — re-acquire for
+  final look): `brick_*` textures = copies of `single_brick_*`,
+  `blocks_*` = copies of `stone_*`, `default_*.tga` = generated 4×4
+  neutrals, `models/medieval/base.fbx` = kenney `gate.fbx`,
+  `models/monuments/acropolis.obj` = placeholder plinth (real CC0 scan
+  needs re-download).
 
 ## Architecture
 
@@ -93,6 +121,16 @@ The authoritative construction representation is `Blueprint`. NPC speech is neve
 22. **Brick workload estimation** (FIX APPLIED ON `brick-wall-hardening`): VillageBuilder estimates ~5k placements per wall segment, uses that for partitioning, and propagates the corrected value into registered `DirectedTask.EstimatedPieces`.
 23. **Builder eye-camera diagnostics** (PARTIAL): citizen child bodies now use local zero instead of world zero after parenting. Camera local position remains `(0,0,64)` until live inspection confirms whether a forward offset is still needed.
 24. **Brick material identity** (ACTIVE): `brick_wall.vmat` still references the stone texture set. Do not treat the reported `stone_wall` name as proven engine deduplication until the override/resource path is visually verified.
+25. ~~task_2 / task_3 reservation conflicts~~ (RESOLVED): `Wall_W_7`/`Wall_W_9` placement validation failed every tick on `VillageBuilderNPC_0`'s active reservation. `ReservationManager.FindBlockingClaim` and `SpatialBlackboard.ClaimBox` treated ALL overlapping active claims as conflicts, including compatible adjacent structural joins. Added `ReservationManager.IsPermittedJoinClaim` (join-tolerance check) + a `ClaimBox` overlap predicate so permitted joins pass while unrelated overlaps stay blocked. Verified: zero `ReservationConflict` lines across multi-minute runs.
+26. ~~Stale builder authorization spam~~ (RESOLVED): `VillageBuilderNPC_2 could not authorize task_9` repeated every tick after `task_9` completed. `VillageBuilder.BuildLoop` kept `CurrentDirectedTaskId` after the task left `PendingExecution`. The loop now clears the directed task when it is no longer pending/in-progress, releasing ownership cleanly.
+27. ~~Stockpile routing gap~~ (RESOLVED): task haul jobs hard-targeted `stockyard_0` while 298 units sat in `brick_staging_0`. `SupplyTaskMaterials` now walks `ResourceRegistry.StockpilesWithResource` (item-aware, multi-pile, partial-take `min(remaining, AvailableOutgoing)`); raw materials may come from sources, crafted materials only from stockpiles; `ProductionPlanner` supplies workstation inputs from a stockpile OR a source; `ResourceRegistry.Transfer` is the atomic conservation-preserving pile→pile move. Verified: `claimed job ... Brick stockpile:brick_staging_0 -> task:task_N` + `delivered` lines.
+28. ~~Starvation watchdog false-positives~~ (RESOLVED): tasks were failed after 90 s while a hauler was literally carrying their materials — `SupplyTaskMaterials` correctly created 0 *new* jobs (dedup) but the watchdog read that as "unsuppliable". Watchdog is now per-requirement (`LogisticsBoard.HasActiveJob(taskId, type)` + pipeline-presence check): a req starves only if the material is nowhere in stockpiles, in-flight jobs, live sources, or production. Verified: zero spurious `STARVED` lines; only genuinely wood-dependent tasks (post-depletion) fail under `Test3_4_Failure`.
+29. ~~Crafter partial-input loop~~ (RESOLVED): Mason looped `stockpile had only 0/2 Clay` → walk to bench → `missing inputs at craft time`. `CrafterController.DoFetchInputs` now walks back only after ALL recipe inputs are acquired; partial/zero fetches release and retry. Verified: clean `no stockpile has inputs — giving up` + retry, no ping-pong.
+30. ~~Gatherer stuck-reset bug~~ (RESOLVED): `_stuckTimer` reset whenever NavMesh emitted any nonzero wish velocity, so crawling agents never triggered recovery. Now progress-based: resets only after meaningful ground distance over a 2 s window; warps after 15 s without progress; baselines reset on `WalkingToStockpile` entry.
+31. ~~Stale `job:` outgoing holds strangling supply~~ (RESOLVED): `LogisticsBoard.Clear()` wiped the job dict but left `job:haul_N` outgoing reservations on stockpiles across restarts → `AvailableOutgoing` suppressed to ~0 → zero jobs created, silently. `Clear()` now calls `ResourceRegistry.ClearOutgoingByPrefix("job:")` and `LogisticsPlanner` sweeps dead-job holds each supply cycle (`SweepStaleJobReservations`). Diagnosed via new per-item `contents=[...]` in the `resources` ConCmd dump.
+32. ~~Session-static economy leak (the big one)~~ (RESOLVED): `ResourceBootstrap._initialized` static survived play restarts, so `Initialize` never re-ran → `ResourceRegistry.Clear()` never ran → depleted `ResourceSource` objects and `Stockpile` wrappers pointing at destroyed GameObjects (managed `LuteInventory.Slots` survives play stop → phantom `Orex220`/`Stonex230` counts) persisted across sessions. The world genuinely contained zero Brick/Clay/Wood — `jobs: 0` was correct behavior on a dead world. Fix: bootstrap now re-initializes the whole economy each `LuteGame.OnStart` (same pattern as `CapabilityRegistry.Clear()`). Same-family fix: `WorkstationRegistry.DiscoverAll` now re-binds `ws.Bench` on re-registration instead of skipping (scene GameObject ids are stable across sessions; stale bench refs failed `IsValid()`).
+33. **Test3_4 wood depletion is intentional** (CLARIFIED, not a bug): `Gate3Benchmark` on `Test3_4_Failure` deliberately depletes the wood source mid-run to exercise starvation recovery. Wood-derived task failures (cottages/shops past `task_59`) are the DESIGNED outcome — the recovery path (`SettlementNeedBoard.OnTaskFailed` reopening needs) is what to watch.
+34. **Remaining economy limits** (ACTIVE, by design or future work): source yields are finite and NOT regenerated per session beyond the bootstrap re-init — a long-running settlement will still exhaust the 5 synthetic sources. `village_stockpile` fills only via hauler deposits. Ore/Stone have no production consumer yet (no smeltery/mason-stone recipe observed in the loop). The `LogisticsPlanner` `MaxJobsPerCycle=10` cap means a fully-starved village takes many cycles to ramp supply — fine for now.
 
 ## Next architectural target
 

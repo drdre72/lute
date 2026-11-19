@@ -23,9 +23,9 @@ if [ -z "$MAIN_PUSH" ]; then
     exit 0
 fi
 
-# Check if S&Box editor is running (MCP server on 7269)
-if ! python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:7269/mcp', timeout=3)" 2>/dev/null; then
-    echo "  [WARN] S&Box MCP server not reachable — skipping verification."
+# Check if S&Box editor is running (MCP named pipe sbox-mcp-*)
+if ! python -c "import sys; sys.path.insert(0, 'agent'); from mcp_client import find_pipe; find_pipe()" 2>/dev/null; then
+    echo "  [WARN] S&Box MCP pipe not reachable — skipping verification."
     echo "  (Start the S&Box editor with MCP enabled to run pre-push checks.)"
     exit 0
 fi

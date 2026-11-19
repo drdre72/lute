@@ -19,8 +19,8 @@
 #>
 
 param(
-    [string]$RepoRoot = "C:\Users\Shadow\Documents\lute",
-    [string]$SboxLogDir = "C:\Users\Shadow\Documents\sbox-public-clean\game\logs",
+    [string]$RepoRoot = "D:\Documents\lute-main\lute-main",
+    [string]$SboxLogDir = "D:\SteamLibrary\steamapps\common\sbox\logs",
     [string]$ScenePath = "",
     [int]$LogTailLines = 40
 )

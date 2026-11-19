@@ -99,3 +99,6 @@ sbox/UnitTests/obj/
 # Lute.Core build output
 sbox/code/Lute.Core/bin/
 sbox/code/Lute.Core/obj/
+
+# S&Box asset metadata (editor-generated, not tracked upstream)
+*.meta

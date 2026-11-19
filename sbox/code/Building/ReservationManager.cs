@@ -126,7 +126,7 @@ namespace Lute.Building
 			}
 
 			// 2. Check against active reservations
-			var blocker = FindBlockingClaim( aabb, excludeTaskId ?? "" );
+			var blocker = FindBlockingClaim( aabb, excludeTaskId ?? "", taskType );
 			if ( blocker.HasValue )
 			{
 				Vector3? nearest = searchNearest
@@ -333,7 +333,7 @@ namespace Lute.Building
 				return ReservationResult.Rejected( $"occupied by {occupied.Source ?? occupied.Id}", occupied.Source );
 			}
 
-			var blocker = FindBlockingClaim( bounds, task.Id );
+			var blocker = FindBlockingClaim( bounds, task.Id, task.BuildTask?.TaskType );
 			if ( blocker.HasValue )
 			{
 				Log.Info( $"Lute: ReservationConflict request={task.Id} name={task.BuildTask?.Name ?? "?"} type={task.BuildTask?.TaskType ?? "?"} bounds={bounds.Mins}:{bounds.Maxs} blocked_by={blocker.Value.Owner ?? "unknown"} kind=reservation" );
@@ -347,9 +347,11 @@ namespace Lute.Building
 				return ReservationResult.Rejected( "reservation conflict", blocker.Value.Owner );
 			}
 
-			if ( !SpatialBlackboard.ClaimBox( npcName, bounds, "construction", 0, task.Id ) )
+			var requestTaskType = task.BuildTask?.TaskType;
+			if ( !SpatialBlackboard.ClaimBox( npcName, bounds, "construction", 0, task.Id,
+				other => IsPermittedJoinClaim( bounds, other, requestTaskType ) ) )
 			{
-				blocker = FindBlockingClaim( bounds, task.Id );
+				blocker = FindBlockingClaim( bounds, task.Id, requestTaskType );
 				return ReservationResult.Rejected( "reservation conflict", blocker?.Owner );
 			}
 
@@ -554,7 +556,33 @@ namespace Lute.Building
 			return false;
 		}
 
-		static SpatialClaim? FindBlockingClaim( BBox bounds, string taskId )
+		/// <summary>
+		/// Whether an overlapping blackboard claim is a permitted structural
+		/// join (abutting wall segment, road intersection, etc.) rather than
+		/// a real conflict. Mirrors the exemption in
+		/// <see cref="FindBlockingClaim"/>; used as the ClaimBox
+		/// allowOverlap predicate so claim acquisition follows the same
+		/// rule as conflict detection.
+		/// </summary>
+		static bool IsPermittedJoinClaim( BBox bounds, SpatialClaim other, string requestTaskType )
+		{
+			if ( requestTaskType == null || !other.Bounds.HasValue || string.IsNullOrEmpty( other.TaskId ) )
+				return false;
+			var blockerTask = ConstructionDirector.GetTask( other.TaskId );
+			if ( !IsJoinCompatible( requestTaskType, blockerTask?.BuildTask?.TaskType ) )
+				return false;
+			// ClaimBox already established intersection — allow if either
+			// horizontal axis overlaps by no more than the join tolerance
+			// (a thin shared face), matching AabbJoinOverlap's rule minus
+			// its minimum-overlap precondition.
+			float ixX = Math.Min( bounds.Maxs.x, other.Bounds.Value.Maxs.x )
+				- Math.Max( bounds.Mins.x, other.Bounds.Value.Mins.x );
+			float ixY = Math.Min( bounds.Maxs.y, other.Bounds.Value.Maxs.y )
+				- Math.Max( bounds.Mins.y, other.Bounds.Value.Mins.y );
+			return ixX <= JoinTolerance || ixY <= JoinTolerance;
+		}
+
+		static SpatialClaim? FindBlockingClaim( BBox bounds, string taskId, string requestTaskType = null )
 		{
 			foreach ( var claim in SpatialBlackboard.GetClaims() )
 			{
@@ -562,6 +590,21 @@ namespace Lute.Building
 
 				if ( claim.Bounds.HasValue )
 				{
+					// Structural joins (wall-wall segment abutments/corners,
+					// road intersections) may share a thin boundary face —
+					// same rule as FindBlockingOccupancy. Without it,
+					// adjacent wall tasks deadlock on each other's active
+					// reservations even though the finished walls may
+					// legitimately abut.
+					bool isJoin = false;
+					if ( requestTaskType != null && !string.IsNullOrEmpty( claim.TaskId ) )
+					{
+						var blockerTask = ConstructionDirector.GetTask( claim.TaskId );
+						isJoin = IsJoinCompatible( requestTaskType, blockerTask?.BuildTask?.TaskType );
+					}
+					if ( isJoin && AabbJoinOverlap( bounds, claim.Bounds.Value ) )
+						continue;
+
 					if ( AabbOverlapsVolume( bounds, claim.Bounds.Value, TouchTolerance ) ) return claim;
 					continue;
 				}

@@ -105,6 +105,7 @@ namespace Lute.Building
 		private string _activeDirectedTaskId; // exact DirectedTask.Id the NPC is currently building (director mode)
 		private string _npcId;       // resolved blackboard identity
 		private string _activeClaimId; // non-null while we hold a build-site claim
+		private float _authorizeRetryTimer; // throttles authorize-failure warns/retries
 		private bool _npcIdResolved;
 		private static int _fallbackIdCounter;
 
@@ -171,6 +172,7 @@ namespace Lute.Building
 
 			_stateTimer += Time.Delta;
 			_logTimer += Time.Delta;
+			_authorizeRetryTimer -= Time.Delta;
 
 			// Keep the shared blackboard clock ticking and publish our position
 			// every tick so other NPCs know where we are.
@@ -429,12 +431,48 @@ namespace Lute.Building
 				if ( UseDirector && !string.IsNullOrEmpty( Builder.CurrentDirectedTaskId ) )
 				{
 					var taskId = Builder.CurrentDirectedTaskId;
+					var dt = ConstructionDirector.GetTask( taskId );
+
+					// Already executing (authorized earlier, or restored from a
+					// save) — transition to Building without re-authorizing.
+					if ( dt != null && dt.Status == TaskStatus.InProgress &&
+						 dt.AssignedBuilder == Builder.BuilderId && Builder.CurrentTask != null )
+					{
+						_activeDirectedTaskId = taskId;
+						State = NpcState.Building;
+						_stateTimer = 0;
+						_buildingTaskIndex = Builder.CurrentTaskIndex;
+						Controller.WishVelocity = Vector3.Zero;
+						Log.Info( $"Lute: VillageBuilderController arrived at '{dt.BuildTask?.Name}'. Building (task already in progress)." );
+						return;
+					}
+
+					// Stale claim: the task was failed, deferred, completed, or
+					// reassigned to another builder while we walked. The executor
+					// clears CurrentDirectedTaskId once it notices — stand down
+					// quietly instead of spamming authorize retries every tick.
+					if ( dt == null || dt.AssignedBuilder != Builder.BuilderId ||
+						 dt.Status != TaskStatus.PendingExecution )
+					{
+						if ( _authorizeRetryTimer <= 0f )
+						{
+							_authorizeRetryTimer = 10f;
+							Log.Info( $"Lute: VillageBuilderController '{_npcId}' held stale task {taskId} (status={dt?.Status}, assigned={dt?.AssignedBuilder}) — standing down until the executor resyncs." );
+						}
+						Controller.WishVelocity = Vector3.Zero;
+						return;
+					}
+
 					if ( !ConstructionDirector.AuthorizeExecution( taskId, _npcId ) )
 					{
-						Log.Warning( $"Lute: VillageBuilderController '{_npcId}' could not authorize {taskId}." );
+						if ( _authorizeRetryTimer <= 0f )
+						{
+							_authorizeRetryTimer = 5f;
+							Log.Warning( $"Lute: VillageBuilderController '{_npcId}' could not authorize {taskId}." );
+						}
 						// Try to claim a different task from the director.
 						var altTask = ConstructionDirector.ClaimNextTask( Builder.BuilderId, _npcId );
-						if ( altTask != null && altTask.BuildTask != null )
+						if ( altTask != null && altTask.BuildTask != null && altTask.Id != taskId )
 						{
 							Builder.CurrentDirectedTaskId = altTask.Id;
 							_currentTarget = altTask.BuildTask.Position;
@@ -444,6 +482,7 @@ namespace Lute.Building
 						Controller.WishVelocity = Vector3.Zero;
 						return;
 					}
+					_authorizeRetryTimer = 0f;
 
 					_activeDirectedTaskId = taskId;
 					State = NpcState.Building;

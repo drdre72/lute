@@ -104,6 +104,8 @@ namespace Lute.Building
 		float _logTimer;
 		float _stuckTimer;
 		bool _usingNavMesh;
+		Vector3 _progressPos;
+		float _progressTimer;
 		int _builderId = -1;
 
 		/// <summary>
@@ -170,6 +172,8 @@ namespace Lute.Building
 						_stateTimer = 0f;
 						_stuckTimer = 0f;
 						Log.Info( $"Lute: Gatherer '{NpcName}' arrived at source '{_targetSource.Id}' ({_gatherType}) → gathering." );
+						_progressPos = WorldPosition;
+						_progressTimer = 0f;
 					}
 					break;
 				}
@@ -205,6 +209,8 @@ namespace Lute.Building
 							_targetStockpile = null;
 							_stateTimer = 0f;
 							_stuckTimer = 0f;
+							_progressPos = WorldPosition;
+							_progressTimer = 0f;
 						}
 					}
 					break;
@@ -341,6 +347,8 @@ namespace Lute.Building
 			State = GathererState.WalkingToSource;
 			_stateTimer = 0f;
 			_stuckTimer = 0f;
+			_progressPos = WorldPosition;
+			_progressTimer = 0f;
 			Log.Info( $"Lute: Gatherer '{NpcName}' heading to source '{best.Id}' ({_gatherType}) at {best.Position}." );
 		}
 
@@ -389,8 +397,19 @@ namespace Lute.Building
 				}
 				else
 				{
-					// Keep moving via NavMesh; reset stuck timer on progress.
-					_stuckTimer = 0f;
+					// NavMesh is producing velocity — but a trapped agent
+					// can crawl along a mesh edge at a few units/sec forever.
+					// Reset the stuck timer only on real ground covered:
+					// require ≥ 40 units per 2s (~10% of WalkSpeed); a
+					// crawling agent otherwise never triggers the warp.
+					_progressTimer += Time.Delta;
+					if ( _progressTimer >= 2f )
+					{
+						if ( WorldPosition.Distance( _progressPos ) >= 40f * ( _progressTimer / 2f ) )
+							_stuckTimer = 0f;
+						_progressPos = WorldPosition;
+						_progressTimer = 0f;
+					}
 				}
 			}
 			else

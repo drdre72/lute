@@ -1,12 +1,11 @@
 """Restart play mode and check for the new build message."""
-import json, urllib.request, time
+import json, time
+
+from mcp_client import rpc_call_tool as _rpc_call_tool
 
 def mcp_call(tool, args={}):
-    payload = json.dumps({'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call', 'params': {'name': tool, 'arguments': args}})
-    req = urllib.request.Request('http://127.0.0.1:7269/mcp', data=payload.encode(), headers={'Content-Type': 'application/json'})
     try:
-        resp = urllib.request.urlopen(req, timeout=15)
-        return json.loads(resp.read())
+        return _rpc_call_tool(tool, args, timeout=15)
     except Exception as e:
         return {'error': str(e)}
 

@@ -8,15 +8,13 @@ Usage:
     python _wall_camera.py          # set camera and screenshot
     python _wall_camera.py --no-shot # just set camera, no screenshot
 """
-import requests, json, sys, base64, math
+import json, sys, base64, math
 sys.stdout.reconfigure(encoding='utf-8')
 
-MCP = 'http://127.0.0.1:7269/mcp'
+from mcp_client import rpc_call_tool
 
 def call(name, args=None):
-    args = args or {}
-    r = requests.post(MCP, json={'jsonrpc':'2.0','id':1,'method':'tools/call','params':{'name':name,'arguments':args}}, timeout=20)
-    return r.json()
+    return rpc_call_tool(name, args or {}, timeout=20)
 
 # ── Fixed wall camera position ──
 # Wall origin: x=-21252, y=-16968 (Wall_W_54 area)

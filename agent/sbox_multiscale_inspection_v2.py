@@ -17,8 +17,9 @@ import urllib.request
 import urllib.error
 from typing import Dict, List, Any, Optional
 
+from mcp_client import rpc_envelope
+
 # --- Configuration ---
-MCP_ENDPOINT = os.getenv("SBOX_MCP_ENDPOINT", "http://127.0.0.1:7269/mcp")
 VLM_ENDPOINT = os.getenv("VLM_ENDPOINT", "http://localhost:1234/v1/chat/completions")
 VLM_MODEL = os.getenv("VLM_MODEL", "moondream-2b-2025-04-14")
 
@@ -101,22 +102,9 @@ INSPECTION_WAYPOINTS = {
 
 
 def send_mcp_request(method: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """Helper to send JSON-RPC requests to S&Box native MCP endpoint."""
-    payload = {
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": method,
-        "params": params or {}
-    }
-    data = json.dumps(payload).encode('utf-8')
-    req = urllib.request.Request(
-        MCP_ENDPOINT,
-        data=data,
-        headers={"Content-Type": "application/json"}
-    )
+    """Helper to send JSON-RPC requests to S&Box native MCP pipe."""
     try:
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            return json.loads(resp.read().decode('utf-8'))
+        return rpc_envelope(method, params, timeout=5)
     except Exception as e:
         return {"error": f"MCP request failed: {str(e)}"}
 

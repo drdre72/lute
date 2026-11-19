@@ -218,10 +218,15 @@ namespace Lute.Building
 		/// Returns true if the claim was successful, false if another
 		/// NPC already has an overlapping claim. Fires a
 		/// ReservationConflict event on failure.
+		///
+		/// An optional <paramref name="allowOverlap"/> predicate can
+		/// whitelist specific overlapping claims (e.g. structural joins
+		/// like abutting wall segments); the overlap semantics stay with
+		/// the caller.
 		/// </summary>
 		public static bool ClaimBox( string npcName, BBox bounds,
 			string activity = "construction", float expiry = 0,
-			string taskId = null )
+			string taskId = null, Func<SpatialClaim, bool> allowOverlap = null )
 		{
 			// Check for overlapping claims from other NPCs
 			foreach ( var kvp in _claims )
@@ -253,6 +258,8 @@ namespace Lute.Building
 
 				if ( overlap )
 				{
+					if ( allowOverlap != null && allowOverlap( other ) )
+						continue;
 					ConstructionEventBus.Fire( ConstructionEventType.ReservationConflict,
 						taskId: taskId, actor: npcName,
 						parameters: new() { { "blocked_by", other.Owner } } );

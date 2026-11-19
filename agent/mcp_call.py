@@ -7,25 +7,8 @@ Usage:
 """
 import sys
 import json
-import urllib.request
 
-URL = "http://127.0.0.1:7269/mcp"
-
-def rpc(method, params=None):
-    payload = {
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": method,
-        "params": params or {},
-    }
-    data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(
-        URL,
-        data=data,
-        headers={"Content-Type": "application/json"},
-    )
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+from mcp_client import rpc_envelope as rpc
 
 def list_tools():
     r = rpc("tools/list")

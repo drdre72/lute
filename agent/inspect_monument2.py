@@ -2,7 +2,9 @@
 Fixed monument inspection — correct tower positions, moat collision check,
 corner overlap check.
 """
-import json, urllib.request, re, time
+import json, re, time
+
+from mcp_client import rpc_call_tool
 
 M = 39.37
 CENTER = [15748, 15748, 0]
@@ -12,10 +14,7 @@ WALL_H = 12 * M
 TOWER_H = 18 * M
 
 def call(tool, **args):
-    req = json.dumps({'jsonrpc':'2.0','id':1,'method':'tools/call',
-                      'params':{'name':tool,'arguments':args}}).encode()
-    r = urllib.request.urlopen('http://127.0.0.1:7269/mcp', req, timeout=10)
-    return json.loads(r.read().decode())
+    return rpc_call_tool(tool, args, timeout=10)
 
 def trace(frm, to):
     r = call('scene_trace', **{'from':frm,'to':to})

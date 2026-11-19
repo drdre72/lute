@@ -1,6 +1,8 @@
 using System;
 using System.Linq;
 using Sandbox;
+using Lute.Items;
+using Lute.Crafting;
 
 namespace Lute.Building
 {
@@ -116,26 +118,26 @@ namespace Lute.Building
 			if ( existingPending > MaxPendingJobs )
 				return;
 
+			// Release outgoing holds for dead/removed jobs so stale
+			// reservations can't quietly strangle supply.
+			LogisticsBoard.SweepStaleJobReservations();
+
 			int totalCreated = 0;
-			var suppliedTasks = new System.Collections.Generic.HashSet<string>();
 			foreach ( var task in ConstructionDirector.AllTasks() )
 			{
 				if ( task.MaterialsSatisfied ) continue;
 				if ( task.Status == TaskStatus.Complete ) continue;
 				if ( task.Status == TaskStatus.Cancelled || task.Status == TaskStatus.Failed ) continue;
 
+				// Budget new job creation per cycle.
+				if ( totalCreated >= MaxJobsPerCycle ) break;
 				int created = LogisticsBoard.SupplyTaskMaterials( task,
 					task.BuildTask?.Position ?? FallbackCenter );
 				if ( created > 0 )
 				{
 					totalCreated += created;
-					suppliedTasks.Add( task.Id );
 					Log.Info( $"Lute: LogisticsPlanner — created {created} haul jobs for task '{task.Id}' ({task.BuildTask?.Name})." );
 				}
-
-				// Stop if we've created enough this cycle.
-				if ( totalCreated >= MaxJobsPerCycle )
-					break;
 			}
 
 			if ( totalCreated > 0 )
@@ -147,18 +149,23 @@ namespace Lute.Building
 			// task stays starved past StarvationTimeout, fail it -- this
 			// reopens the originating need so the settlement can replan
 			// around the depleted resource.
-			CheckStarvation( suppliedTasks );
+			CheckStarvation();
 		}
 
 		/// <summary>
-		/// Per-task starvation watchdog. A task is "starving" if it
-		/// remained material-unsatisfied with zero new haul jobs this
-		/// supply cycle. After <see cref="StarvationTimeout"/> seconds
-		/// of continuous starvation, the task is failed via
+		/// Per-task starvation watchdog. A task is "starving" only when
+		/// some unsatisfied requirement is truly unobtainable: no active
+		/// haul job carrying it for this task AND its material is
+		/// nowhere in the supply pipeline (not in a stockpile, not
+		/// being hauled, not gatherable, not being produced). "No new
+		/// job created this cycle" is NOT starvation on its own — stock
+		/// may be committed to in-flight jobs or queued behind other
+		/// tasks. After <see cref="StarvationTimeout"/> seconds of
+		/// continuous starvation, the task is failed via
 		/// ConstructionDirector.FailTask, which reopens the originating
 		/// settlement need via SettlementNeedBoard.OnTaskFailed.
 		/// </summary>
-		void CheckStarvation( System.Collections.Generic.HashSet<string> suppliedTasks )
+		void CheckStarvation()
 		{
 			var tasks = ConstructionDirector.AllTasks()
 				.Where( t => !t.MaterialsSatisfied
@@ -170,9 +177,17 @@ namespace Lute.Building
 			var stillStarving = new System.Collections.Generic.HashSet<string>();
 			foreach ( var task in tasks )
 			{
-				if ( suppliedTasks.Contains( task.Id ) )
+				bool starving = task.MaterialRequirements != null
+					&& task.MaterialRequirements.Any( req =>
+						!req.Satisfied
+						&& ( req.Amount - req.Delivered ) > 0
+						&& !LogisticsBoard.HasActiveJob( task.Id, req.Type )
+						&& !MaterialInPipeline( req.Type ) );
+
+				if ( !starving )
 				{
-					// Got supply this cycle -- not starving, reset timer.
+					// Material exists in the pipeline or is already in
+					// flight — the task is backordered, not starving.
 					_starvationSince.Remove( task.Id );
 					continue;
 				}
@@ -201,6 +216,55 @@ namespace Lute.Building
 			// unsatisfied set (completed, failed, or became satisfied).
 			var stale = _starvationSince.Keys.Where( k => !stillStarving.Contains( k ) ).ToList();
 			foreach ( var id in stale ) _starvationSince.Remove( id );
+		}
+
+		/// <summary>
+		/// Whether material of <paramref name="type"/> exists anywhere in
+		/// the supply pipeline: in a stockpile (reserved stock counts —
+		/// it is already committed to an in-flight job), carried by an
+		/// active haul job, gatherable from a live source, or — for
+		/// crafted materials — being produced (an active job is hauling
+		/// one of its recipe inputs to a stockpile). A task whose
+		/// requirements pass this is backordered, not starving.
+		/// </summary>
+		static bool MaterialInPipeline( ItemType type )
+		{
+			// Physically in a stockpile (even fully reserved — that
+			// stock is committed to an in-flight job, i.e. moving).
+			if ( ResourceRegistry.AllStockpiles().Any( p => p.Count( type ) > 0 ) )
+				return true;
+
+			bool IsActiveJob( LogisticsJob j ) =>
+				j.Status == LogisticsJobStatus.Pending
+				|| j.Status == LogisticsJobStatus.Assigned
+				|| j.Status == LogisticsJobStatus.InProgress;
+
+			// Being hauled somewhere by an active job.
+			if ( LogisticsBoard.AllJobs().Any( j => j.ItemType == type && IsActiveJob( j ) ) )
+				return true;
+
+			// Raw material still obtainable from a live source.
+			if ( ItemDefs.IsRawMaterial( type )
+				&& ResourceRegistry.AllSources().Any( s => s.Type == type && !s.IsDepleted ) )
+				return true;
+
+			// Crafted material: alive if an active job is hauling one
+			// of its recipe inputs to a stockpile — a production
+			// supply order in flight means output is coming.
+			if ( ItemDefs.IsCraftedMaterial( type ) )
+			{
+				var recipeEntry = Recipes.All.FirstOrDefault( r => r.Value.OutputType == type );
+				if ( recipeEntry.Key != null )
+				{
+					var inputs = recipeEntry.Value.Inputs.Keys.ToHashSet();
+					if ( LogisticsBoard.AllJobs().Any( j =>
+						inputs.Contains( j.ItemType )
+						&& j.ToId.StartsWith( "stockpile:" )
+						&& IsActiveJob( j ) ) )
+						return true;
+				}
+			}
+			return false;
 		}
 	}
 }

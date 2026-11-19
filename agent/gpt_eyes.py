@@ -39,9 +39,9 @@ import base64
 import json
 import os
 import sys
-import urllib.request
 
-MCP_URL = "http://127.0.0.1:7269/mcp"
+from mcp_client import mcp_call
+
 DEFAULT_MODEL = os.environ.get("GPT_EYES_MODEL", "gpt-5")
 DEFAULT_DETAIL = "high"
 DEFAULT_WIDTH = 1280
@@ -66,25 +66,6 @@ DEFAULT_PROMPT = (
     "Be concrete and terse. No hedging. If something is wrong, say so "
     "and where. If the screen is black or empty, say that explicitly."
 )
-
-
-def mcp_call(method: str, params: dict | None = None) -> dict:
-    """Send a JSON-RPC POST to the S&Box editor MCP server."""
-    payload = {"jsonrpc": "2.0", "id": 1, "method": method}
-    if params is not None:
-        payload["params"] = params
-    data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(
-        MCP_URL,
-        data=data,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        result = json.loads(resp.read().decode("utf-8"))
-    if "error" in result:
-        raise RuntimeError(f"MCP error: {result['error']}")
-    return result.get("result", {})
 
 
 def capture_screenshot(

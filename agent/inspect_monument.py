@@ -10,7 +10,9 @@ MoatOuterHalfWidth = 170m = 6692.9 units
 WallHeight = 12m = 472.4 units
 TowerHeight = 18m = 708.6 units
 """
-import json, urllib.request, re, time
+import json, re, time
+
+from mcp_client import rpc_call_tool
 
 M = 39.37
 CENTER = [15748, 15748, 0]
@@ -21,10 +23,7 @@ TOWER_H = 18 * M      # 708.6
 GATE_GAP = 6 * M      # 236.2
 
 def call(tool, **args):
-    req = json.dumps({'jsonrpc':'2.0','id':1,'method':'tools/call',
-                      'params':{'name':tool,'arguments':args}}).encode()
-    r = urllib.request.urlopen('http://127.0.0.1:7269/mcp', req, timeout=10)
-    return json.loads(r.read().decode())
+    return rpc_call_tool(tool, args, timeout=10)
 
 def trace(frm, to):
     """Cast a ray, return (hit, hit_name, hit_pos, fraction)."""

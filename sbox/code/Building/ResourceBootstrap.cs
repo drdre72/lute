@@ -37,11 +37,16 @@ namespace Lute.Building
 	/// </summary>
 	public static class ResourceBootstrap
 	{
-		static bool _initialized;
-
 		/// <summary>
 		/// Initialize the bootstrap resource layout around a village
-		/// center. Idempotent — only runs once per session. Discovers
+		/// center. Runs once per play session — called from
+		/// LuteGame.OnStart each play start. Static state persists
+		/// across sessions in S&Box (like CapabilityRegistry), so the
+		/// registry is cleared and the whole economy is re-created:
+		/// without that, later sessions inherit stale ResourceSources
+		/// with depleted yields and Stockpile wrappers whose
+		/// LuteInventory GameObjects were destroyed on play stop —
+		/// phantom item counts and zero usable supply. Discovers
 		/// existing <see cref="ResourceNode"/> components in the scene
 		/// and registers them, then spawns a central stockyard and a
 		/// brick staging stockpile (both backed by real
@@ -49,9 +54,6 @@ namespace Lute.Building
 		/// </summary>
 		public static void Initialize( Vector3 center )
 		{
-			if ( _initialized ) return;
-			_initialized = true;
-
 			ResourceRegistry.Clear();
 
 			int discovered = 0;

@@ -7,8 +7,8 @@ Matches the proven format from medieval/base.vmdl.
 import os
 from pathlib import Path
 
-REPO = Path(r"C:\Users\Shadow\Documents\lute\sbox\Assets")
-ADDON = Path(r"C:\Users\Shadow\Documents\sbox-public-clean\game\addons\lute\Assets")
+REPO = Path(r"D:\Documents\lute-main\lute-main\sbox\Assets")
+ADDON = Path(os.environ.get("LUTE_ADDON_ROOT", r"D:\Documents\lute-main\lute-main\sbox")) / "Assets"
 MODEL_DIR = "models/castle_kit"
 
 # Use our existing stone material as default (proven to work)

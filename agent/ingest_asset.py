@@ -465,12 +465,14 @@ def main():
     print(f"  .vmdl: {vmdl_path}")
     print(f"  Model path (for code): {vmdl_rel}")
 
-    # Sync to live addon if under sbox/Assets
+    # Sync to live addon if under sbox/Assets. The project is opened in
+    # place by the editor, so the live copy IS the repo — a configured
+    # LUTE_ADDON_ROOT pointing elsewhere will still sync.
     if not args.dry_run and vmdl_path.startswith(SBOX_ASSETS):
-        live_addon = os.path.join(os.path.dirname(SBOX_ASSETS), "..",
-                                  "sbox-public-clean", "game", "addons", "lute")
+        live_addon = os.environ.get("LUTE_ADDON_ROOT",
+                                    os.path.join(REPO_ROOT, "sbox"))
         live_addon = os.path.normpath(live_addon)
-        if os.path.isdir(live_addon):
+        if os.path.isdir(live_addon) and os.path.normpath(live_addon) != os.path.normpath(os.path.join(REPO_ROOT, "sbox")):
             rel_to_assets = os.path.relpath(vmdl_path, SBOX_ASSETS)
             live_vmdl = os.path.join(live_addon, "Assets", rel_to_assets)
             os.makedirs(os.path.dirname(live_vmdl), exist_ok=True)

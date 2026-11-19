@@ -264,14 +264,19 @@ namespace Lute.Building
 				return;
 			}
 
-			// Find the nearest stockpile that has at least one input.
+			// Find the nearest stockpile holding any input we're missing.
+			// A pile need only contribute part of the recipe — we collect
+			// what we can and re-evaluate next tick, migrating to other
+			// piles as different inputs become available.
 			Stockpile bestPile = null;
 			float bestDist = float.MaxValue;
 
 			foreach ( var input in _recipe.Value.Inputs )
 			{
+				if ( Inventory.CountItem( input.Key ) >= input.Value )
+					continue;
 				var pile = ResourceRegistry.NearestStockpileWithResource(
-					input.Key, WorldPosition, input.Value, NpcName );
+					input.Key, WorldPosition, 1, NpcName );
 				if ( pile != null )
 				{
 					var dist = Vector3.DistanceBetween( WorldPosition, pile.Position );
@@ -303,7 +308,7 @@ namespace Lute.Building
 
 			Stop();
 
-			// Withdraw all inputs from the stockpile into our inventory.
+			// Withdraw whatever missing inputs this pile can supply.
 			foreach ( var input in _recipe.Value.Inputs )
 			{
 				int need = input.Value;
@@ -314,15 +319,19 @@ namespace Lute.Building
 				int withdrawn = bestPile.Withdraw( input.Key, missing );
 				if ( withdrawn > 0 )
 					Inventory.AddItem( input.Key, withdrawn );
-
-				if ( withdrawn < missing )
-				{
-					Log.Warning( $"Lute: Crafter '{NpcName}' stockpile {bestPile.Id} had only {withdrawn}/{missing} {input.Key}." );
-				}
 			}
 
-			Log.Info( $"Lute: Crafter '{NpcName}' fetched inputs for {_recipeName} from {bestPile.Id}." );
-			State = CrafterState.WalkingToBenchWithInputs;
+			// Only head to the bench once we can actually craft. If the
+			// pile couldn't fully satisfy the recipe, stay here and
+			// re-evaluate next tick — another pile (or a fresh supply
+			// delivery) may hold the rest. Walking to the bench with a
+			// partial recipe just fails at craft time and ping-pongs
+			// the crafter between pile and bench forever.
+			if ( _recipe.Value.CanCraft( Inventory ) )
+			{
+				Log.Info( $"Lute: Crafter '{NpcName}' fetched inputs for {_recipeName} from {bestPile.Id}." );
+				State = CrafterState.WalkingToBenchWithInputs;
+			}
 			_stateTimer = 0f;
 		}
 

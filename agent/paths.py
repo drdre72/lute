@@ -7,10 +7,13 @@ install locations.
 
 Env vars:
   LUTE_REPO_ROOT   — repo root (default: parent of this file's dir)
-  LUTE_ADDON_ROOT  — editor's live addon copy
-                     (default: C:\\Users\\Shadow\\Documents\\sbox-public-clean\\game\\addons\\lute)
-  LUTE_ENGINE_ROOT — engine source + game install
-                     (default: C:\\Users\\Shadow\\Documents\\sbox-public-clean)
+  LUTE_ADDON_ROOT  — the project folder as the editor sees it
+                     (default: REPO_ROOT\\sbox — the project is opened
+                     in place by the Steam editor, so repo == live copy)
+  LUTE_ENGINE_ROOT — engine source root
+                     (default: D:\\Programs\\sbox-public-master)
+  LUTE_SBOX_INSTALL — running editor install
+                     (default: D:\\SteamLibrary\\steamapps\\common\\sbox)
 """
 import os
 
@@ -23,12 +26,17 @@ REPO_ROOT = os.environ.get(
 
 ADDON_ROOT = os.environ.get(
     'LUTE_ADDON_ROOT',
-    r'C:\Users\Shadow\Documents\sbox-public-clean\game\addons\lute',
+    os.path.join(REPO_ROOT, 'sbox'),
 )
 
 ENGINE_ROOT = os.environ.get(
     'LUTE_ENGINE_ROOT',
-    r'C:\Users\Shadow\Documents\sbox-public-clean',
+    r'D:\Programs\sbox-public-master',
+)
+
+SBOX_INSTALL = os.environ.get(
+    'LUTE_SBOX_INSTALL',
+    r'D:\SteamLibrary\steamapps\common\sbox',
 )
 
 # Common sub-paths

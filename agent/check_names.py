@@ -1,10 +1,9 @@
-import json, urllib.request, re
+import json, re
+
+from mcp_client import rpc_call_tool
 
 def call(tool, **args):
-    req = json.dumps({'jsonrpc':'2.0','id':1,'method':'tools/call',
-                      'params':{'name':tool,'arguments':args}}).encode()
-    r = urllib.request.urlopen('http://127.0.0.1:7269/mcp', req, timeout=10)
-    return json.loads(r.read().decode())
+    return rpc_call_tool(tool, args, timeout=10)
 
 # List all Well objects
 r = call('find_game_objects', name='Well')

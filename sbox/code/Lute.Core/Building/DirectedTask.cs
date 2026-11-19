@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Numerics;
 using Lute.Core.Spatial;
 
 namespace Lute.Core.Building;
@@ -45,7 +44,7 @@ public sealed class DirectedTask
 	/// decimeters (10 units = 1 dm). Deterministic spatial sort key
 	/// so wall segments near each other sort together.
 	/// </summary>
-	public static string ComputeGrid8( Vector3 pos )
+	public static string ComputeGrid8( System.Numerics.Vector3 pos )
 	{
 		int x = (int)( pos.X / 10f );
 		int y = (int)( pos.Y / 10f );

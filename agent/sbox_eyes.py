@@ -17,52 +17,10 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import urllib.request
 
-MCP_URL = "http://127.0.0.1:7269/mcp"
+from mcp_client import mcp_call, call_tool
+
 M_TO_UNITS = 39.3701  # S&Box units per meter (inches)
-
-
-def mcp_call(method: str, params: dict | None = None) -> dict:
-    """Send a JSON-RPC POST to the S&Box editor MCP server."""
-    payload = {
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": method,
-    }
-    if params is not None:
-        payload["params"] = params
-
-    data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(
-        MCP_URL,
-        data=data,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        result = json.loads(resp.read().decode("utf-8"))
-
-    if "error" in result:
-        raise RuntimeError(f"MCP error: {result['error']}")
-    return result.get("result", {})
-
-
-def call_tool(name: str, arguments: dict | None = None) -> dict:
-    """Call an MCP tool by name."""
-    params = {"name": name}
-    if arguments:
-        params["arguments"] = arguments
-    result = mcp_call("tools/call", params)
-    # MCP tool results come back as {content: [{type: "text", text: "..."}]}
-    if isinstance(result, dict) and "content" in result:
-        for item in result["content"]:
-            if item.get("type") == "text":
-                try:
-                    return json.loads(item["text"])
-                except (json.JSONDecodeError, KeyError):
-                    return {"_raw": item["text"]}
-    return result
 
 
 def list_tools() -> list:
@@ -348,7 +306,8 @@ def main() -> int:
 
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
-        print(f"(Is the S&Box editor running with MCP enabled on {MCP_URL}?)",
+        print("(Is the S&Box editor running with MCP enabled? Check "
+              "Project Settings > AI > Enable MCP Communication.)",
               file=sys.stderr)
         return 1
 

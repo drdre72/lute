@@ -514,8 +514,29 @@ namespace Lute.Building
 						while ( !ConstructionDirector.IsExecutionAuthorized( directed.Id ) )
 						{
 							token.ThrowIfCancellationRequested();
+
+							// If the task left PendingExecution — retried, deferred,
+							// failed, completed elsewhere, or reassigned after our
+							// reservation was released — our claim is gone. Bail and
+							// reclaim through the outer loop instead of waiting
+							// forever on a stale task id.
+							var latest = ConstructionDirector.GetTask( directed.Id );
+							if ( latest == null || latest.AssignedBuilder != BuilderId ||
+								 ( latest.Status != TaskStatus.PendingExecution && latest.Status != TaskStatus.InProgress ) )
+							{
+								Log.Info( $"Lute: VillageBuilder[{BuilderId}] (director) lost claim on '{task.Name}' ({directed.Id}) while awaiting execution — status={latest?.Status}, assigned={latest?.AssignedBuilder}. Reclaiming." );
+								CurrentDirectedTaskId = null;
+								CurrentTask = null;
+								CurrentTaskIndex = -1;
+								directed = null;
+								break;
+							}
+
 							await GameTask.DelaySeconds( 0.2f );
 						}
+
+						if ( directed == null )
+							continue;
 
 						Log.Info( $"Lute: VillageBuilder[{BuilderId}] (director) building '{task.Name}' ({task.TaskType}) at {task.Position} — NPC arrived." );
 

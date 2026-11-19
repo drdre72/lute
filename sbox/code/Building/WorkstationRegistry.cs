@@ -37,9 +37,9 @@ namespace Lute.Building
 		public class Workstation
 		{
 			public string Id { get; init; }
-			public CraftingBench Bench { get; init; }
+			public CraftingBench Bench { get; set; }
 			public BenchType Type => Bench.Bench;
-			public Vector3 Position => Bench.WorldPosition;
+			public Vector3 Position => Bench != null && Bench.IsValid() ? Bench.WorldPosition : Vector3.Zero;
 			public string ReservedBy { get; set; }
 			public bool IsReserved => !string.IsNullOrEmpty( ReservedBy );
 		}
@@ -68,8 +68,14 @@ namespace Lute.Building
 			foreach ( var bench in Game.ActiveScene.GetAllComponents<CraftingBench>() )
 			{
 				var id = $"bench:{bench.GameObject.Name}:{bench.Id}";
-				if ( _stations.ContainsKey( id ) )
+				if ( _stations.TryGetValue( id, out var existing ) )
+				{
+					// Re-bind the live component — static registry state
+					// persists across play sessions while the scene's
+					// GameObjects are destroyed and recreated.
+					existing.Bench = bench;
 					continue;
+				}
 				_stations[id] = new Workstation
 				{
 					Id = id,
@@ -91,7 +97,8 @@ namespace Lute.Building
 				return null;
 
 			var candidates = _stations.Values
-				.Where( s => s.Type == type && !s.IsReserved );
+				.Where( s => s.Type == type && !s.IsReserved
+					&& s.Bench != null && s.Bench.IsValid() );
 
 			if ( nearPos.HasValue )
 				candidates = candidates.OrderBy( s => Vector3.DistanceBetween( s.Position, nearPos.Value ) );

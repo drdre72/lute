@@ -4,16 +4,16 @@
     "*.hlsl": "slang"
   },
   "slang.additionalSearchPaths": [
-    "C:\\Users\\Shadow\\Documents\\sbox-public-clean\\game\\core\\shaders",
-    "C:\\Users\\Shadow\\Documents\\sbox-public-clean\\game\\addons\\base\\Assets\\shaders",
-    "C:\\Users\\Shadow\\Documents\\sbox-public-clean\\game\\addons\\menu\\Assets\\shaders",
-    "C:\\Users\\Shadow\\Documents\\sbox-public-clean\\game\\addons\\tools\\Assets\\shaders",
-    "C:\\Users\\Shadow\\Documents\\sbox-public-clean\\game\\editor\\ShaderGraph\\Assets\\shaders",
-    "C:\\Users\\Shadow\\Documents\\sbox-public-clean\\game\\editor\\ActionGraph\\Assets\\shaders",
-    "C:\\Users\\Shadow\\Documents\\sbox-public-clean\\game\\editor\\MovieMaker\\Assets\\shaders",
-    "C:\\Users\\Shadow\\Documents\\sbox-public-clean\\game\\editor\\Hammer\\Assets\\shaders",
-    "C:\\Users\\Shadow\\Documents\\sbox-public-clean\\game\\editor\\DooEditor\\Assets\\shaders",
-    "C:\\Users\\Shadow\\Documents\\sbox-public-clean\\game\\addons\\lute\\Assets\\shaders"
+    "D:\\SteamLibrary\\steamapps\\common\\sbox\\core\\shaders",
+    "D:\\SteamLibrary\\steamapps\\common\\sbox\\addons\\menu\\Assets\\shaders",
+    "D:\\SteamLibrary\\steamapps\\common\\sbox\\addons\\tools\\Assets\\shaders",
+    "D:\\SteamLibrary\\steamapps\\common\\sbox\\editor\\ShaderGraph\\Assets\\shaders",
+    "D:\\SteamLibrary\\steamapps\\common\\sbox\\editor\\ActionGraph\\Assets\\shaders",
+    "D:\\SteamLibrary\\steamapps\\common\\sbox\\editor\\MovieMaker\\Assets\\shaders",
+    "D:\\SteamLibrary\\steamapps\\common\\sbox\\editor\\Hammer\\Assets\\shaders",
+    "D:\\SteamLibrary\\steamapps\\common\\sbox\\editor\\DooEditor\\Assets\\shaders",
+    "D:\\SteamLibrary\\steamapps\\common\\sbox\\editor\\AnimGraph\\Assets\\shaders",
+    "D:\\Documents\\lute-main\\lute-main\\sbox\\Assets\\shaders"
   ],
   "slang.predefinedMacros": [],
   "slang.workspaceFlavor": "vfx"

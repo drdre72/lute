@@ -218,11 +218,14 @@ Professor's guiding principle (applied):
 
 ## Key repo paths
 
-- Repo root: `C:\Users\Shadow\Documents\lute`
+- Repo root: `D:\Documents\lute-main\lute-main`
 - S&Box project: `sbox/`  •  Gameplay code: `sbox/code/`
-- Live addon copy (keep in sync): `C:\Users\Shadow\Documents\sbox-public-clean\game\addons\lute`
-- Engine source: `C:\Users\Shadow\Documents\sbox-public-clean`
-- API cache: `docs_cache/api_signatures.md` (773 types, 387KB)
+- Live project: opened **in place** by the Steam editor (`sbox/.sbproj`).
+  No addon mirror — repo == live copy.
+- Engine source (API reference): `D:\Programs\sbox-public-master`
+- Editor install (bin/managed, logs): `D:\SteamLibrary\steamapps\common\sbox`
+- Build junction: `D:\Documents\lute-main\bin` → Steam `sbox\bin`
+- API cache: `docs_cache/api_signatures.md` (941 types, 503KB — regenerated 2026-11-19)
 - Stable knowledge: `AGENTS.md`  •  Full history: `PROGRESS_LOG.md`
 
 ## Live runtime (S&Box native MCP)

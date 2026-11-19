@@ -16,18 +16,16 @@ Usage from other scripts:
 """
 import json, urllib.request, base64, os, sys, math, re, time, io
 
-MCP = 'http://127.0.0.1:7269/mcp'
+from mcp_client import rpc_call_tool
+
 VISION = 'http://127.0.0.1:1234/v1/chat/completions'
 MODEL = 'qwen3-vl-4b-instruct'
 SCRAP = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'scrap')
 
 
 def call(tool, **args):
-    """Make a single MCP JSON-RPC call."""
-    req = json.dumps({'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',
-                      'params': {'name': tool, 'arguments': args}}).encode()
-    r = urllib.request.urlopen(MCP, req, timeout=20)
-    return json.loads(r.read().decode())
+    """Make a single MCP JSON-RPC call over the editor's named pipe."""
+    return rpc_call_tool(tool, args, timeout=20)
 
 
 def vantage(tx, ty, tz, distance=1500, height=400, yaw=0):

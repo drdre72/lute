@@ -254,17 +254,31 @@ resurrect it.
     tools; good reference for how the *editor* mutates terrain at runtime
     (`SyncGPUTexture`, `UpdateCollision`, etc.) even though those tools
     themselves are editor-only.
-  - `game/addons/lute/` — **the editor's live copy of this project**. S&Box
-    installs/mounts game projects as addons inside its own install
-    directory. If this repo's `sbox/` folder is ever lost, check here first
-    — it survives independently of the repo folder. Keep both copies in
-    sync manually (copy changed `.cs`/`.scene` files both directions) until
-    a proper sync workflow exists.
 
-A directory junction exists at `C:\Users\Shadow\Documents\bin` →
-`sbox-public-clean\game\bin` so `dotnet build sbox/code/lute.csproj` resolves
-its `../../../bin/managed/*.dll` references from the CLI (mirrors what the
-S&Box editor does internally).
+## Environment layout (2026-11 reinstall)
+
+- Repo: `D:\Documents\lute-main\lute-main\` (fresh GitHub zip extract;
+  no `.git` — remote is https://github.com/drdre72/lute.git).
+- Engine source (API reference only, NOT built):
+  `D:\Programs\sbox-public-master\` — this repo's `engine/`, `game/addons/`
+  source trees. Replaces the old `sbox-public-clean` path everywhere.
+- Running editor/engine (Steam install):
+  `D:\SteamLibrary\steamapps\common\sbox\` — has `bin/managed/*.dll`,
+  `sbox.exe`, `sbox-dev.exe`. Editor logs land in `logs/` under here once
+  the editor runs (`sbox-dev*.log`).
+- **The project is opened in place.** The Steam editor opens
+  `sbox\.sbproj` directly — the repo's `sbox/` folder IS the live project;
+  it watches `code/` and recompiles on save. There is NO separate
+  `game/addons/lute` mirror anymore, and no manual sync step. (The old
+  `sbox-public-clean\game\addons\lute` mirror is gone with that install.)
+
+A directory junction exists at `D:\Documents\lute-main\bin` →
+`D:\SteamLibrary\steamapps\common\sbox\bin` so
+`dotnet build sbox/code/lute.csproj` resolves its
+`../../../bin/managed/*.dll` references from the CLI (the Steam install's
+own managed assemblies — the same DLLs the game runs against).
+.NET 10 SDK is installed at `C:\Program Files\dotnet\` (add to PATH if a
+shell doesn't see it).
 
 ## Closing the vision gap: `agent/sbox_verify.ps1`
 
@@ -287,7 +301,7 @@ with three independent signals, each cheap to reason about as plain text:
    shader/texture problem. This is a coarse proxy, not real vision — don't
    over-trust exact colors, use it to catch gross failures (black screen,
    viewport not visible, etc).
-2. **Editor log tail** (`sbox-public-clean/game/logs/sbox-dev*.log`) — the
+2. **Editor log tail** (`D:\SteamLibrary\steamapps\common\sbox\logs\sbox-dev*.log`) — the
    most reliable signal. Every `LuteGame`/`LuteWorld`/`LuteTerrainGenerator`
    `Log.Info(...)` call shows up here with a timestamp, so you can confirm
    code actually ran (not just compiled). Lines matching
@@ -304,13 +318,26 @@ latest code (not a stale build) actually executed.
 
 ## Closing the vision gap: MCP spatial probing (`agent/sbox_eyes.py`)
 
-The S&Box editor ships a built-in MCP (Model Context Protocol) server at
-`http://127.0.0.1:7269/mcp` (on by default, Editor → Preferences → MCP
-Server). It exposes scene query tools as JSON-RPC — `find_game_objects`,
+The S&Box editor ships a built-in MCP (Model Context Protocol) server.
+**Transport changed (engine 26.11.x):** the old HTTP endpoint
+(`127.0.0.1:7269/mcp`) is gone — each engine process now listens on a
+**Windows named pipe** `sbox-mcp-<pid>-<startTimeTicks:hex>` carrying
+newline-delimited UTF-8 JSON-RPC. Enable it via Project Settings → AI →
+"Enable MCP Communication" (on by default). `agent/mcp_client.py` is the
+shared client every agent script uses: it discovers the pipe by listing
+`//./pipe/sbox-mcp-*`, opens it with the `//./pipe/` forward-slash form
+(`\\.\pipe\` fails in some Pythons), retries briefly while the server
+spins up a new instance after a client disconnects, and exposes
+`mcp_call(method, params)` (unwrapped result), `call_tool(name, args)`
+(text → JSON), plus `rpc_envelope`/`rpc_call_tool` for legacy envelope
+access. Set `SBOX_MCP_PIPE` to pin a specific pipe.
+
+The server exposes scene query tools as JSON-RPC — `find_game_objects`,
 `get_game_object`, `scene_trace` (raycast), `play_start`/`play_stop`,
 `read_console`, `editor_status`, etc. See `game/addons/tools/Code/Mcp/`
-for the full toolset source, and `docs_cache/api_signatures.md` (MCP
-Tools section) for the scraped signatures.
+for the full toolset source, `engine/Sandbox.Engine/Systems/Mcp/` for the
+pipe transport, and `docs_cache/api_signatures.md` (MCP Tools section)
+for the scraped signatures.
 
 `agent/sbox_eyes.py` wraps these calls into a single script:
 
@@ -398,7 +425,8 @@ python agent\gpt_eyes.py --detail high            # vision detail (auto/low/high
 - API key: set `OPENAI_API_KEY` env var, or write it to `agent/.openai_key`
   (gitignored). The Devin secrets manager is cloud-only (no local read-back),
   so the key must be available locally for this script.
-- S&Box editor running with MCP enabled on `http://127.0.0.1:7269/mcp`.
+- S&Box editor running with MCP enabled (named pipe `sbox-mcp-*`; see the
+  MCP transport note in the `sbox_eyes.py` section above).
 - GPT-5 is in the free-tier eligible list (250k tokens/day shared quota).
 
 **Default prompt** asks for a structured spatial description: scene overview,
@@ -707,7 +735,8 @@ and `LuteBuilderNpc.PlaceBlock`.
 ## Closing the vision gap: live agent control via MCP
 
 The agent can drive an in-game body live through the S&Box native MCP
-endpoint (`http://127.0.0.1:7269/mcp`) — this is the closest thing to
+endpoint (named pipe `sbox-mcp-*` via `agent/mcp_client.py`) — this is
+the closest thing to
 "being in the world" for a vision-less agent. Pattern (verified on
 `LuteBuilderNpc`):
 
@@ -754,37 +783,20 @@ Requires the `Documents\bin` junction described above. Expect one harmless
 warning (`MSB9008 ... Base Library.csproj does not exist` — a stale
 `ProjectReference` from the project template; not used by this repo's code).
 
-## Editor reload workflow (sync + restart play mode)
+## Editor reload workflow (restart play mode)
 
-After editing `.cs` or `.scene` files in the repo, the **live S&Box editor
-copy** at `C:\Users\Shadow\Documents\sbox-public-clean\game\addons\lute\`
-must be synced and the editor must reload before runtime reflects the
-changes. The editor does not watch the repo folder — it only sees the
-addon copy. There is no in-editor "reload scene" MCP tool; the reliable
-cycle is **sync files → stop play mode → wait for recompile → start play
-mode**. Stopping and starting play mode forces the editor to re-import
-the scene and re-run `LuteWorld.Build()`, which is the only way new scene
-JSON (e.g. added cameras) or new code actually takes effect at runtime.
+The editor opens the repo's `sbox/` folder **in place** — no sync step
+anymore (the old `game/addons/lute` mirror is gone; see "Environment
+layout" above). Code edits are picked up by the editor's file watcher and
+recompiled automatically. What still requires a manual cycle is getting
+*runtime* state to reflect the change — there is no in-editor "reload
+scene" MCP tool; the reliable cycle is **stop play mode → wait for
+recompile → start play mode**. Stopping and starting play mode forces the
+editor to re-import the scene and re-run `LuteWorld.Build()`, which is
+the only way new scene JSON (e.g. added cameras) or new code actually
+takes effect at runtime.
 
-### 1. Sync changed files to the live addon copy
-
-```powershell
-# C# gameplay code
-Copy-Item sbox/code/Building/*.cs `
-  C:\Users\Shadow\Documents\sbox-public-clean\game\addons\lute\code\Building/ `
-  -Force
-
-# Scene files
-Copy-Item sbox/Assets/scenes/lute.scene `
-  C:\Users\Shadow\Documents\sbox-public-clean\game\addons\lute\Assets\scenes/ `
-  -Force
-```
-
-Keep both directions in sync if you ever edit files in the addon copy
-directly (the addon mirror is an accidental backup — see PROGRESS_LOG
-2026-09-06).
-
-### 2. Restart play mode via MCP
+### 1. Restart play mode via MCP
 
 Use one of the existing restart scripts (do not reinvent this each
 session — the order and timing matter):
@@ -811,15 +823,16 @@ mcp('play_start')     # re-enter play mode — re-imports scene, re-runs Build()
 time.sleep(8)         # let LuteWorld.Build() and builder warps complete
 ```
 
-MCP endpoint: `http://127.0.0.1:7269/mcp` (JSON-RPC `tools/call`).
+MCP endpoint: named pipe `sbox-mcp-<pid>-<ticks>` (JSON-RPC `tools/call`,
+newline-delimited) — use `agent/mcp_client.py`, never the dead HTTP URL.
 
-### 3. Why a plain "sync + restart" sometimes isn't enough
+### 2. Why a plain restart sometimes isn't enough
 
 - The editor caches the scene in memory between play sessions. If you
   changed **scene JSON** (cameras, static objects) rather than C# code,
   `play_stop`/`play_start` re-imports the scene file, so it does pick up
-  scene edits — but only if the addon copy was updated *before*
-  `play_stop`. Sync first, always.
+  scene edits — but only if the file was saved to disk *before*
+  `play_stop`.
 - If the editor was already running with the old scene loaded, the
   first `play_stop`/`play_start` cycle after a scene edit is the one
   that imports it. If runtime still shows stale state, run the cycle a
@@ -834,7 +847,7 @@ MCP endpoint: `http://127.0.0.1:7269/mcp` (JSON-RPC `tools/call`).
   `play_start` before `find_game_objects` for those, and re-query IDs
   after every restart — old IDs are invalid.
 
-### 4. Verifying the reload took effect
+### 3. Verifying the reload took effect
 
 - `read_console` with a `since` cursor — filter for `Lute:` / builder
   log lines and compare timestamps to confirm the new code ran.

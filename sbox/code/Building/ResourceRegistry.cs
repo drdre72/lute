@@ -218,6 +218,10 @@ namespace Lute.Building
 
 		public string Summary =>
 			$"{Id} @ {Position} used={Used}/{Capacity} inResv={IncomingReservedTotal}" +
+			( Inventory?.Slots != null
+				? " contents=[" + string.Join( ", ",
+					Inventory.Slots.Where( s => s.Count > 0 ).Select( s => $"{s.Type}x{s.Count}" ) ) + "]"
+				: "" ) +
 			( OutgoingReservations.Count > 0
 				? " outResv=[" + string.Join( ", ",
 					OutgoingReservations.Select( kv => $"{kv.Key}:{string.Join( "+", kv.Value.Select( r => $"{r.Type}x{r.Amount}" ) )}" ) ) + "]"
@@ -426,6 +430,21 @@ namespace Lute.Building
 			return best;
 		}
 
+		/// <summary>
+		/// All stockpiles holding any of <paramref name="type"/>, ordered
+		/// nearest-first. Item-aware alternative to
+		/// <see cref="NearestStockpileWithResource"/> for multi-pile
+		/// fulfillment — callers take what each pile can promise via
+		/// <see cref="Stockpile.AvailableOutgoing"/>.
+		/// </summary>
+		public static List<Stockpile> StockpilesWithResource( ItemType type, Vector3 from )
+		{
+			return _stockpiles.Values
+				.Where( s => s.Count( type ) > 0 )
+				.OrderBy( s => ( s.Position - from ).LengthSquared )
+				.ToList();
+		}
+
 		// ── Reservation APIs ──
 
 		/// <summary>
@@ -511,6 +530,24 @@ namespace Lute.Building
 			return any
 				? ( true, $"released {amount} {type} outgoing" )
 				: ( false, "no matching outgoing reservation" );
+		}
+
+		/// <summary>
+		/// Remove every outgoing reservation whose owner key starts with
+		/// <paramref name="prefix"/> (e.g. "job:"). Used when the job
+		/// board is reset so stale holds from dead jobs don't
+		/// permanently suppress <see cref="Stockpile.AvailableOutgoing"/>.
+		/// </summary>
+		public static void ClearOutgoingByPrefix( string prefix )
+		{
+			foreach ( var pile in _stockpiles.Values )
+			{
+				var stale = pile.OutgoingReservations.Keys
+					.Where( k => k.StartsWith( prefix ) )
+					.ToList();
+				foreach ( var k in stale )
+					pile.OutgoingReservations.Remove( k );
+			}
 		}
 
 		// ── Atomic transfer ──

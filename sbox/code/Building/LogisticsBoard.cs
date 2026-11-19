@@ -114,6 +114,19 @@ namespace Lute.Building
 			if ( amount <= 0 ) return null;
 
 			var id = $"haul_{++_jobSeq}";
+
+			// Reserve the stock at creation so concurrent supply jobs
+			// can't promise the same material twice. The hold is keyed by
+			// job id and released on pickup, completion, or failure.
+			// Without this, N jobs created against the same pile
+			// over-commit and mass-fail at withdraw time.
+			if ( fromId.StartsWith( "stockpile:" ) )
+			{
+				var pile = ResourceRegistry.GetStockpile( fromId.Substring( 10 ) );
+				if ( pile != null && !pile.ReserveOutgoing( $"job:{id}", type, amount ) )
+					return null;
+			}
+
 			var job = new LogisticsJob
 			{
 				Id = id,
@@ -163,6 +176,39 @@ namespace Lute.Building
 		public static LogisticsJob GetJob( string id ) =>
 			!string.IsNullOrEmpty( id ) && _jobs.TryGetValue( id, out var j ) ? j : null;
 
+		/// <summary>
+		/// True if the task has any haul job that is still alive —
+		/// pending, assigned, or in progress. Used by the starvation
+		/// watchdog: a task with an in-flight job is being supplied and
+		/// must not be failed just because SupplyTaskMaterials (correctly)
+		/// created no duplicate job this cycle.
+		/// </summary>
+		public static bool HasActiveJobsForTask( string taskId )
+		{
+			if ( string.IsNullOrEmpty( taskId ) ) return false;
+			return _jobs.Values.Any( j =>
+				j.ForTaskId == taskId
+				&& ( j.Status == LogisticsJobStatus.Pending
+					 || j.Status == LogisticsJobStatus.Assigned
+					 || j.Status == LogisticsJobStatus.InProgress ) );
+		}
+
+		/// <summary>
+		/// True if the task has an active haul job carrying a specific
+		/// material type — the per-requirement version of
+		/// <see cref="HasActiveJobsForTask"/>.
+		/// </summary>
+		public static bool HasActiveJob( string taskId, ItemType type )
+		{
+			if ( string.IsNullOrEmpty( taskId ) ) return false;
+			return _jobs.Values.Any( j =>
+				j.ForTaskId == taskId
+				&& j.ItemType == type
+				&& ( j.Status == LogisticsJobStatus.Pending
+					 || j.Status == LogisticsJobStatus.Assigned
+					 || j.Status == LogisticsJobStatus.InProgress ) );
+		}
+
 		/// <summary> Mark a job as in progress (hauler started moving). </summary>
 		public static (bool success, string detail) StartJob( string jobId, string haulerName )
 		{
@@ -199,6 +245,11 @@ namespace Lute.Building
 
 			if ( job.Status != LogisticsJobStatus.InProgress && job.Status != LogisticsJobStatus.Assigned )
 				return ( false, $"job is {job.Status}, not in progress" );
+
+			// Terminal from here on (Completed or Failed) — release the
+			// creation-time stock hold. The physical withdraw below
+			// consumes the stock; on failure this frees it for other jobs.
+			ResourceRegistry.ReleaseOutgoing( $"job:{job.Id}", job.ItemType, job.Amount );
 
 			// ── Resolve source ──
 			Stockpile sourcePile = null;
@@ -363,6 +414,36 @@ namespace Lute.Building
 		{
 			_jobs.Clear();
 			_jobSeq = 0;
+			// Jobs are gone — so are their creation-time stock holds.
+			// Stockpile objects can outlive the board across play
+			// restarts; without this sweep their outgoing holds linger
+			// forever and silently block all future job creation.
+			ResourceRegistry.ClearOutgoingByPrefix( "job:" );
+		}
+
+		/// <summary>
+		/// Release outgoing stock holds keyed <c>job:*</c> for jobs that
+		/// no longer exist or are no longer active. Cheap integrity
+		/// sweep for in-session leaks (a job removed without going
+		/// through the normal release paths). Called once per supply
+		/// cycle by LogisticsPlanner.
+		/// </summary>
+		public static void SweepStaleJobReservations()
+		{
+			var liveKeys = _jobs.Values
+				.Where( j => j.Status == LogisticsJobStatus.Pending
+					 || j.Status == LogisticsJobStatus.Assigned
+					 || j.Status == LogisticsJobStatus.InProgress )
+				.Select( j => $"job:{j.Id}" )
+				.ToHashSet();
+			foreach ( var pile in ResourceRegistry.AllStockpiles() )
+			{
+				var stale = pile.OutgoingReservations.Keys
+					.Where( k => k.StartsWith( "job:" ) && !liveKeys.Contains( k ) )
+					.ToList();
+				foreach ( var k in stale )
+					pile.OutgoingReservations.Remove( k );
+			}
 		}
 
 		/// <summary>
@@ -395,7 +476,6 @@ namespace Lute.Building
 
 				// Find nearest source or stockpile with the resource
 				ResourceSource src = null;
-				Stockpile pile = null;
 
 				// Crafted materials (Plank, Brick, Timber) must come from
 				// a stockpile — they cannot be gathered directly from a
@@ -407,34 +487,44 @@ namespace Lute.Building
 				{
 					src = ResourceRegistry.NearestSource( req.Type, taskPosition );
 				}
-				pile = ResourceRegistry.NearestStockpileWithResource( req.Type, taskPosition, needed );
 
-				// Prefer stockpile if it has enough (faster than gathering)
-				if ( pile != null && pile.Count( req.Type ) >= needed )
+				// Item-aware multi-pile routing: walk every stockpile that
+				// holds this material, nearest-first, and create a job per
+				// pile for whatever it can actually promise (physical stock
+				// minus outgoing reservations). A pile with only part of the
+				// requirement is still useful, and material spread across
+				// piles gets combined by multiple jobs. CreateJob holds a
+				// job-keyed outgoing reservation at creation, so overlapping
+				// jobs can never double-promise the same stock.
+				int remaining = needed;
+				foreach ( var pile in ResourceRegistry.StockpilesWithResource( req.Type, taskPosition ) )
 				{
-					var jobId = CreateJob( req.Type, needed,
+					if ( remaining <= 0 ) break;
+					int take = Math.Min( remaining, pile.AvailableOutgoing( req.Type, "" ) );
+					if ( take <= 0 ) continue;
+					var jobId = CreateJob( req.Type, take,
 						$"stockpile:{pile.Id}", pile.Position,
 						$"task:{task.Id}", taskPosition,
 						forTaskId: task.Id );
-					if ( jobId != null ) created++;
+					if ( jobId != null )
+					{
+						created++;
+						remaining -= take;
+					}
 				}
-				else if ( src != null )
+
+				// Raw materials only: if stockpiles couldn't cover the whole
+				// requirement, gather the shortfall directly from a source.
+				// Crafted materials are never hauled from sources — the
+				// ProductionPlanner produces them from raw inputs.
+				if ( remaining > 0 && src != null )
 				{
-					// Gather raw material from source, deliver directly
-					// to the build site. Crafted materials are not
-					// hauled from sources — they must be produced by
-					// crafters (driven by ProductionPlanner).
-					var jobId = CreateJob( req.Type, needed,
+					var jobId = CreateJob( req.Type, remaining,
 						$"source:{src.Id}", src.Position,
 						$"task:{task.Id}", taskPosition,
 						forTaskId: task.Id );
 					if ( jobId != null ) created++;
 				}
-				// If req.Type is a crafted material and no stockpile has
-				// it, no haul job is created here. The ProductionPlanner
-				// will detect the unmet demand and create supply orders
-				// to bring raw inputs to the workstation so crafters can
-				// produce it.
 			}
 
 			return created;

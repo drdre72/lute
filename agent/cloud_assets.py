@@ -36,7 +36,6 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REGISTRY_MD = os.path.join(REPO, 'docs', 'assets', 'CLOUD_ASSETS.md')
 REGISTRY_JSON = os.path.join(REPO, 'docs', 'assets', 'cloud_assets.json')
 CODE_DIR = os.path.join(REPO, 'sbox', 'code')
-MCP = 'http://127.0.0.1:7269/mcp'
 
 
 def load_registry():
@@ -99,12 +98,10 @@ def find_canonical_references(ident):
 
 
 def check_mcp_available():
-    """Check if the S&Box MCP server is reachable."""
-    import urllib.request
+    """Check if the S&Box MCP pipe is reachable."""
     try:
-        req = json.dumps({'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',
-                          'params': {'name': 'editor_status', 'arguments': {}}}).encode()
-        r = urllib.request.urlopen(MCP, req, timeout=3)
+        from mcp_client import call_tool
+        call_tool('editor_status', timeout=5)
         return True
     except Exception:
         return False

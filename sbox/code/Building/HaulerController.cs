@@ -204,6 +204,10 @@ namespace Lute.Building
 					return;
 				}
 
+				// Release the job's creation-time hold so our own
+				// reservation below isn't blocked by it.
+				ResourceRegistry.ReleaseOutgoing( $"job:{job.Id}", job.ItemType, job.Amount );
+
 				// Reserve outgoing so no other hauler grabs the same stock.
 				var (resOk, resDetail) = ResourceRegistry.ReserveOutgoing(
 					NpcName, job.ItemType, job.Amount, pile.Position );
@@ -395,8 +399,10 @@ namespace Lute.Building
 				}
 			}
 
-			// Release reservations.
+			// Release reservations — ours plus the job's creation-time hold
+			// (in case the job failed before pickup released it).
 			ResourceRegistry.ReleaseOutgoing( NpcName, _job.ItemType, _job.Amount );
+			ResourceRegistry.ReleaseOutgoing( $"job:{_job.Id}", _job.ItemType, _job.Amount );
 
 			_job.Status = LogisticsJobStatus.Failed;
 			Log.Warning( $"Lute: Hauler '{NpcName}' failed job {_job.Id}." );
